@@ -83,3 +83,4 @@ Then visit: `http://localhost/iotzy/login.php`
 - PHP extensions: PDO, PDO_MySQL, session
 - Modern browser (Chrome, Firefox, Edge)
 - HTTPS recommended for camera access in production
+" " 
