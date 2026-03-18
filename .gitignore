@@ -1,0 +1,8 @@
+.env
+.htaccess
+storage/logs/*.log
+storage/sessions/*
+.vercel
+node_modules
+*.sql
+!database/schema.sql
