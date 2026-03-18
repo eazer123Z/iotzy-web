@@ -27,6 +27,7 @@ function getLocalDB(): ?PDO {
     try {
         // Ambil dari environment Docker
         $h = getenv('MYSQL_HOST') ?: getenv('DB_HOST') ?: DB_MY_HOST;
+        $port = getenv('MYSQL_PORT') ?: '3306';
         $d = getenv('MYSQL_DATABASE') ?: getenv('DB_NAME') ?: DB_MY_NAME;
         $u = getenv('MYSQL_USER')     ?: getenv('DB_USER') ?: DB_MY_USER;
         $p = getenv('MYSQL_PASSWORD') ?: getenv('DB_PASS') ?: DB_MY_PASS;
@@ -36,7 +37,7 @@ function getLocalDB(): ?PDO {
             $h = 'iotzy-mysql';
         }
 
-        $dsn = "mysql:host=$h;dbname=$d;charset=" . DB_CHARSET;
+        $dsn = "mysql:host=$h;port=$port;dbname=$d;charset=" . DB_CHARSET;
         $pdo = new PDO($dsn, $u, $p, [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
