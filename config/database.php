@@ -17,7 +17,7 @@ function getLocalDB(): ?PDO
     try {
         // ENV dari Vercel
         $host = getenv('MYSQL_HOST');
-        $port = getenv('MYSQL_PORT') ?: '3306';
+        $port = getenv('MYSQL_PORT') ?: '25145';
         $db = getenv('MYSQL_DATABASE');
         $user = getenv('MYSQL_USER');
         $pass = getenv('MYSQL_PASSWORD');
