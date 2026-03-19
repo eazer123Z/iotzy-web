@@ -1,112 +1,60 @@
 <?php
 /**
- * config/database.php — FINAL (Aiven + Vercel ENV)
+ * config/database.php — FINAL MASTER (Fixed MySQL SSL)
  */
 
 define('DB_CHARSET', 'utf8mb4');
 
-/**
- * Koneksi MySQL (Primary)
- */
-function getLocalDB(): ?PDO
-{
+function getLocalDB(): ?PDO {
     static $pdo = null;
-    if ($pdo !== null)
-        return ($pdo instanceof PDO) ? $pdo : null;
+    if ($pdo !== null) return ($pdo instanceof PDO) ? $pdo : null;
 
     try {
-        // 🔥 Ambil dari ENV Vercel
-        $host = getenv('MYSQL_HOST');
+        $h = getenv('MYSQL_HOST');
         $port = getenv('MYSQL_PORT') ?: '3306';
-        $db   = getenv('MYSQL_DATABASE');
-        $user = getenv('MYSQL_USER');
-        $pass = getenv('MYSQL_PASSWORD');
+        $d = getenv('MYSQL_DATABASE');
+        $u = getenv('MYSQL_USER');
+        $p = getenv('MYSQL_PASSWORD') ?: getenv('MYSQL_PASS') ?: '';
 
-        // Validasi
-        if (!$host || !$db || !$user || !$pass) {
-            throw new Exception("ENV MySQL belum lengkap!");
-        }
+        if (!$h || !$d || !$u) throw new Exception("ENV MySQL belum lengkap!");
 
-        // 🔥 DSN + SSL REQUIRED (WAJIB untuk Aiven)
-        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=" . DB_CHARSET . ";sslmode=required";
+        // 🔥 DSN Standard MySQL (Tanpa sslmode=required yang bikin eror)
+        $dsn = "mysql:host=$h;port=$port;dbname=$d;charset=" . DB_CHARSET;
 
-        // Options
         $options = [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            // 🔥 INI KUNCI SSL MYSQL:
+            PDO::MYSQL_ATTR_SSL_CA       => '', 
+            PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
         ];
 
-        // SSL fix PHP 8.5
-        if (defined('\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT')) {
-            $options[\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT] = false;
-        }
-
-        // CONNECT
-        $pdo = new PDO($dsn, $user, $pass, $options);
+        $pdo = new PDO($dsn, $u, $p, $options);
+        $pdo->exec("SET NAMES " . DB_CHARSET);
 
     } catch (Throwable $e) {
-        $msg = "[IoTzy] DB ERROR: " . $e->getMessage();
-        error_log($msg);
-
+        $GLOBALS['DB_LAST_ERROR'] = $e->getMessage(); // Simpan pesan eror asli
+        error_log("[IoTzy DB] " . $e->getMessage());
         $pdo = false;
     }
 
     return ($pdo instanceof PDO) ? $pdo : null;
 }
 
-/**
- * PostgreSQL (Optional, tidak dipakai juga gapapa)
- */
-function getPostgresDB(): ?PDO
-{
-    static $pdo = null;
-    if ($pdo !== null)
-        return ($pdo instanceof PDO) ? $pdo : null;
-
-    return null; // disable aja biar clean
-}
-
-/**
- * Query Write
- */
-function dbWrite(string $sql, array $params = []): bool
-{
+// Fungsi pembantu lainnya sesuaikan dengan yang Anda punya
+function dbWrite($sql, $params = []) {
     $db = getLocalDB();
-    if (!$db)
-        return false;
-
-    try {
-        return $db->prepare($sql)->execute($params);
-    } catch (PDOException $e) {
-        error_log('[IoTzy] dbWrite error: ' . $e->getMessage());
-        return false;
-    }
+    return $db ? $db->prepare($sql)->execute($params) : false;
 }
 
-/**
- * Insert + return ID
- */
-function dbInsert(string $sql, array $params = []): ?int
-{
+function dbInsert($sql, $params = []) {
     $db = getLocalDB();
-    if (!$db)
-        return null;
-
-    try {
-        $db->prepare($sql)->execute($params);
-        return (int)$db->lastInsertId();
-    } catch (PDOException $e) {
-        error_log('[IoTzy] dbInsert error: ' . $e->getMessage());
-        return null;
-    }
+    if (!$db) return null;
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    return (int)$db->lastInsertId();
 }
 
-/**
- * Status DB
- */
-function dbStatus(): array
-{
-    return [
-        'mysql' => getLocalDB() !== null,
-    ];
+function dbStatus(): array {
+    return [ 'mysql' => getLocalDB() !== null ];
 }
