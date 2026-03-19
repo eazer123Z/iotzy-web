@@ -1,57 +1,59 @@
 <?php
 /**
- * config/database.php — FINAL VERSION (Vercel Ready)
- * Support: MySQL (Primary) + PostgreSQL (Optional Backup)
+ * config/database.php — FINAL (PHP 8.5 + Vercel Ready)
  */
 
-// Charset default
 define('DB_CHARSET', 'utf8mb4');
 
 /**
- * Get koneksi PDO MySQL (Primary)
+ * Koneksi MySQL (Primary)
  */
 function getLocalDB(): ?PDO {
     static $pdo = null;
     if ($pdo !== null) return ($pdo instanceof PDO) ? $pdo : null;
 
     try {
-        // Ambil dari ENV (WAJIB untuk Vercel)
-        $h = getenv('MYSQL_HOST');
+        // Ambil ENV dari Vercel
+        $host = getenv('MYSQL_HOST');
         $port = getenv('MYSQL_PORT') ?: '3306';
-        $d = getenv('MYSQL_DATABASE');
-        $u = getenv('MYSQL_USER');
-        $p = getenv('MYSQL_PASSWORD');
+        $db   = getenv('MYSQL_DATABASE');
+        $user = getenv('MYSQL_USER');
+        $pass = getenv('MYSQL_PASSWORD');
 
         // Validasi ENV
-        if (!$h || !$d || !$u) {
-            throw new Exception("ENV MySQL belum lengkap (MYSQL_HOST / DB / USER)");
+        if (!$host || !$db || !$user) {
+            throw new Exception("ENV MySQL belum lengkap!");
         }
 
-        // DSN
-        $dsn = "mysql:host=$h;port=$port;dbname=$d;charset=" . DB_CHARSET;
+        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=" . DB_CHARSET;
 
-        // PDO Options (SUDAH FIX deprecated)
+        // OPTIONS (SUDAH FIX PHP 8.5)
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ];
 
-        // Optional SSL (beberapa provider butuh ini)
+        // SSL (optional - auto detect constant baru)
+        if (defined('\Pdo\Mysql::ATTR_SSL_CA')) {
+            $options[\Pdo\Mysql::ATTR_SSL_CA] = '';
+        }
+
         if (defined('\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT')) {
             $options[\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT] = false;
         }
 
-        $pdo = new PDO($dsn, $u, $p, $options);
+        $pdo = new PDO($dsn, $user, $pass, $options);
 
     } catch (Throwable $e) {
-        $msg = "[IoTzy] DB Error: " . $e->getMessage();
+        $msg = "[IoTzy] DB ERROR: " . $e->getMessage();
         error_log($msg);
 
-        // DEBUG MODE (boleh dihapus kalau sudah live)
-        echo "❌ GAGAL KONEK DB<br>";
+        // DEBUG (hapus nanti kalau sudah live)
+        echo "<h3>❌ GAGAL KONEK DATABASE</h3>";
         echo "Error: " . htmlspecialchars($e->getMessage()) . "<br>";
-        echo "HOST: " . htmlspecialchars($h ?? 'NULL') . "<br>";
-        echo "DB: " . htmlspecialchars($d ?? 'NULL') . "<br>";
+        echo "HOST: " . htmlspecialchars($host ?? 'NULL') . "<br>";
+        echo "DB: " . htmlspecialchars($db ?? 'NULL') . "<br>";
+        echo "USER: " . htmlspecialchars($user ?? 'NULL') . "<br>";
 
         $pdo = false;
     }
@@ -67,18 +69,18 @@ function getPostgresDB(): ?PDO {
     if ($pdo !== null) return ($pdo instanceof PDO) ? $pdo : null;
 
     try {
-        $h = getenv('POSTGRES_HOST');
-        $d = getenv('POSTGRES_DB');
-        $u = getenv('POSTGRES_USER');
-        $p = getenv('POSTGRES_PASSWORD');
+        $host = getenv('POSTGRES_HOST');
+        $db   = getenv('POSTGRES_DB');
+        $user = getenv('POSTGRES_USER');
+        $pass = getenv('POSTGRES_PASSWORD');
 
-        if (!$h || !$d || !$u) {
-            return null; // optional aja
+        if (!$host || !$db || !$user) {
+            return null; // optional
         }
 
-        $dsn = "pgsql:host=$h;dbname=$d";
+        $dsn = "pgsql:host=$host;dbname=$db";
 
-        $pdo = new PDO($dsn, $u, $p, [
+        $pdo = new PDO($dsn, $user, $pass, [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ]);
@@ -92,7 +94,7 @@ function getPostgresDB(): ?PDO {
 }
 
 /**
- * Write query (INSERT/UPDATE/DELETE)
+ * Query Write (INSERT / UPDATE / DELETE)
  */
 function dbWrite(string $sql, array $params = []): bool {
     $db = getLocalDB();
@@ -125,7 +127,7 @@ function dbInsert(string $sql, array $params = []): ?int {
 }
 
 /**
- * Status koneksi DB
+ * Status DB
  */
 function dbStatus(): array {
     return [
