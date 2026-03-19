@@ -39,7 +39,11 @@ const AdminManager = {
         } catch (e) {
             console.error('Admin Load Error:', e);
             const tbody = document.getElementById('adminUserTableBody');
-            if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:60px;color:var(--red)"><i class="fas fa-exclamation-triangle"></i> ${e.message}</td></tr>`;
+            let errorMsg = e.message;
+            if (errorMsg.includes('HTTP 401')) errorMsg = 'Sesi berakhir. Silakan login ulang.';
+            if (errorMsg.includes('HTTP 403')) errorMsg = 'Akses ditolak. Fitur ini hanya untuk Administrator.';
+            
+            if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:60px;color:var(--red)"><i class="fas fa-exclamation-triangle"></i> ${errorMsg}</td></tr>`;
         }
     },
 
@@ -214,6 +218,7 @@ const AdminManager = {
     },
 
     async viewUserDetails(id, username) {
+        this.currentViewUserId = id; // Store for asset deletion
         document.getElementById('detailUserLabel').textContent = username;
         const container = document.getElementById('userDetailContent');
         container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.5"><i class="fas fa-spinner fa-spin"></i> Memuat detail...</div>';
@@ -229,42 +234,45 @@ const AdminManager = {
 
             // Devices Section
             html += `<div class="detail-section">
-                <h4><i class="fas fa-microchip"></i> Daftar Perangkat (${devices.length})</h4>`;
+                <h4 style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center">
+                    <span><i class="fas fa-microchip"></i> Daftar Perangkat (${devices.length})</span>
+                </h4>`;
             if (devices.length === 0) {
-                html += '<div style="opacity:0.5; font-size:12px; padding:10px">Tidak ada perangkat.</div>';
+                html += '<div style="opacity:0.5; font-size:12px; padding:10px">Tidak ada perangkat tersambung.</div>';
             } else {
                 devices.forEach(d => {
                     html += `
-                        <div class="detail-item">
-                            <div>
-                                <div class="detail-name">${d.name}</div>
-                                <div class="detail-meta">${d.type}</div>
+                        <div class="detail-item" style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid var(--border)">
+                            <div style="flex:1">
+                                <div class="detail-name" style="font-weight:700">${d.name}</div>
+                                <div class="detail-meta" style="font-size:11px; opacity:0.6">${d.type} · <span class="status-indicator ${d.status === 'online' ? 'active' : 'inactive'}"></span> ${d.status}</div>
                             </div>
-                            <div class="detail-meta" style="text-align:right">
-                                <span class="status-indicator ${d.status === 'online' ? 'active' : 'inactive'}"></span>
-                                ${d.status}
-                            </div>
+                            <button class="admin-action-btn delete" onclick="deleteUserAsset(${id}, 'device', ${d.id})" title="Hapus Perangkat">
+                                <i class="fas fa-trash-alt" style="font-size:11px"></i>
+                            </button>
                         </div>`;
                 });
             }
             html += `</div>`;
 
             // Sensors Section
-            html += `<div class="detail-section">
-                <h4><i class="fas fa-signal"></i> Daftar Sensor (${sensors.length})</h4>`;
+            html += `<div class="detail-section" style="margin-top:20px">
+                <h4 style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center">
+                    <span><i class="fas fa-signal"></i> Daftar Sensor (${sensors.length})</span>
+                </h4>`;
             if (sensors.length === 0) {
-                html += '<div style="opacity:0.5; font-size:12px; padding:10px">Tidak ada sensor.</div>';
+                html += '<div style="opacity:0.5; font-size:12px; padding:10px">Tidak ada sensor terdeteksi.</div>';
             } else {
                 sensors.forEach(s => {
                     html += `
-                        <div class="detail-item">
-                            <div>
-                                <div class="detail-name">${s.name}</div>
-                                <div class="detail-meta">${s.type}</div>
+                        <div class="detail-item" style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid var(--border)">
+                            <div style="flex:1">
+                                <div class="detail-name" style="font-weight:700">${s.name}</div>
+                                <div class="detail-meta" style="font-size:11px; opacity:0.6">${s.type} · <span style="color:var(--a)">${s.value} ${s.unit}</span></div>
                             </div>
-                            <div class="detail-meta" style="text-align:right; font-weight:700; color:var(--a)">
-                                ${s.value} ${s.unit}
-                            </div>
+                            <button class="admin-action-btn delete" onclick="deleteUserAsset(${id}, 'sensor', ${s.id})" title="Hapus Sensor">
+                                <i class="fas fa-trash-alt" style="font-size:11px"></i>
+                            </button>
                         </div>`;
                 });
             }
@@ -273,6 +281,27 @@ const AdminManager = {
             container.innerHTML = html;
         } catch (e) {
             container.innerHTML = `<div style="color:var(--danger);padding:20px;text-align:center">${e.message}</div>`;
+        }
+    },
+
+    async deleteUserAsset(userId, type, assetId) {
+        if (!confirm(`Hapus ${type === 'device' ? 'perangkat' : 'sensor'} ini secara permanen? Tindakan ini tidak dapat dibatalkan.`)) return;
+        
+        const action = type === 'device' ? 'admin_delete_user_device' : 'admin_delete_user_sensor';
+        const data = type === 'device' ? { device_id: assetId } : { sensor_id: assetId };
+
+        try {
+            const res = await apiPost(action, data);
+            if (res && res.success) {
+                showToast(res.message, 'success');
+                // Refresh detail modal
+                this.viewUserDetails(userId, document.getElementById('detailUserLabel').textContent);
+                this.loadUsers(); // Refresh main list to update counts
+            } else {
+                showToast(res?.error || 'Gagal menghapus aset', 'error');
+            }
+        } catch (e) {
+            showToast('Gagal sinkronisasi penghapusan', 'error');
         }
     }
 };
@@ -284,5 +313,6 @@ window.handleAdminUserSubmit = (e) => AdminManager.handleSubmit(e);
 window.editAdminUser = (id) => AdminManager.editUser(id);
 window.deleteAdminUser = (id, username) => AdminManager.deleteUser(id, username);
 window.viewAdminUserDetails = (id, username) => AdminManager.viewUserDetails(id, username);
+window.deleteUserAsset = (uid, type, aid) => AdminManager.deleteUserAsset(uid, type, aid);
 window.filterAdminUsers = (q) => AdminManager.setSearch(q);
 window.filterAdminByRole = (r) => AdminManager.setRoleFilter(r);

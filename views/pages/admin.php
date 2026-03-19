@@ -271,8 +271,9 @@
           <input type="email" id="adminEmail" class="form-control" placeholder="john@example.com" required>
         </div>
         <div class="form-group">
-          <label id="adminPassLabel">Password</label>
-          <input type="password" id="adminPassword" class="form-control" placeholder="Keep empty to leave unchanged">
+          <label id="adminPassLabel">Password Policy</label>
+          <input type="password" id="adminPassword" class="form-control" placeholder="Biarkan kosong jika tidak ingin diubah">
+          <p style="font-size:10px; color:var(--ink-5); margin-top:5px">ℹ️ Untuk operator baru, wajib diisi minimal 8 karakter. Untuk edit, hanya isi jika ingin mereset password.</p>
         </div>
         <div class="grid-2">
             <div class="form-group">

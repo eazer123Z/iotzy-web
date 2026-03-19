@@ -119,4 +119,49 @@ function handleAdminAction(string $action, int $adminId, array $body, PDO $db): 
             jsonOut(['success' => false, 'error' => 'Username atau Email sudah ada.']);
         }
     }
+
+    // ===================== DELETE USER DEVICE =====================
+    if ($action === 'admin_delete_user_device') {
+        $deviceId = (int)($body['device_id'] ?? 0);
+        if (!$deviceId) jsonOut(['success' => false, 'error' => 'ID Perangkat tidak valid.']);
+
+        try {
+            $stmt = $db->prepare("DELETE FROM devices WHERE id = ?");
+            $stmt->execute([$deviceId]);
+            jsonOut(['success' => true, 'message' => 'Perangkat berhasil dihapus.']);
+        } catch (Exception $e) {
+            jsonOut(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    // ===================== DELETE USER SENSOR =====================
+    if ($action === 'admin_delete_user_sensor') {
+        $sensorId = (int)($body['sensor_id'] ?? 0);
+        if (!$sensorId) jsonOut(['success' => false, 'error' => 'ID Sensor tidak valid.']);
+
+        try {
+            $stmt = $db->prepare("DELETE FROM sensors WHERE id = ?");
+            $stmt->execute([$sensorId]);
+            jsonOut(['success' => true, 'message' => 'Sensor berhasil dihapus.']);
+        } catch (Exception $e) {
+            jsonOut(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    // ===================== RESET USER PASSWORD =====================
+    if ($action === 'admin_reset_user_password') {
+        $targetId = (int)($body['id'] ?? 0);
+        $newPass  = $body['password'] ?? '';
+
+        if (!$targetId || !$newPass) jsonOut(['success' => false, 'error' => 'Data tidak lengkap.']);
+        
+        $hash = password_hash($newPass, PASSWORD_BCRYPT, ['cost' => 12]);
+        try {
+            $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+            $stmt->execute([$hash, $targetId]);
+            jsonOut(['success' => true, 'message' => 'Password berhasil direset.']);
+        } catch (Exception $e) {
+            jsonOut(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
 }
