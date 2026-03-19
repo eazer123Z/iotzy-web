@@ -7,7 +7,7 @@
  */
 
 // OpenRouter AI API
-define('OPENROUTER_API_KEY', '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');
+define('OPENROUTER_API_KEY', getenv('OPENROUTER_API_KEY') ?: '');
 
-// Telegram Bot — default token jika user belum set sendiri
-define('TELEGRAM_BOT_TOKEN', '8536855955:AAGCSpoDJHAMgQBVDoSswKTwx3U1L2a-56Y');
+// Telegram Bot
+define('TELEGRAM_BOT_TOKEN', getenv('TELEGRAM_BOT_TOKEN') ?: '');
