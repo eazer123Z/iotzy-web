@@ -13,20 +13,21 @@ function startSecureSession(): void
     if (session_status() === PHP_SESSION_ACTIVE)
         return;
 
-    // 🔥 FIX: Hanya gunakan /tmp di Docker atau sistem Unix (bukan Windows)
+    // 🔥 DETEKSI UNTUK WINDOWS: Jangan set session_save_path manual di Windows/Laragon
     if (!isset($_SERVER['VERCEL']) && DIRECTORY_SEPARATOR === '/') {
         if (!is_dir('/tmp')) @mkdir('/tmp', 0777, true);
-        session_save_path('/tmp');
+        @session_save_path('/tmp');
     }
 
     $lifetime = defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400;
 
     session_set_cookie_params([
-        'lifetime' => $lifetime,
-        'path' => '/',
-        'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+        'lifetime' => defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400,
+        'path'     => '/',
+        'domain'   => null,
+        'secure'   => false, // 🔑 Force false di local jika HTTP
         'httponly' => true,
-        'samesite' => 'Lax',
+        'samesite' => 'Lax'
     ]);
 
     session_start();

@@ -51,22 +51,28 @@ require_once $baseDir . '/core/response.php';
 registerApiErrorHandler();
 
 
+// ==================== ERROR SUPPRESSION (JSON PROTECTION) ====================
+// 🔥 Cegah HTML error pecahin JSON response
+error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
 // ==================== SESSION FIX ====================
 
-// 🔥 DETEKSI ENV (MINIMAL)
+// 🔥 DETEKSI ENV
 $isVercel = isset($_SERVER['VERCEL']);
 $isDocker = file_exists('/.dockerenv');
 
 if ($isVercel) {
     require_once $baseDir . '/core/PersistentSession.php';
-
     if (!session_id()) {
         session_set_save_handler(new PersistentSessionHandler(), true);
     }
 }
 if (!$isVercel) {
+    // Only use /tmp on Docker/Linux. On Windows/Laragon, let PHP use defaults.
     if (DIRECTORY_SEPARATOR === '/') {
         if (!is_dir('/tmp')) @mkdir('/tmp', 0777, true);
-        session_save_path('/tmp');
+        @session_save_path('/tmp');
     }
 }

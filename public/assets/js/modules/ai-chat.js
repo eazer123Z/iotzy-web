@@ -49,7 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
             const res  = await fetch(`${base}/api/data_router.php?action=get_ai_chat_history`, {
-                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }
+                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
+                credentials: 'include'
             });
             const data = await res.json();
 
@@ -73,7 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
                 await fetch(`${base}/api/data_router.php?action=delete_chat_history`, {
                     method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }
+                    headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
+                    credentials: 'include'
                 });
                 chatBody.innerHTML = `
                     <div class="chat-bubble bot">
