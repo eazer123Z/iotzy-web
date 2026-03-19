@@ -49,8 +49,8 @@ const AdminManager = {
                 <td>${u.email}</td>
                 <td>
                     <div style="display:flex; flex-direction:column; gap:4px">
-                        <span class="admin-stat-pill"><i class="fas fa-microchip"></i> ${u.device_count || 0} Device</span>
-                        <span class="admin-stat-pill"><i class="fas fa-signal"></i> ${u.sensor_count || 0} Sensor</span>
+                        <span class="admin-stat-pill device"><i class="fas fa-microchip"></i> ${u.device_count || 0} Device</span>
+                        <span class="admin-stat-pill sensor"><i class="fas fa-signal"></i> ${u.sensor_count || 0} Sensor</span>
                     </div>
                 </td>
                 <td><span class="role-badge ${u.role}">${u.role}</span></td>
@@ -61,6 +61,9 @@ const AdminManager = {
                 <td>${u.last_login ? formatDate(u.last_login) : '<span style="opacity:0.4">Belum pernah</span>'}</td>
                 <td>
                     <div class="table-actions">
+                        <button class="action-btn view" onclick="viewAdminUserDetails(${u.id}, '${u.username}')" title="Liat Detail Setup">
+                            <i class="fas fa-eye"></i>
+                        </button>
                         <button class="action-btn edit" onclick="editAdminUser(${u.id})" title="Edit User">
                             <i class="fas fa-edit"></i>
                         </button>
@@ -156,6 +159,68 @@ const AdminManager = {
         } catch (e) {
             showToast('Gagal menghapus user', 'error');
         }
+    },
+
+    async viewUserDetails(id, username) {
+        document.getElementById('detailUserLabel').textContent = username;
+        const container = document.getElementById('userDetailContent');
+        container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.5"><i class="fas fa-spinner fa-spin"></i> Memuat detail...</div>';
+        openModal('modal-user-detail');
+
+        try {
+            const res = await apiPost('admin_get_user_details', { id });
+            if (!res.success) throw new Error(res.error);
+
+            const { devices, sensors } = res.data;
+            let html = '';
+
+            // Devices Section
+            html += `<div class="detail-section">
+                <h4><i class="fas fa-microchip"></i> Daftar Perangkat (${devices.length})</h4>`;
+            if (devices.length === 0) {
+                html += '<div style="opacity:0.5; font-size:12px; padding:10px">Tidak ada perangkat.</div>';
+            } else {
+                devices.forEach(d => {
+                    html += `
+                        <div class="detail-item">
+                            <div>
+                                <div class="detail-name">${d.name}</div>
+                                <div class="detail-meta">${d.type}</div>
+                            </div>
+                            <div class="detail-meta" style="text-align:right">
+                                <span class="status-indicator ${d.status === 'online' ? 'active' : 'inactive'}"></span>
+                                ${d.status}
+                            </div>
+                        </div>`;
+                });
+            }
+            html += `</div>`;
+
+            // Sensors Section
+            html += `<div class="detail-section">
+                <h4><i class="fas fa-signal"></i> Daftar Sensor (${sensors.length})</h4>`;
+            if (sensors.length === 0) {
+                html += '<div style="opacity:0.5; font-size:12px; padding:10px">Tidak ada sensor.</div>';
+            } else {
+                sensors.forEach(s => {
+                    html += `
+                        <div class="detail-item">
+                            <div>
+                                <div class="detail-name">${s.name}</div>
+                                <div class="detail-meta">${s.type}</div>
+                            </div>
+                            <div class="detail-meta" style="text-align:right; font-weight:700; color:var(--primary)">
+                                ${s.value} ${s.unit}
+                            </div>
+                        </div>`;
+                });
+            }
+            html += `</div>`;
+
+            container.innerHTML = html;
+        } catch (e) {
+            container.innerHTML = `<div style="color:var(--danger);padding:20px;text-align:center">${e.message}</div>`;
+        }
     }
 };
 
@@ -165,3 +230,4 @@ window.loadAdminUsers = () => AdminManager.loadUsers();
 window.handleAdminUserSubmit = (e) => AdminManager.handleSubmit(e);
 window.editAdminUser = (id) => AdminManager.editUser(id);
 window.deleteAdminUser = (id, username) => AdminManager.deleteUser(id, username);
+window.viewAdminUserDetails = (id, username) => AdminManager.viewUserDetails(id, username);

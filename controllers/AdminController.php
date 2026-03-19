@@ -32,6 +32,34 @@ function handleAdminAction(string $action, int $adminId, array $body, PDO $db): 
         }
     }
 
+    // ===================== GET USER DETAILS =====================
+    if ($action === 'admin_get_user_details') {
+        $targetId = (int)($body['id'] ?? 0);
+        if (!$targetId) jsonOut(['success' => false, 'error' => 'ID User tidak valid.']);
+
+        try {
+            // Get devices
+            $stmt = $db->prepare("SELECT id, name, type, status, last_seen FROM devices WHERE user_id = ? ORDER BY name ASC");
+            $stmt->execute([$targetId]);
+            $devices = $stmt->fetchAll();
+
+            // Get sensors
+            $stmt = $db->prepare("SELECT id, name, type, value, unit, last_update FROM sensors WHERE user_id = ? ORDER BY name ASC");
+            $stmt->execute([$targetId]);
+            $sensors = $stmt->fetchAll();
+
+            jsonOut([
+                'success' => true,
+                'data' => [
+                    'devices' => $devices,
+                    'sensors' => $sensors
+                ]
+            ]);
+        } catch (Exception $e) {
+            jsonOut(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
     // ===================== UPDATE USER =====================
     if ($action === 'admin_update_user') {
         $targetId = (int)($body['id'] ?? 0);

@@ -20,8 +20,13 @@
 
   <style>
     /* Premium Admin UI Overrides */
-    #page-admin .data-table th { padding: 14px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; }
-    #page-admin .data-table td { vertical-align: middle; }
+    #page-admin .data-table { border-collapse: separate; border-spacing: 0 8px; background: transparent; }
+    #page-admin .data-table tr { background: rgba(255,255,255,0.02); border-radius: 12px; transition: all 0.2s; }
+    #page-admin .data-table tr:hover { background: rgba(255,255,255,0.05); transform: translateY(-1px); }
+    #page-admin .data-table th { background: transparent; padding: 12px 20px; color: rgba(255,255,255,0.4); border: none; }
+    #page-admin .data-table td { padding: 16px 20px; border: none; border-top: 1px solid rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.03); }
+    #page-admin .data-table td:first-child { border-left: 1px solid rgba(255,255,255,0.03); border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
+    #page-admin .data-table td:last-child { border-right: 1px solid rgba(255,255,255,0.03); border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
     
     .admin-stat-pill {
         display: inline-flex;
@@ -29,42 +34,36 @@
         gap: 6px;
         padding: 4px 10px;
         background: rgba(255,255,255,0.05);
-        border-radius: 20px;
+        border-radius: 8px;
         font-size: 11px;
         font-weight: 600;
         border: 1px solid rgba(255,255,255,0.03);
     }
-    .admin-stat-pill i { font-size: 10px; opacity: 0.6; }
+    .admin-stat-pill.device { color: var(--primary); background: rgba(var(--primary-rgb), 0.1); }
+    .admin-stat-pill.sensor { color: #2ed573; background: rgba(46, 213, 115, 0.1); }
 
-    /* Modal Styling Fix for Premium Dark Look */
+    /* Detail Modal Styles */
+    .detail-section { margin-bottom: 20px; background: rgba(0,0,0,0.2); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05); }
+    .detail-section h4 { font-size: 13px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .detail-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .detail-item:last-child { border: none; }
+    .detail-name { font-weight: 600; font-size: 13px; }
+    .detail-meta { font-size: 11px; opacity: 0.6; }
+
+    /* Modal Styling Fix */
     .modal-content {
-        background: rgba(15, 23, 42, 0.95) !important;
-        backdrop-filter: blur(20px) !important;
+        background: #0f172a !important;
         border: 1px solid rgba(255,255,255,0.1) !important;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8) !important;
     }
-    .modal-header h3 { font-weight: 800; letter-spacing: -0.5px; }
+    .modal-header h3 { font-weight: 800; }
     
     #adminUserForm .form-control {
-        background: rgba(0,0,0,0.2) !important;
+        background: rgba(255,255,255,0.03) !important;
         border: 1px solid rgba(255,255,255,0.1) !important;
         color: #fff !important;
-        border-radius: 10px !important;
-        padding: 10px 14px !important;
     }
-    #adminUserForm .form-control:focus {
-        border-color: var(--primary) !important;
-        box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1) !important;
-    }
-    #adminUserForm label {
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: rgba(255,255,255,0.5);
-        margin-bottom: 6px;
-        display: block;
-    }
+  </style>
   </style>
 
   <!-- User Stats Cards -->
@@ -174,5 +173,24 @@
         <button type="submit" class="btn btn-primary" id="adminUserSubmitBtn">Simpan</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal Detail User -->
+<div id="modal-user-detail" class="modal">
+  <div class="modal-content" style="max-width:600px">
+    <div class="modal-header">
+      <h3><i class="fas fa-info-circle"></i> Detail Setup User: <span id="detailUserLabel">...</span></h3>
+      <button class="close-btn" onclick="closeModal('modal-user-detail')">&times;</button>
+    </div>
+    <div class="modal-body" style="padding-top:10px">
+      <div id="userDetailContent">
+          <!-- Content will be injected via JS -->
+          <div style="text-align:center;padding:40px;opacity:0.5">Memuat data detail...</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('modal-user-detail')">Tutup</button>
+    </div>
   </div>
 </div>
