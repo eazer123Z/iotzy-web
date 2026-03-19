@@ -1,6 +1,6 @@
 <?php
 /**
- * config/database.php — FINAL MASTER (Fixed MySQL SSL)
+ * config/database.php — LENGKAP & FINAL (Vercel + Aiven)
  */
 
 define('DB_CHARSET', 'utf8mb4');
@@ -18,13 +18,10 @@ function getLocalDB(): ?PDO {
 
         if (!$h || !$d || !$u) throw new Exception("ENV MySQL belum lengkap!");
 
-        // 🔥 DSN Standard MySQL (Tanpa sslmode=required yang bikin eror)
         $dsn = "mysql:host=$h;port=$port;dbname=$d;charset=" . DB_CHARSET;
-
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            // 🔥 INI KUNCI SSL MYSQL:
             PDO::MYSQL_ATTR_SSL_CA       => '', 
             PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
         ];
@@ -33,7 +30,7 @@ function getLocalDB(): ?PDO {
         $pdo->exec("SET NAMES " . DB_CHARSET);
 
     } catch (Throwable $e) {
-        $GLOBALS['DB_LAST_ERROR'] = $e->getMessage(); // Simpan pesan eror asli
+        $GLOBALS['DB_LAST_ERROR'] = $e->getMessage();
         error_log("[IoTzy DB] " . $e->getMessage());
         $pdo = false;
     }
@@ -41,7 +38,7 @@ function getLocalDB(): ?PDO {
     return ($pdo instanceof PDO) ? $pdo : null;
 }
 
-// Fungsi pembantu lainnya sesuaikan dengan yang Anda punya
+// JANGAN DIHAPUS: Fungsi-fungsi di bawah ini wajib ada untuk aplikasi Anda
 function dbWrite($sql, $params = []) {
     $db = getLocalDB();
     return $db ? $db->prepare($sql)->execute($params) : false;
