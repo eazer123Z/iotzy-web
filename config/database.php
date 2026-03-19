@@ -27,10 +27,10 @@ function getLocalDB(): ?PDO {
     try {
         // Ambil dari environment Docker
         $h = getenv('MYSQL_HOST') ?: getenv('DB_HOST') ?: DB_MY_HOST;
-        $port = getenv('MYSQL_PORT') ?: '3306';
-        $d = getenv('MYSQL_DATABASE') ?: getenv('DB_NAME') ?: DB_MY_NAME;
+        $port = getenv('MYSQL_PORT') ?: getenv('DB_PORT') ?: '3306';
+        $d = getenv('MYSQL_DATABASE') ?: getenv('MYSQL_DB') ?: getenv('DB_NAME') ?: DB_MY_NAME;
         $u = getenv('MYSQL_USER')     ?: getenv('DB_USER') ?: DB_MY_USER;
-        $p = getenv('MYSQL_PASSWORD') ?: getenv('DB_PASS') ?: DB_MY_PASS;
+        $p = getenv('MYSQL_PASSWORD') ?: getenv('MYSQL_PASS') ?: getenv('DB_PASS') ?: DB_MY_PASS;
         
         // Safety: Jika di Docker dan host masih localhost, arahkan ke container
         if (($h === '127.0.0.1' || $h === 'localhost') && file_exists('/.dockerenv')) {
