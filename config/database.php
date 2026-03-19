@@ -1,6 +1,6 @@
 <?php
 /**
- * config/database.php — FINAL FIX (Aiven + Vercel + PHP 8.5)
+ * config/database.php — FINAL (Aiven SSL + Vercel Ready)
  */
 
 define('DB_CHARSET', 'utf8mb4');
@@ -8,44 +8,52 @@ define('DB_CHARSET', 'utf8mb4');
 /**
  * Koneksi MySQL (Primary)
  */
-function getLocalDB(): ?PDO {
+function getLocalDB(): ?PDO
+{
     static $pdo = null;
-    if ($pdo !== null) return ($pdo instanceof PDO) ? $pdo : null;
+    if ($pdo !== null)
+        return ($pdo instanceof PDO) ? $pdo : null;
 
     try {
         // ENV dari Vercel
         $host = getenv('MYSQL_HOST');
         $port = getenv('MYSQL_PORT') ?: '3306';
-        $db   = getenv('MYSQL_DATABASE');
+        $db = getenv('MYSQL_DATABASE');
         $user = getenv('MYSQL_USER');
         $pass = getenv('MYSQL_PASSWORD');
 
-        // VALIDASI
+        // Validasi ENV
         if (!$host || !$db || !$user || !$pass) {
             throw new Exception("ENV MySQL belum lengkap!");
         }
 
-        // 🔥 AIVEN WAJIB SSL → pakai sslmode=require
-        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=" . DB_CHARSET . ";sslmode=require";
+        // 🔥 DSN dengan SSL (Aiven wajib)
+        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=" . DB_CHARSET;
 
         // OPTIONS (PHP 8.5 SAFE)
         $options = [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ];
 
-        // 🔥 FIX SSL constant (no deprecated)
-        if (defined('\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT')) {
-            $options[\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT] = false;
+        // 🔥 SSL CERT (WAJIB UNTUK AIVEN)
+        if (defined('\Pdo\Mysql::ATTR_SSL_CA')) {
+            $options[\Pdo\Mysql::ATTR_SSL_CA] = __DIR__ . '/ca.pem';
         }
 
+        if (defined('\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT')) {
+            $options[\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT] = true;
+        }
+
+        // CONNECT
         $pdo = new PDO($dsn, $user, $pass, $options);
 
-    } catch (Throwable $e) {
+    }
+    catch (Throwable $e) {
         $msg = "[IoTzy] DB ERROR: " . $e->getMessage();
         error_log($msg);
 
-        // DEBUG
+        // DEBUG OUTPUT
         echo "<h3>❌ GAGAL KONEK DATABASE</h3>";
         echo "Error: " . htmlspecialchars($e->getMessage()) . "<br>";
         echo "HOST: " . htmlspecialchars($host ?? 'NULL') . "<br>";
@@ -60,19 +68,22 @@ function getLocalDB(): ?PDO {
 }
 
 /**
- * PostgreSQL (Optional)
+ * PostgreSQL (Optional Backup)
  */
-function getPostgresDB(): ?PDO {
+function getPostgresDB(): ?PDO
+{
     static $pdo = null;
-    if ($pdo !== null) return ($pdo instanceof PDO) ? $pdo : null;
+    if ($pdo !== null)
+        return ($pdo instanceof PDO) ? $pdo : null;
 
     try {
         $host = getenv('POSTGRES_HOST');
-        $db   = getenv('POSTGRES_DB');
+        $db = getenv('POSTGRES_DB');
         $user = getenv('POSTGRES_USER');
         $pass = getenv('POSTGRES_PASSWORD');
 
-        if (!$host || !$db || !$user) return null;
+        if (!$host || !$db || !$user)
+            return null;
 
         $dsn = "pgsql:host=$host;dbname=$db";
 
@@ -81,7 +92,8 @@ function getPostgresDB(): ?PDO {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ]);
 
-    } catch (Throwable $e) {
+    }
+    catch (Throwable $e) {
         error_log('[IoTzy] Postgres error: ' . $e->getMessage());
         $pdo = false;
     }
@@ -90,31 +102,37 @@ function getPostgresDB(): ?PDO {
 }
 
 /**
- * Write Query
+ * Query Write (INSERT / UPDATE / DELETE)
  */
-function dbWrite(string $sql, array $params = []): bool {
+function dbWrite(string $sql, array $params = []): bool
+{
     $db = getLocalDB();
-    if (!$db) return false;
+    if (!$db)
+        return false;
 
     try {
         return $db->prepare($sql)->execute($params);
-    } catch (PDOException $e) {
+    }
+    catch (PDOException $e) {
         error_log('[IoTzy] dbWrite error: ' . $e->getMessage());
         return false;
     }
 }
 
 /**
- * Insert + ID
+ * Insert + return ID
  */
-function dbInsert(string $sql, array $params = []): ?int {
+function dbInsert(string $sql, array $params = []): ?int
+{
     $db = getLocalDB();
-    if (!$db) return null;
+    if (!$db)
+        return null;
 
     try {
         $db->prepare($sql)->execute($params);
         return (int)$db->lastInsertId();
-    } catch (PDOException $e) {
+    }
+    catch (PDOException $e) {
         error_log('[IoTzy] dbInsert error: ' . $e->getMessage());
         return null;
     }
@@ -123,9 +141,10 @@ function dbInsert(string $sql, array $params = []): ?int {
 /**
  * Status DB
  */
-function dbStatus(): array {
+function dbStatus(): array
+{
     return [
-        'mysql'    => getLocalDB() !== null,
+        'mysql' => getLocalDB() !== null,
         'postgres' => getPostgresDB() !== null,
     ];
 }
