@@ -56,7 +56,13 @@ requireCsrf();
 
 $userId = (int)$_SESSION['user_id'];
 
-// 4. Dispatch Table — Map aksi ke Controller dan File yang sesuai
+// 4. Security Check: Admin actions require admin role
+if (strpos($action, 'admin_') === 0 && !isAdmin()) {
+    http_response_code(403);
+    jsonOut(['success' => false, 'error' => 'Akses ditolak. Fitur ini hanya untuk Administrator.']);
+}
+
+// 5. Dispatch Table — Map aksi ke Controller dan File yang sesuai
 $routes = [
     // DeviceController
     'get_devices'         => 'DeviceController.php',
@@ -110,6 +116,12 @@ $routes = [
     'get_ai_chat_history' => 'AIChatController.php',
     'test_telegram'       => 'AIChatController.php',
     'db_status'           => 'AIChatController.php',
+
+    // Admin Actions
+    'admin_get_users'     => 'AdminController.php',
+    'admin_update_user'   => 'AdminController.php',
+    'admin_delete_user'   => 'AdminController.php',
+    'admin_add_user'      => 'AdminController.php',
 ];
 
 // 5. Eksekusi Controller

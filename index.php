@@ -79,6 +79,10 @@ include __DIR__ . '/views/pages/camera.php';
 include __DIR__ . '/views/pages/analytics.php';
 include __DIR__ . '/views/pages/settings.php';
 
+if (isAdmin()) {
+    include __DIR__ . '/views/pages/admin.php';
+}
+
 include __DIR__ . '/views/layouts/bottom-nav.php';
 include __DIR__ . '/views/modals/all-modals.php';
 include __DIR__ . '/views/layouts/footer.php';

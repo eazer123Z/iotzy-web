@@ -38,6 +38,14 @@
         <span class="nav-dot" id="cvNavDot"></span>
       </a>
 
+      <?php if (isAdmin()): ?>
+      <div class="nav-group-label" style="margin-top:18px">Manajemen</div>
+      <a href="#" onclick="switchPage('admin',this)" class="nav-item" data-page="admin">
+        <span class="nav-icon"><i class="fas fa-shield-halved"></i></span>
+        <span class="nav-label">Admin Panel</span>
+      </a>
+      <?php endif; ?>
+
       <div class="nav-group-label" style="margin-top:18px">Sistem</div>
       <a href="#" onclick="switchPage('analytics',this)" class="nav-item" data-page="analytics">
         <span class="nav-icon"><i class="fas fa-list-ul"></i></span>

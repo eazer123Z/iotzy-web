@@ -59,6 +59,12 @@ function isLoggedIn(): bool {
     }
 }
 
+// ==================== ROLE CHECK ====================
+
+function isAdmin(): bool {
+    startSecureSession();
+    return ($_SESSION['user_role'] ?? '') === 'admin';
+}
 
 // ==================== REQUIRE LOGIN ====================
 
@@ -124,7 +130,7 @@ function loginUser(string $login, string $password): mixed {
 
     try {
         $stmt = $db->prepare(
-            "SELECT id, password_hash, is_active
+            "SELECT id, password_hash, is_active, role
              FROM users
              WHERE (username = ? OR email = ?)
              LIMIT 1"
@@ -171,6 +177,7 @@ function loginUser(string $login, string $password): mixed {
         // 🔥 SET SESSION (INI KUNCI)
         $_SESSION['user_id']       = $userId;
         $_SESSION['session_token'] = $token;
+        $_SESSION['user_role']     = $user['role'] ?? 'user';
 
         // default settings
         $db->prepare(

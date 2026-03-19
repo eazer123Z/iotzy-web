@@ -77,7 +77,8 @@ const PAGE_TITLES = {
   custom:     "Layout Kustom",
   analytics:  "Log Aktivitas",
   settings:   "Pengaturan",
-  livetzy:    "LiveTzy Monitor"
+  livetzy:    "LiveTzy Monitor",
+  admin:      "Admin Panel"
 };
 
 /**
@@ -127,6 +128,7 @@ function switchPage(page, el) {
   }
   
   if (page === "analytics") updateLogDisplay();
+  if (page === "admin" && typeof loadAdminUsers === "function") loadAdminUsers();
 
   // Tutup sidebar otomatis di mobile setelah klik menu
   document.getElementById("sidebar")?.classList.remove("open");

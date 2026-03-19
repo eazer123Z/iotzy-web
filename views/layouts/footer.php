@@ -59,6 +59,9 @@ const PHP_SENSORS  = <?= json_encode(array_values($sensors),    JSON_HEX_TAG | J
 <script src="<?= APP_URL ?>/public/assets/js/modules/automation-engine.js?v=<?= APP_VERSION ?>"></script>
 <script src="<?= APP_URL ?>/public/assets/js/modules/cv-ui.js?v=<?= APP_VERSION ?>"></script>
 <script src="<?= APP_URL ?>/public/assets/js/modules/ai-chat.js?v=<?= APP_VERSION ?>"></script>
+<?php if (isAdmin()): ?>
+<script src="<?= APP_URL ?>/public/assets/js/modules/admin-manager.js?v=<?= APP_VERSION ?>"></script>
+<?php endif; ?>
 
 </body>
 </html>
