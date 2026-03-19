@@ -1,6 +1,6 @@
 <?php
 /**
- * config/database.php — FINAL (Aiven SSL + Vercel Ready)
+ * config/database.php — FINAL (MYSQL_URL Aiven + Vercel Ready)
  */
 
 define('DB_CHARSET', 'utf8mb4');
@@ -15,34 +15,38 @@ function getLocalDB(): ?PDO
         return ($pdo instanceof PDO) ? $pdo : null;
 
     try {
-        // ENV dari Vercel
-        $host = getenv('MYSQL_HOST');
-        $port = getenv('MYSQL_PORT') ?: '25145';
-        $db = getenv('MYSQL_DATABASE');
-        $user = getenv('MYSQL_USER');
-        $pass = getenv('MYSQL_PASSWORD');
+        // 🔥 GANTI: pakai MYSQL_URL (bukan env satu-satu)
+        $uri = getenv('MYSQL_URL');
 
-        // Validasi ENV
-        if (!$host || !$db || !$user || !$pass) {
-            throw new Exception("ENV MySQL belum lengkap!");
+        if (!$uri) {
+            throw new Exception("MYSQL_URL belum diset!");
         }
 
-        // 🔥 DSN dengan SSL (Aiven wajib)
-        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=" . DB_CHARSET;
+        // Parse URL dari Aiven
+        $parts = parse_url($uri);
 
-        // OPTIONS (PHP 8.5 SAFE)
+        $host = $parts['host'] ?? null;
+        $port = $parts['port'] ?? 3306;
+        $user = $parts['user'] ?? null;
+        $pass = $parts['pass'] ?? null;
+        $db   = isset($parts['path']) ? ltrim($parts['path'], '/') : null;
+
+        // Validasi
+        if (!$host || !$user || !$pass || !$db) {
+            throw new Exception("MYSQL_URL tidak valid!");
+        }
+
+        // 🔥 DSN + SSL REQUIRED (Aiven)
+        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=" . DB_CHARSET . ";sslmode=required";
+
         $options = [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ];
 
-        // 🔥 SSL CERT (WAJIB UNTUK AIVEN)
-        if (defined('\Pdo\Mysql::ATTR_SSL_CA')) {
-            $options[\Pdo\Mysql::ATTR_SSL_CA] = __DIR__ . '/ca.pem';
-        }
-
+        // SSL fix (PHP 8.5 safe)
         if (defined('\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT')) {
-            $options[\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT] = true;
+            $options[\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT] = false;
         }
 
         // CONNECT
@@ -56,10 +60,6 @@ function getLocalDB(): ?PDO
         // DEBUG OUTPUT
         echo "<h3>❌ GAGAL KONEK DATABASE</h3>";
         echo "Error: " . htmlspecialchars($e->getMessage()) . "<br>";
-        echo "HOST: " . htmlspecialchars($host ?? 'NULL') . "<br>";
-        echo "DB: " . htmlspecialchars($db ?? 'NULL') . "<br>";
-        echo "USER: " . htmlspecialchars($user ?? 'NULL') . "<br>";
-        echo "PASS LENGTH: " . (isset($pass) ? strlen($pass) : 0) . "<br>";
 
         $pdo = false;
     }
