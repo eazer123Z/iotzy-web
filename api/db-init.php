@@ -25,6 +25,27 @@ if (!$db) {
 $results = [];
 $errors  = [];
 
+// ===================== PATCH EXISTING DB =====================
+// Karena db production sudah telanjur ada tabel users dengan struktur lama,
+// kita paksa fix tipe data dan kolom password_hash agar foreign key bisa nyambung.
+try {
+    $db->exec("ALTER TABLE users MODIFY id INT UNSIGNED AUTO_INCREMENT");
+    
+    // Cek kolom password
+    $stmt = $db->query("SHOW COLUMNS FROM users LIKE 'password'");
+    if ($stmt->rowCount() > 0) {
+        $db->exec("ALTER TABLE users DROP COLUMN password");
+    }
+    
+    // Cek kolom password_hash
+    $stmt = $db->query("SHOW COLUMNS FROM users LIKE 'password_hash'");
+    if ($stmt->rowCount() == 0) {
+        $db->exec("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NOT NULL AFTER email");
+    }
+} catch (Throwable $e) {
+    // Abaikan error jika tabel users belum ada dan kolom sudah sesuai
+}
+
 // ===================== CREATE TABLES =====================
 
 $tables = [
