@@ -125,8 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(`${base}/api/data_router.php`, {
                 method:  'POST',
                 signal:  controller.signal,
+                credentials: "include", // 🔑 CRITICAL
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': CSRF_TOKEN,
                 },
                 body: JSON.stringify({

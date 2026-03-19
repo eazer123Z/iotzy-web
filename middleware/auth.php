@@ -43,12 +43,14 @@ function isLoggedIn(): bool
     startSecureSession();
 
     if (empty($_SESSION['user_id']) || empty($_SESSION['session_token'])) {
+        // Diagnostic log (internal only)
+        error_log("[IoTzy Auth] isLoggedIn FAILED: Session data missing. " . 
+                  "ID:".($_SESSION['user_id']??'None').", Token:".(isset($_SESSION['session_token'])?'Exists':'None'));
         return $result = false;
     }
 
     $db = getLocalDB();
-    if (!$db)
-        return $result = false;
+    if (!$db) return $result = false;
 
     try {
         $stmt = $db->prepare(
@@ -61,11 +63,16 @@ function isLoggedIn(): bool
             $_SESSION['session_token']
         ]);
 
-        return $result = (bool)$stmt->fetch();
+        $exists = (bool)$stmt->fetch();
+        if (!$exists) {
+            error_log("[IoTzy Auth] isLoggedIn FAILED: Token mismatch or expired in DB. " .
+                      "User:".$_SESSION['user_id'].", Token:".substr($_SESSION['session_token'],0,10)."...");
+        }
+        return $result = $exists;
 
     }
     catch (PDOException $e) {
-        error_log('[IoTzy] isLoggedIn error: ' . $e->getMessage());
+        error_log('[IoTzy Auth] isLoggedIn error: ' . $e->getMessage());
         return $result = false;
     }
 }

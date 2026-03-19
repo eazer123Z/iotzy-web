@@ -170,6 +170,7 @@ async function apiPost(action, data = {}) {
     const res  = await fetch(`${base}?action=${action}`, {
       method:  "POST",
       headers: hdrs,
+      credentials: "include", // 🔑 CRITICAL: Pastikan cookie (PHPSESSID) terkirim
       body:    JSON.stringify(data),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

@@ -21,6 +21,7 @@ const automationEngine = (() => {
         const res = await fetch(_api(action), {
             method:  'POST',
             headers: hdrs,
+            credentials: 'include', // 🔑 CRITICAL
             body:    JSON.stringify(body),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
