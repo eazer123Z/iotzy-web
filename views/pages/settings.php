@@ -136,7 +136,7 @@
               <p class="setting-hint" style="margin-bottom:16px">Tindakan ini tidak dapat dibatalkan.</p>
               <div style="display:flex;gap:10px;flex-wrap:wrap">
                 <button onclick="clearLogs()" class="btn-ghost red"><i class="fas fa-trash"></i> Hapus Semua Log</button>
-                <a href="logout.php" class="btn-danger"><i class="fas fa-right-from-bracket"></i> Logout</a>
+                <a href="?route=logout" class="btn-danger"><i class="fas fa-right-from-bracket"></i> Logout</a>
               </div>
             </div>
           </div>
