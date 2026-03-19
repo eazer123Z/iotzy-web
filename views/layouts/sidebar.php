@@ -63,7 +63,7 @@
           <span class="user-name"><?= htmlspecialchars($user['full_name'] ?: $user['username']) ?></span>
           <span class="user-role"><?= htmlspecialchars($user['role']) ?></span>
         </div>
-        <a href="logout.php" class="logout-btn" title="Logout"><i class="fas fa-right-from-bracket"></i></a>
+        <a href="?route=logout" class="logout-btn" title="Logout"><i class="fas fa-right-from-bracket"></i></a>
       </div>
       <div class="sidebar-bottom-row">
         <div class="mqtt-pill">
