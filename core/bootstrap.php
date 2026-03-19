@@ -64,7 +64,9 @@ if ($isVercel) {
         session_set_save_handler(new PersistentSessionHandler(), true);
     }
 }
-else {
-    // 🔥 Docker & Local
-    session_save_path('/tmp');
+if (!$isVercel) {
+    if (DIRECTORY_SEPARATOR === '/') {
+        if (!is_dir('/tmp')) @mkdir('/tmp', 0777, true);
+        session_save_path('/tmp');
+    }
 }

@@ -8,15 +8,23 @@ require_once __DIR__ . '/../core/bootstrap.php';
 
 // ==================== SESSION ====================
 
-function startSecureSession(): void {
-    if (session_status() === PHP_SESSION_ACTIVE) return;
+function startSecureSession(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE)
+        return;
+
+    // 🔥 FIX: Hanya gunakan /tmp di Docker atau sistem Unix (bukan Windows)
+    if (!isset($_SERVER['VERCEL']) && DIRECTORY_SEPARATOR === '/') {
+        if (!is_dir('/tmp')) @mkdir('/tmp', 0777, true);
+        session_save_path('/tmp');
+    }
 
     $lifetime = defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400;
 
     session_set_cookie_params([
         'lifetime' => $lifetime,
-        'path'     => '/',
-        'secure'   => false, // 🔥 FIX: WAJIB untuk localhost (HTTP)
+        'path' => '/',
+        'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
@@ -24,12 +32,13 @@ function startSecureSession(): void {
     session_start();
 }
 
-
 // ==================== LOGIN CHECK ====================
 
-function isLoggedIn(): bool {
+function isLoggedIn(): bool
+{
     static $result = null;
-    if ($result !== null) return $result;
+    if ($result !== null)
+        return $result;
 
     startSecureSession();
 
@@ -38,7 +47,8 @@ function isLoggedIn(): bool {
     }
 
     $db = getLocalDB();
-    if (!$db) return $result = false;
+    if (!$db)
+        return $result = false;
 
     try {
         $stmt = $db->prepare(
@@ -53,7 +63,8 @@ function isLoggedIn(): bool {
 
         return $result = (bool)$stmt->fetch();
 
-    } catch (PDOException $e) {
+    }
+    catch (PDOException $e) {
         error_log('[IoTzy] isLoggedIn error: ' . $e->getMessage());
         return $result = false;
     }
@@ -61,21 +72,23 @@ function isLoggedIn(): bool {
 
 // ==================== ROLE CHECK ====================
 
-function isAdmin(): bool {
+function isAdmin(): bool
+{
     startSecureSession();
     return ($_SESSION['user_role'] ?? '') === 'admin';
 }
 
 // ==================== REQUIRE LOGIN ====================
 
-function requireLogin(): void {
+function requireLogin(): void
+{
     if (!isLoggedIn()) {
         $base = rtrim(APP_URL, '/') . '/';
         $redirect = $_SERVER['REQUEST_URI'] ?? $base;
 
         // Normalisasi jalur untuk menghindari pengalihan berulang (loop)
         if (stripos($redirect, APP_URL) === false && stripos($redirect, '/lotzy') !== false) {
-             $redirect = str_ireplace('/lotzy', APP_URL, $redirect);
+            $redirect = str_ireplace('/lotzy', APP_URL, $redirect);
         }
 
         header('Location: ' . $base . '?route=login&redirect=' . urlencode($redirect));
@@ -86,7 +99,8 @@ function requireLogin(): void {
 
 // ==================== CSRF ====================
 
-function generateCsrfToken(): string {
+function generateCsrfToken(): string
+{
     startSecureSession();
 
     if (empty($_SESSION['csrf_token'])) {
@@ -96,7 +110,8 @@ function generateCsrfToken(): string {
     return $_SESSION['csrf_token'];
 }
 
-function validateCsrfToken(?string $token): bool {
+function validateCsrfToken(?string $token): bool
+{
     startSecureSession();
 
     if (empty($_SESSION['csrf_token']) || empty($token)) {
@@ -106,10 +121,11 @@ function validateCsrfToken(?string $token): bool {
     return hash_equals($_SESSION['csrf_token'], $token);
 }
 
-function requireCsrf(): void {
+function requireCsrf(): void
+{
     $token = $_POST['csrf_token']
-          ?? $_SERVER['HTTP_X_CSRF_TOKEN']
-          ?? null;
+        ?? $_SERVER['HTTP_X_CSRF_TOKEN']
+        ?? null;
 
     if (!validateCsrfToken($token)) {
         http_response_code(403);
@@ -121,12 +137,15 @@ function requireCsrf(): void {
 
 // ==================== LOGIN ====================
 
-function loginUser(string $login, string $password): mixed {
+function loginUser(string $login, string $password): mixed
+{
     $db = getLocalDB();
-    if (!$db) return 'Database tidak tersedia.';
+    if (!$db)
+        return 'Database tidak tersedia.';
 
     $login = trim($login);
-    if (!$login || !$password) return 'Username dan password harus diisi.';
+    if (!$login || !$password)
+        return 'Username dan password harus diisi.';
 
     try {
         $stmt = $db->prepare(
@@ -138,8 +157,10 @@ function loginUser(string $login, string $password): mixed {
         $stmt->execute([$login, $login]);
         $user = $stmt->fetch();
 
-        if (!$user) return 'Username atau password salah.';
-        if (!(bool)$user['is_active']) return 'Akun ini dinonaktifkan.';
+        if (!$user)
+            return 'Username atau password salah.';
+        if (!(bool)$user['is_active'])
+            return 'Akun ini dinonaktifkan.';
         if (!password_verify($password, $user['password_hash'])) {
             return 'Username atau password salah.';
         }
@@ -147,9 +168,9 @@ function loginUser(string $login, string $password): mixed {
         startSecureSession();
         session_regenerate_id(true);
 
-        $userId    = (int)$user['id'];
-        $token     = bin2hex(random_bytes(32));
-        $lifetime  = defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400;
+        $userId = (int)$user['id'];
+        $token = bin2hex(random_bytes(32));
+        $lifetime = defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400;
         $expiresAt = date('Y-m-d H:i:s', time() + $lifetime);
 
         // bersihin session lama
@@ -175,9 +196,9 @@ function loginUser(string $login, string $password): mixed {
         )->execute([$userId]);
 
         // 🔥 SET SESSION (INI KUNCI)
-        $_SESSION['user_id']       = $userId;
+        $_SESSION['user_id'] = $userId;
         $_SESSION['session_token'] = $token;
-        $_SESSION['user_role']     = $user['role'] ?? 'user';
+        $_SESSION['user_role'] = $user['role'] ?? 'user';
 
         // default settings
         $db->prepare(
@@ -186,7 +207,8 @@ function loginUser(string $login, string $password): mixed {
 
         return true;
 
-    } catch (PDOException $e) {
+    }
+    catch (PDOException $e) {
         $msg = '[IoTzy] loginUser error: ' . $e->getMessage();
         error_log($msg);
         return 'Terjadi kesalahan server: ' . $e->getMessage();
@@ -196,7 +218,8 @@ function loginUser(string $login, string $password): mixed {
 
 // ==================== LOGOUT ====================
 
-function logoutUser(): void {
+function logoutUser(): void
+{
     startSecureSession();
 
     if (!empty($_SESSION['user_id']) && !empty($_SESSION['session_token'])) {
@@ -209,7 +232,8 @@ function logoutUser(): void {
                     $_SESSION['user_id'],
                     $_SESSION['session_token']
                 ]);
-            } catch (PDOException $e) {
+            }
+            catch (PDOException $e) {
                 error_log('[IoTzy] logoutUser DB error: ' . $e->getMessage());
             }
         }
@@ -241,13 +265,14 @@ function registerUser(
     string $username,
     string $email,
     string $password,
-    string $fullName = ''
-): mixed {
+    string $fullName = ''    ): mixed
+{
     $db = getLocalDB();
-    if (!$db) return 'Database tidak tersedia.';
+    if (!$db)
+        return 'Database tidak tersedia.';
 
     $username = trim($username);
-    $email    = trim($email);
+    $email = trim($email);
     $fullName = trim($fullName);
 
     if (strlen($username) < 3 || strlen($username) > 50) {
@@ -269,11 +294,13 @@ function registerUser(
     try {
         $stmt = $db->prepare("SELECT id FROM users WHERE username = ? LIMIT 1");
         $stmt->execute([$username]);
-        if ($stmt->fetch()) return 'Username sudah digunakan.';
+        if ($stmt->fetch())
+            return 'Username sudah digunakan.';
 
         $stmt = $db->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
         $stmt->execute([$email]);
-        if ($stmt->fetch()) return 'Email sudah terdaftar.';
+        if ($stmt->fetch())
+            return 'Email sudah terdaftar.';
 
         $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
 
@@ -289,7 +316,8 @@ function registerUser(
 
         return true;
 
-    } catch (PDOException $e) {
+    }
+    catch (PDOException $e) {
         error_log('[IoTzy] registerUser error: ' . $e->getMessage());
         return 'Terjadi kesalahan server.';
     }

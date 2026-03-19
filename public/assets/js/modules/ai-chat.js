@@ -26,16 +26,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* ── Toggle modal ── */
     chatBtn.addEventListener('click', () => {
-        chatModal.classList.remove('hidden');
-        chatModal.classList.toggle('active');
-        if (chatModal.classList.contains('active')) {
+        openModal('aiChatModal');
+        if (chatModal.classList.contains('show')) {
             chatInput.focus();
             loadChatHistory();
         }
     });
 
     chatClose.addEventListener('click', () => {
-        chatModal.classList.remove('active');
+        closeModal('aiChatModal');
     });
 
     // Auto-load history 2 detik setelah halaman siap
@@ -241,21 +240,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function appendMessage(text, sender) {
         if (!text || String(text).trim() === '') return null;
 
-        // Parser markdown sederhana
+        // 🔥 FIX: Jangan escape HTML supaya tag seperti <b>, <i>, <br> dari AI bisa jalan.
+        // Kita cukup bersihkan karakter yang benar-benar berbahaya jika perlu, 
+        // tapi dalam konteks AI asisten internal, kita percayakan tag standar.
         let html = String(text)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')   // **bold**
-            .replace(/\*(.*?)\*/g,     '<i>$1</i>')   // *italic*
-            .replace(/\n/g,            '<br>')         // newline
-            .replace(/(?:^|<br>)\s*[-*•]\s+(.*)/g, '<br>• $1'); // bullet list
-
-        if (html.startsWith('<br>')) html = html.slice(4);
+            .replace(/\n/g, '<br>') // Konversi newline ke <br>
+            .replace(/(?:^|<br>)\s*[-*•]\s+(.*)/g, '<br>• $1'); // Simple list formatting
 
         const bubble       = document.createElement('div');
         bubble.className   = `chat-bubble ${sender}`;
-        bubble.innerHTML   = html;
+        bubble.innerHTML   = html; // Render sebagai HTML!
         chatBody.appendChild(bubble);
         scrollToBottom();
         return bubble;
