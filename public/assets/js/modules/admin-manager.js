@@ -10,6 +10,22 @@ const AdminManager = {
         console.log('[IoTzy Admin] Initializing...');
     },
 
+    formatDate(dateStr) {
+        if (!dateStr) return '—';
+        try {
+            const date = new Date(dateStr);
+            return date.toLocaleString('id-ID', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (e) {
+            return dateStr;
+        }
+    },
+
     async loadUsers() {
         const tbody = document.getElementById('adminUserTableBody');
         if (!tbody) return;
@@ -21,10 +37,12 @@ const AdminManager = {
                 this.renderUsers();
                 this.updateStats();
             } else {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red)">Error: ${res.error || 'Gagal memuat daftar user'}</td></tr>`;
                 showToast(res.error || 'Gagal memuat daftar user', 'error');
             }
         } catch (e) {
             console.error('[Admin] Load users error:', e);
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red)">System Error: Terjadi kesalahan saat memuat data.</td></tr>`;
         }
     },
 
@@ -58,7 +76,7 @@ const AdminManager = {
                     <span class="status-indicator ${u.is_active ? 'active' : 'inactive'}"></span>
                     ${u.is_active ? 'Aktif' : 'Nonaktif'}
                 </td>
-                <td>${u.last_login ? formatDate(u.last_login) : '<span style="opacity:0.4">Belum pernah</span>'}</td>
+                <td>${u.last_login ? this.formatDate(u.last_login) : '<span style="opacity:0.4">Belum pernah</span>'}</td>
                 <td>
                     <div class="table-actions">
                         <button class="action-btn view" onclick="viewAdminUserDetails(${u.id}, '${u.username}')" title="Liat Detail Setup">
@@ -209,7 +227,7 @@ const AdminManager = {
                                 <div class="detail-name">${s.name}</div>
                                 <div class="detail-meta">${s.type}</div>
                             </div>
-                            <div class="detail-meta" style="text-align:right; font-weight:700; color:var(--primary)">
+                            <div class="detail-meta" style="text-align:right; font-weight:700; color:var(--a)">
                                 ${s.value} ${s.unit}
                             </div>
                         </div>`;

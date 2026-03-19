@@ -1,5 +1,5 @@
 <!-- ═══ ADMIN PANEL PAGE ═══ -->
-<div id="page-admin" class="page-content" style="display:none">
+<div id="view-admin" class="view hidden">
   <div class="content-header">
     <div class="header-title">
       <i class="fas fa-shield-halved"></i>
@@ -21,49 +21,64 @@
   <style>
     /* Premium Admin UI Overrides */
     #page-admin .data-table { border-collapse: separate; border-spacing: 0 8px; background: transparent; }
-    #page-admin .data-table tr { background: rgba(255,255,255,0.02); border-radius: 12px; transition: all 0.2s; }
-    #page-admin .data-table tr:hover { background: rgba(255,255,255,0.05); transform: translateY(-1px); }
-    #page-admin .data-table th { background: transparent; padding: 12px 20px; color: rgba(255,255,255,0.4); border: none; }
-    #page-admin .data-table td { padding: 16px 20px; border: none; border-top: 1px solid rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.03); }
-    #page-admin .data-table td:first-child { border-left: 1px solid rgba(255,255,255,0.03); border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
-    #page-admin .data-table td:last-child { border-right: 1px solid rgba(255,255,255,0.03); border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
+    #page-admin .data-table tr { background: var(--surface-2); border-radius: var(--r); transition: var(--t); }
+    #page-admin .data-table tr:hover { background: var(--surface-3); transform: translateY(-1px); }
+    #page-admin .data-table th { background: transparent; padding: 12px 20px; color: var(--ink-5); border: none; font-size: 10px; font-weight: 700; letter-spacing: 0.8px; }
+    #page-admin .data-table td { padding: 16px 20px; border: none; font-size: 13px; color: var(--ink-2); }
+    #page-admin .data-table td:first-child { border-top-left-radius: var(--r); border-bottom-left-radius: var(--r); }
+    #page-admin .data-table td:last-child { border-top-right-radius: var(--r); border-bottom-right-radius: var(--r); }
     
     .admin-stat-pill {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 4px 10px;
-        background: rgba(255,255,255,0.05);
-        border-radius: 8px;
+        padding: 5px 12px;
+        background: var(--surface-3);
+        border-radius: var(--r-sm);
         font-size: 11px;
-        font-weight: 600;
-        border: 1px solid rgba(255,255,255,0.03);
+        font-weight: 700;
+        border: 1px solid var(--border);
     }
-    .admin-stat-pill.device { color: var(--primary); background: rgba(var(--primary-rgb), 0.1); }
-    .admin-stat-pill.sensor { color: #2ed573; background: rgba(46, 213, 115, 0.1); }
+    .admin-stat-pill.device { color: var(--a); background: var(--a-dim); border-color: var(--a-dim); }
+    .admin-stat-pill.sensor { color: var(--green); background: var(--green-dim); border-color: var(--green-dim); }
 
     /* Detail Modal Styles */
-    .detail-section { margin-bottom: 20px; background: rgba(0,0,0,0.2); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05); }
-    .detail-section h4 { font-size: 13px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-    .detail-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .detail-section { margin-bottom: 20px; background: var(--surface-4); border-radius: var(--r); padding: 18px; border: 1px solid var(--border); }
+    .detail-section h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--ink-4); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .detail-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
     .detail-item:last-child { border: none; }
-    .detail-name { font-weight: 600; font-size: 13px; }
-    .detail-meta { font-size: 11px; opacity: 0.6; }
+    .detail-name { font-weight: 700; font-size: 13px; color: var(--ink); }
+    .detail-meta { font-size: 11px; color: var(--ink-4); }
 
     /* Modal Styling Fix */
     .modal-content {
-        background: #0f172a !important;
-        border: 1px solid rgba(255,255,255,0.1) !important;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8) !important;
+        background: var(--sb-bg) !important;
+        backdrop-filter: blur(24px) !important;
+        border: 1px solid var(--border-2) !important;
+        box-shadow: var(--shadow-lg) !important;
+        border-radius: var(--r-xl) !important;
     }
-    .modal-header h3 { font-weight: 800; }
+    .modal-header h3 { font-weight: 800; color: var(--ink); }
     
     #adminUserForm .form-control {
-        background: rgba(255,255,255,0.03) !important;
-        border: 1px solid rgba(255,255,255,0.1) !important;
-        color: #fff !important;
+        background: var(--surface-2) !important;
+        border: 1px solid var(--border) !important;
+        color: var(--ink) !important;
+        border-radius: var(--r-sm) !important;
+        font-size: 13px !important;
     }
-  </style>
+    #adminUserForm .form-control:focus {
+        border-color: var(--a) !important;
+        box-shadow: var(--a-glow) !important;
+    }
+    #adminUserForm label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--ink-4);
+        margin-bottom: 8px;
+    }
   </style>
 
   <!-- User Stats Cards -->
