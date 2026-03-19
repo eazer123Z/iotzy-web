@@ -1,135 +1,110 @@
 <!-- ═══ ADMIN PANEL PAGE ═══ -->
 <div id="view-admin" class="view hidden">
-  <div class="content-header">
-    <div class="header-title">
-      <i class="fas fa-shield-halved"></i>
-      <div>
-        <h2>Admin Panel</h2>
-        <p>Manajemen Pengguna &amp; Kontrol Sistem</p>
-      </div>
+  <div class="view-header">
+    <div class="view-title-group">
+      <h2 class="view-title"><i class="fas fa-shield-halved"></i> Admin Panel</h2>
+      <p class="view-sub">Manajemen Pengguna &amp; Kontrol Sistem Terpusat</p>
     </div>
-    <div class="header-actions">
-      <button class="btn btn-primary" onclick="openAddUserModal()">
+    <div class="view-actions">
+      <button class="btn-primary" onclick="openAddUserModal()">
         <i class="fas fa-user-plus"></i> Tambah User
       </button>
-      <button class="icon-btn" onclick="loadAdminUsers()" title="Refresh Data">
+      <button class="btn-ghost" onclick="loadAdminUsers()" title="Refresh Data">
         <i class="fas fa-sync-alt"></i>
       </button>
     </div>
   </div>
 
   <style>
-    /* Premium Admin UI Overrides */
-    #page-admin .data-table { border-collapse: separate; border-spacing: 0 8px; background: transparent; }
-    #page-admin .data-table tr { background: var(--surface-2); border-radius: var(--r); transition: var(--t); }
-    #page-admin .data-table tr:hover { background: var(--surface-3); transform: translateY(-1px); }
-    #page-admin .data-table th { background: transparent; padding: 12px 20px; color: var(--ink-5); border: none; font-size: 10px; font-weight: 700; letter-spacing: 0.8px; }
-    #page-admin .data-table td { padding: 16px 20px; border: none; font-size: 13px; color: var(--ink-2); }
-    #page-admin .data-table td:first-child { border-top-left-radius: var(--r); border-bottom-left-radius: var(--r); }
-    #page-admin .data-table td:last-child { border-top-right-radius: var(--r); border-bottom-right-radius: var(--r); }
+    /* Admin UI Standardized Overrides */
+    #view-admin .log-table th { color: var(--ink-5); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+    #view-admin .log-table td { color: var(--ink-2); font-size: 13px; vertical-align: middle; }
     
     .admin-stat-pill {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 5px 12px;
-        background: var(--surface-3);
+        padding: 4px 10px;
+        background: var(--surface-2);
         border-radius: var(--r-sm);
         font-size: 11px;
         font-weight: 700;
         border: 1px solid var(--border);
     }
-    .admin-stat-pill.device { color: var(--a); background: var(--a-dim); border-color: var(--a-dim); }
-    .admin-stat-pill.sensor { color: var(--green); background: var(--green-dim); border-color: var(--green-dim); }
+    .admin-stat-pill.device { color: var(--a); background: var(--a-dim); }
+    .admin-stat-pill.sensor { color: var(--green); background: var(--green-dim); }
+
+    .user-info-cell { display: flex; align-items: center; gap: 12px; }
+    .user-avatar-small { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-3); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 11px; color: var(--a); border: 1px solid var(--border); }
+    .user-name-text { font-weight: 700; color: var(--ink); }
+    .user-sub-text { font-size: 11px; color: var(--ink-4); }
+
+    /* Modal Contextual Fixes */
+    .modal-content {
+        background: var(--surface) !important;
+        backdrop-filter: blur(20px) saturate(180%) !important;
+        border: 1px solid var(--border-2) !important;
+        box-shadow: var(--shadow-xl) !important;
+    }
+    
+    .form-control {
+        background: var(--surface-2) !important;
+        border: 1px solid var(--border) !important;
+        color: var(--ink) !important;
+    }
 
     /* Detail Modal Styles */
-    .detail-section { margin-bottom: 20px; background: var(--surface-4); border-radius: var(--r); padding: 18px; border: 1px solid var(--border); }
+    .detail-section { margin-bottom: 20px; background: var(--surface-2); border-radius: var(--r); padding: 18px; border: 1px solid var(--border); }
     .detail-section h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--ink-4); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
     .detail-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
     .detail-item:last-child { border: none; }
     .detail-name { font-weight: 700; font-size: 13px; color: var(--ink); }
     .detail-meta { font-size: 11px; color: var(--ink-4); }
-
-    /* Modal Styling Fix */
-    .modal-content {
-        background: var(--sb-bg) !important;
-        backdrop-filter: blur(24px) !important;
-        border: 1px solid var(--border-2) !important;
-        box-shadow: var(--shadow-lg) !important;
-        border-radius: var(--r-xl) !important;
-    }
-    .modal-header h3 { font-weight: 800; color: var(--ink); }
-    
-    #adminUserForm .form-control {
-        background: var(--surface-2) !important;
-        border: 1px solid var(--border) !important;
-        color: var(--ink) !important;
-        border-radius: var(--r-sm) !important;
-        font-size: 13px !important;
-    }
-    #adminUserForm .form-control:focus {
-        border-color: var(--a) !important;
-        box-shadow: var(--a-glow) !important;
-    }
-    #adminUserForm label {
-        font-size: 10px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        color: var(--ink-4);
-        margin-bottom: 8px;
-    }
   </style>
 
   <!-- User Stats Cards -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-icon" style="background:rgba(var(--primary-rgb),.1);color:var(--primary)"><i class="fas fa-users"></i></div>
-      <div class="stat-info">
-        <span class="stat-label">Total Pengguna</span>
-        <h3 id="adminTotalUsers">0</h3>
+      <div class="stat-icon purple"><i class="fas fa-users"></i></div>
+      <div class="stat-body">
+        <div id="adminTotalUsers" class="stat-value">0</div>
+        <div class="stat-label">Total Pengguna</div>
       </div>
     </div>
     <div class="stat-card">
-      <div class="stat-icon" style="background:rgba(46,213,115,.1);color:#2ed573"><i class="fas fa-user-check"></i></div>
-      <div class="stat-info">
-        <span class="stat-label">User Aktif</span>
-        <h3 id="adminActiveUsers">0</h3>
+      <div class="stat-icon green"><i class="fas fa-user-check"></i></div>
+      <div class="stat-body">
+        <div id="adminActiveUsers" class="stat-value">0</div>
+        <div class="stat-label">User Aktif</div>
       </div>
     </div>
     <div class="stat-card">
-      <div class="stat-icon" style="background:rgba(255,71,87,.1);color:#ff4757"><i class="fas fa-user-slash"></i></div>
-      <div class="stat-info">
-        <span class="stat-label">User Non-aktif</span>
-        <h3 id="adminInactiveUsers">0</h3>
+      <div class="stat-icon amber"><i class="fas fa-user-slash"></i></div>
+      <div class="stat-body">
+        <div id="adminInactiveUsers" class="stat-value">0</div>
+        <div class="stat-label">User Non-aktif</div>
       </div>
     </div>
   </div>
 
-  <!-- User Management Table -->
-  <div class="card" style="margin-top:24px">
-    <div class="card-header">
-      <h3 class="card-title">Daftar Pengguna Sistem</h3>
-    </div>
-    <div class="table-container">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>User</th>
-            <th>Email</th>
-            <th>Setup</th>
-            <th>Role</th>
-            <th>Status</th>
-            <th>Login Terakhir</th>
-            <th style="width:100px">Aksi</th>
-          </tr>
-        </thead>
-        <tbody id="adminUserTableBody">
-          <!-- Data users akan dimuat via JS -->
-          <tr><td colspan="7" style="text-align:center;padding:40px;color:rgba(255,255,255,.4)">Memuat data...</td></tr>
-        </tbody>
-      </table>
-    </div>
+  <!-- User Management Table Wrapper -->
+  <div class="log-table-wrapper" style="margin-top:20px">
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Email</th>
+          <th>Setup</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Login Terakhir</th>
+          <th style="width:120px; text-align:right">Modifikasi</th>
+        </tr>
+      </thead>
+      <tbody id="adminUserTableBody">
+        <tr><td colspan="7" style="text-align:center;padding:60px;color:var(--ink-5)"><i class="fas fa-spinner fa-spin"></i> Memuat data pengguna...</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
 

@@ -49,7 +49,7 @@ const AdminManager = {
     renderUsers() {
         const tbody = document.getElementById('adminUserTableBody');
         if (!this.users.length) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:rgba(255,255,255,.4)">Tidak ada data pengguna.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:60px;color:var(--ink-5)">Tidak ada data pengguna.</td></tr>';
             return;
         }
 
@@ -57,28 +57,30 @@ const AdminManager = {
             <tr>
                 <td>
                     <div class="user-info-cell">
-                        <div class="user-avatar">${u.username.charAt(0).toUpperCase()}</div>
+                        <div class="user-avatar-small">${u.username.charAt(0).toUpperCase()}</div>
                         <div>
                             <div class="user-name-text">${u.full_name || u.username}</div>
                             <div class="user-sub-text">@${u.username}</div>
                         </div>
                     </div>
                 </td>
-                <td>${u.email}</td>
+                <td><span style="font-size:12px;opacity:0.8">${u.email}</span></td>
                 <td>
                     <div style="display:flex; flex-direction:column; gap:4px">
                         <span class="admin-stat-pill device"><i class="fas fa-microchip"></i> ${u.device_count || 0} Device</span>
                         <span class="admin-stat-pill sensor"><i class="fas fa-signal"></i> ${u.sensor_count || 0} Sensor</span>
                     </div>
                 </td>
-                <td><span class="role-badge ${u.role}">${u.role}</span></td>
+                <td><span class="role-badge ${u.role}" style="font-size:10px; padding:2px 8px">${u.role.toUpperCase()}</span></td>
                 <td>
-                    <span class="status-indicator ${u.is_active ? 'active' : 'inactive'}"></span>
-                    ${u.is_active ? 'Aktif' : 'Nonaktif'}
+                    <div style="display:flex; align-items:center; gap:6px">
+                        <span class="status-indicator ${u.is_active ? 'active' : 'inactive'}"></span>
+                        <span style="font-size:12px">${u.is_active ? 'Aktif' : 'Nonaktif'}</span>
+                    </div>
                 </td>
-                <td>${u.last_login ? this.formatDate(u.last_login) : '<span style="opacity:0.4">Belum pernah</span>'}</td>
+                <td><span style="font-size:11px; color:var(--ink-4)">${u.last_login ? this.formatDate(u.last_login) : 'Belum pernah'}</span></td>
                 <td>
-                    <div class="table-actions">
+                    <div class="table-actions" style="justify-content: flex-end">
                         <button class="action-btn view" onclick="viewAdminUserDetails(${u.id}, '${u.username}')" title="Liat Detail Setup">
                             <i class="fas fa-eye"></i>
                         </button>
