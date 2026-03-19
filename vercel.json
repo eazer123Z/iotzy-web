@@ -5,7 +5,7 @@
     }
   },
   "routes": [
-    { "src": "/public/(.*)", "dest": "/public/$1" },
+    { "src": "/public/(.*)", "dest": "/$1" },
     { "src": "/assets/(.*)", "dest": "/assets/$1" },
     { "src": "/api/db-init.php", "dest": "/api/db-init.php" },
     { "src": "/(.*)", "dest": "/api/index.php" }
