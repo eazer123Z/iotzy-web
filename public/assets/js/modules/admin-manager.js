@@ -29,12 +29,12 @@ const AdminManager = {
     async loadUsers() {
         try {
             const res = await apiPost('admin_get_users');
-            if (res.success) {
+            if (res && res.success) {
                 this.users = res.data;
                 this.applyFilters();
                 this.updateStats();
             } else {
-                throw new Error(res.error || 'Failed to fetch users');
+                throw new Error(res?.error || 'Gagal memuat daftar operator');
             }
         } catch (e) {
             console.error('Admin Load Error:', e);
@@ -185,12 +185,12 @@ const AdminManager = {
         
         try {
             const res = await apiPost(action, data);
-            if (res.success) {
+            if (res && res.success) {
                 showToast(res.message, 'success');
                 closeModal('modal-user');
                 this.loadUsers();
             } else {
-                showToast(res.error, 'error');
+                showToast(res?.error || 'Gagal menyimpan data', 'error');
             }
         } catch (e) {
             showToast('Terjadi kesalahan sinkronisasi', 'error');
@@ -202,11 +202,11 @@ const AdminManager = {
 
         try {
             const res = await apiPost('admin_delete_user', { id: id });
-            if (res.success) {
+            if (res && res.success) {
                 showToast(res.message, 'success');
                 this.loadUsers();
             } else {
-                showToast(res.error, 'error');
+                showToast(res?.error || 'Gagal menghapus user', 'error');
             }
         } catch (e) {
             showToast('Gagal menghapus user', 'error');
@@ -221,7 +221,8 @@ const AdminManager = {
 
         try {
             const res = await apiPost('admin_get_user_details', { id });
-            if (!res.success) throw new Error(res.error);
+            if (res && !res.success) throw new Error(res.error || 'Detail tidak ditemukan');
+            if (!res) throw new Error('Sinkronisasi gagal');
 
             const { devices, sensors } = res.data;
             let html = '';
