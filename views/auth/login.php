@@ -170,7 +170,7 @@ color:var(--ink-5);
 <div class="header">
 <div class="logo"><i class="fas fa-bolt"></i></div>
 <h1 class="title">IoTzy</h1>
-<p class="sub">Smart Home Dashboard</p>
+<p class="sub">Smart Room</p>
 </div>
 
 <div class="card">
