@@ -1,15 +1,15 @@
 <?php
 
 require_once __DIR__ . '/../middleware/auth.php';
-require_once __DIR__ . '/../services/UserService.php';
+require_once __DIR__ . '/../services/UserDataService.php';
 
 class DashboardController {
 
     public function index() {
         $user     = getCurrentUser();
-        $settings = UserService::getUserSettings($user['id']);
-        $devices  = UserService::getUserDevices($user['id']);
-        $sensors  = UserService::getUserSensors($user['id']);
+        $settings = getUserSettings($user['id']);
+        $devices  = getUserDevices($user['id']);
+        $sensors  = getUserSensors($user['id']);
 
         // Remove sensitive fields from settings if any
         $safeSettings = $settings;

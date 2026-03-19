@@ -22,7 +22,6 @@ require_once __DIR__ . '/../core/bootstrap.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../services/AIParser.php';
 require_once __DIR__ . '/../services/TelegramService.php';
-require_once __DIR__ . '/../services/UserService.php';
 require_once __DIR__ . '/../services/UserDataService.php';
 
 $content = file_get_contents('php://input');
