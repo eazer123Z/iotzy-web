@@ -8,6 +8,7 @@
     { "src": "/public/(.*)", "dest": "/$1" },
     { "src": "/assets/(.*)", "dest": "/assets/$1" },
     { "src": "/api/db-init.php", "dest": "/api/db-init.php" },
+    { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/api/index.php" }
   ]
 }
