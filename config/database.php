@@ -48,14 +48,6 @@ function getLocalDB(): ?PDO
         $msg = "[IoTzy] DB ERROR: " . $e->getMessage();
         error_log($msg);
 
-        // DEBUG
-        echo "<h3>❌ GAGAL KONEK DATABASE</h3>";
-        echo "Error: " . htmlspecialchars($e->getMessage()) . "<br>";
-        echo "HOST: " . htmlspecialchars($host ?? 'NULL') . "<br>";
-        echo "DB: " . htmlspecialchars($db ?? 'NULL') . "<br>";
-        echo "USER: " . htmlspecialchars($user ?? 'NULL') . "<br>";
-        echo "PASS LENGTH: " . (isset($pass) ? strlen($pass) : 0) . "<br>";
-
         $pdo = false;
     }
 
