@@ -59,7 +59,7 @@
     <div class="sidebar-footer">
       <div class="user-pill">
         <div class="user-avatar"><?= htmlspecialchars(strtoupper(substr($user['username'], 0, 1))) ?></div>
-        <div class="user-info">
+        <div class="user-meta" <?= isAdmin() ? 'onclick="switchPage(\'admin\', this)" style="cursor:pointer" title="Buka Admin Panel"' : '' ?>>
           <span class="user-name"><?= htmlspecialchars($user['full_name'] ?: $user['username']) ?></span>
           <span class="user-role"><?= htmlspecialchars($user['role']) ?></span>
         </div>

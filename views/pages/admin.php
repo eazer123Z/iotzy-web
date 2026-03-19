@@ -18,6 +18,55 @@
     </div>
   </div>
 
+  <style>
+    /* Premium Admin UI Overrides */
+    #page-admin .data-table th { padding: 14px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; }
+    #page-admin .data-table td { vertical-align: middle; }
+    
+    .admin-stat-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        border: 1px solid rgba(255,255,255,0.03);
+    }
+    .admin-stat-pill i { font-size: 10px; opacity: 0.6; }
+
+    /* Modal Styling Fix for Premium Dark Look */
+    .modal-content {
+        background: rgba(15, 23, 42, 0.95) !important;
+        backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+    }
+    .modal-header h3 { font-weight: 800; letter-spacing: -0.5px; }
+    
+    #adminUserForm .form-control {
+        background: rgba(0,0,0,0.2) !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
+        color: #fff !important;
+        border-radius: 10px !important;
+        padding: 10px 14px !important;
+    }
+    #adminUserForm .form-control:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1) !important;
+    }
+    #adminUserForm label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgba(255,255,255,0.5);
+        margin-bottom: 6px;
+        display: block;
+    }
+  </style>
+
   <!-- User Stats Cards -->
   <div class="stats-grid">
     <div class="stat-card">
@@ -54,6 +103,7 @@
           <tr>
             <th>User</th>
             <th>Email</th>
+            <th>Setup</th>
             <th>Role</th>
             <th>Status</th>
             <th>Login Terakhir</th>
@@ -62,7 +112,7 @@
         </thead>
         <tbody id="adminUserTableBody">
           <!-- Data users akan dimuat via JS -->
-          <tr><td colspan="6" style="text-align:center;padding:40px;color:rgba(255,255,255,.4)">Memuat data...</td></tr>
+          <tr><td colspan="7" style="text-align:center;padding:40px;color:rgba(255,255,255,.4)">Memuat data...</td></tr>
         </tbody>
       </table>
     </div>

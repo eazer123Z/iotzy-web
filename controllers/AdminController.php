@@ -17,7 +17,14 @@ function handleAdminAction(string $action, int $adminId, array $body, PDO $db): 
     // ===================== GET USERS =====================
     if ($action === 'admin_get_users') {
         try {
-            $stmt = $db->query("SELECT id, username, email, full_name, role, is_active, last_login, created_at FROM users ORDER BY id DESC");
+            $stmt = $db->query("
+                SELECT 
+                    u.id, u.username, u.email, u.full_name, u.role, u.is_active, u.last_login, u.created_at,
+                    (SELECT COUNT(*) FROM devices WHERE user_id = u.id) as device_count,
+                    (SELECT COUNT(*) FROM sensors WHERE user_id = u.id) as sensor_count
+                FROM users u
+                ORDER BY u.id DESC
+            ");
             $users = $stmt->fetchAll();
             jsonOut(['success' => true, 'data' => $users]);
         } catch (Exception $e) {

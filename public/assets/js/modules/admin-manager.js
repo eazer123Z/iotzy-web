@@ -38,26 +38,37 @@ const AdminManager = {
         tbody.innerHTML = this.users.map(u => `
             <tr>
                 <td>
-                    <div style="display:flex;align-items:center;gap:12px">
-                        <div class="user-avatar" style="width:32px;height:32px;font-size:12px">${u.username.charAt(0).toUpperCase()}</div>
+                    <div class="user-info-cell">
+                        <div class="user-avatar">${u.username.charAt(0).toUpperCase()}</div>
                         <div>
-                            <div style="font-weight:600">${u.username}</div>
-                            <div style="font-size:11px;opacity:.6">${u.full_name || '-'}</div>
+                            <div class="user-name-text">${u.full_name || u.username}</div>
+                            <div class="user-sub-text">@${u.username}</div>
                         </div>
                     </div>
                 </td>
-                <td>${u.email || '-'}</td>
-                <td><span class="badge badge-${u.role === 'admin' ? 'primary' : 'secondary'}">${u.role.toUpperCase()}</span></td>
+                <td>${u.email}</td>
                 <td>
-                    <span class="status-pill status-${u.is_active ? 'online' : 'offline'}">
-                        ${u.is_active ? 'Aktif' : 'Non-aktif'}
-                    </span>
+                    <div style="display:flex; flex-direction:column; gap:4px">
+                        <span class="admin-stat-pill"><i class="fas fa-microchip"></i> ${u.device_count || 0} Device</span>
+                        <span class="admin-stat-pill"><i class="fas fa-signal"></i> ${u.sensor_count || 0} Sensor</span>
+                    </div>
                 </td>
-                <td>${u.last_login ? new Date(u.last_login).toLocaleString('id-ID') : 'Belum pernah'}</td>
+                <td><span class="role-badge ${u.role}">${u.role}</span></td>
+                <td>
+                    <span class="status-indicator ${u.is_active ? 'active' : 'inactive'}"></span>
+                    ${u.is_active ? 'Aktif' : 'Nonaktif'}
+                </td>
+                <td>${u.last_login ? formatDate(u.last_login) : '<span style="opacity:0.4">Belum pernah</span>'}</td>
                 <td>
                     <div class="table-actions">
-                        <button class="icon-btn" onclick="AdminManager.editUser(${u.id})" title="Edit"><i class="fas fa-edit"></i></button>
-                        <button class="icon-btn" style="color:var(--danger)" onclick="AdminManager.deleteUser(${u.id})" title="Hapus"><i class="fas fa-trash"></i></button>
+                        <button class="action-btn edit" onclick="editAdminUser(${u.id})" title="Edit User">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        ${u.role !== 'admin' ? `
+                        <button class="action-btn delete" onclick="deleteAdminUser(${u.id}, '${u.username}')" title="Hapus User">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                        ` : ''}
                     </div>
                 </td>
             </tr>
@@ -152,3 +163,5 @@ const AdminManager = {
 window.openAddUserModal = () => AdminManager.openAddModal();
 window.loadAdminUsers = () => AdminManager.loadUsers();
 window.handleAdminUserSubmit = (e) => AdminManager.handleSubmit(e);
+window.editAdminUser = (id) => AdminManager.editUser(id);
+window.deleteAdminUser = (id, username) => AdminManager.deleteUser(id, username);
