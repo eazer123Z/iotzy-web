@@ -3,8 +3,12 @@
  * config/app.php — Konfigurasi Aplikasi
  */
 
+$appUrl = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+if ($appUrl === '/api') {
+    $appUrl = '';
+}
 define('APP_NAME',         'IoTzy');
-define('APP_URL',          rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/\\'));
+define('APP_URL',          $appUrl);
 define('APP_VERSION',      '7.0.0');
 define('APP_SECRET',       getenv('APP_SECRET') ?: 'a7d8e9f0c1b2a3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0');
 define('SESSION_LIFETIME', 86400);
