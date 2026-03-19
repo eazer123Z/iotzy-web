@@ -1,74 +1,49 @@
 <?php
-// Database helper functions (procedural wrappers)
+/**
+ * services/DBHelper.php — Legacy DB Helpers (backward-compat wrappers)
+ *
+ * Fungsi utama sudah ada di config/database.php.
+ * File ini hanya menyediakan wrapper jika dipanggil langsung dari legacy code.
+ */
 
 require_once __DIR__ . '/../config/database.php';
 
-/**
- * Insert row and return new ID.
- */
-function dbInsert(string $sql, array $params = []): int {
-    $db = getLocalDB();
-    if (!$db) throw new RuntimeException('DB not connected');
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
-    return (int)$db->lastInsertId();
-}
+// Semua fungsi utama (dbInsert, dbWrite, dbStatus) sudah di config/database.php
+// File ini hanya require config/database.php untuk backward compatibility.
 
 /**
- * Execute UPDATE/DELETE/etc. Returns affected rows.
+ * Encrypt a plaintext string using AES-256-CBC.
+ * Guard agar tidak bentrok dengan core/helpers.php
  */
-function dbWrite(string $sql, array $params = []): int {
-    $db = getLocalDB();
-    if (!$db) throw new RuntimeException('DB not connected');
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
-    return $stmt->rowCount();
-}
+if (!function_exists('encryptSecret')) {
+    function encryptSecret(string $plainText): ?string {
+        $plainText = trim($plainText);
+        if ($plainText === '') return null;
 
-/**
- * Get basic DB status (used by api/data.php db_status action).
- */
-function dbStatus(): array {
-    $db = getLocalDB();
-    if (!$db) return ['connected' => false, 'error' => 'DB not connected'];
-    try {
-        $stmt = $db->query('SELECT COUNT(*) FROM users');
-        $userCount = (int)$stmt->fetchColumn();
-        return [
-            'connected'    => true,
-            'users'        => $userCount,
-            'db_name'      => DB_NAME,
-            'db_host'      => DB_HOST,
-            'charset'      => DB_CHARSET,
-        ];
-    } catch (Throwable $e) {
-        return ['connected' => false, 'error' => $e->getMessage()];
+        $key = hash('sha256', (defined('APP_SECRET') ? APP_SECRET : 'fallback-secret'), true);
+        $iv  = random_bytes(16);
+        $enc = openssl_encrypt($plainText, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
+
+        if ($enc === false) return null;
+        return base64_encode($iv . $enc);
     }
 }
 
 /**
- * Simple encryption for sensitive fields (MQTT password).
- * Uses openssl with APP_SECRET as key.
+ * Decrypt a ciphertext string.
  */
-function encryptSecret(string $plain): string {
-    if (empty(trim($plain))) return '';
-    $key = hash('sha256', (defined('APP_SECRET') ? APP_SECRET : 'fallback-secret'), true);
-    $iv  = random_bytes(16);
-    $encrypted = openssl_encrypt($plain, 'AES-256-CBC', $key, 0, $iv);
-    if ($encrypted === false) return '';
-    return base64_encode($iv . $encrypted);
-}
+if (!function_exists('decryptSecret')) {
+    function decryptSecret(?string $cipherText): string {
+        if (!$cipherText) return '';
 
-/**
- * Decrypt secret.
- */
-function decryptSecret(string $encrypted): string {
-    if (empty(trim($encrypted))) return '';
-    $data = base64_decode($encrypted, true);
-    if ($data === false) return '';
-    $iv = substr($data, 0, 16);
-    $cipher = substr($data, 16);
-    $key = hash('sha256', (defined('APP_SECRET') ? APP_SECRET : 'fallback-secret'), true);
-    $decrypted = openssl_decrypt($cipher, 'AES-256-CBC', $key, 0, $iv);
-    return $decrypted === false ? '' : $decrypted;
+        $raw = base64_decode($cipherText, true);
+        if ($raw === false || strlen($raw) <= 16) return '';
+
+        $key = hash('sha256', (defined('APP_SECRET') ? APP_SECRET : 'fallback-secret'), true);
+        $iv  = substr($raw, 0, 16);
+        $enc = substr($raw, 16);
+        $dec = openssl_decrypt($enc, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
+
+        return $dec === false ? '' : $dec;
+    }
 }
