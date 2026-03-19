@@ -19,10 +19,11 @@ try {
     $admin = $stmt->fetch();
 
     if ($admin) {
-        // Jika sudah ada, paksa set role jadi 'admin' dan pastikan aktif
-        $db->prepare("UPDATE users SET role = 'admin', is_active = 1 WHERE id = ?")
-           ->execute([$admin['id']]);
-        $results[] = "✅ User 'admin' sudah ada, Role dipaksa ke 'admin'.";
+        // Jika sudah ada, paksa set role jadi 'admin' dan RESET PASSWORD agar user tahu
+        $hash = password_hash('admin123', PASSWORD_BCRYPT, ['cost' => 12]);
+        $db->prepare("UPDATE users SET role = 'admin', password_hash = ?, is_active = 1 WHERE id = ?")
+           ->execute([$hash, $admin['id']]);
+        $results[] = "✅ User 'admin' ditemukan. Role diperbarui & Password di-reset ke: <b>admin123</b>";
     } else {
         // Jika belum ada, buat baru
         $hash = password_hash('admin123', PASSWORD_BCRYPT, ['cost' => 12]);
