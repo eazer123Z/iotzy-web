@@ -269,6 +269,13 @@ $tables = [
         INDEX idx_sessions_lookup (user_id, session_token, expires_at),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+    'persistent_sessions' => "CREATE TABLE IF NOT EXISTS persistent_sessions (
+        id VARCHAR(128) NOT NULL PRIMARY KEY,
+        data MEDIUMTEXT NOT NULL,
+        timestamp INT UNSIGNED NOT NULL,
+        INDEX idx_timestamp (timestamp)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];
 
 // Execute semua CREATE TABLE

@@ -45,3 +45,9 @@ require_once $baseDir . '/core/response.php';
 
 // Aktifkan error handler untuk API
 registerApiErrorHandler();
+
+// 🔥 PERSISTENT SESSION HANDLER (Khusus Vercel/Serverless)
+require_once $baseDir . '/core/PersistentSession.php';
+if (!session_id()) {
+    session_set_save_handler(new PersistentSessionHandler(), true);
+}
