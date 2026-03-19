@@ -4053,7 +4053,7 @@ select.form-input {
   border-radius: 24px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
   z-index: 9999;
-  display: flex;
+  display: none; /* 🔥 FIX: Start hidden */
   flex-direction: column;
   overflow: hidden;
   transform: translateY(30px) scale(0.9);
@@ -4063,6 +4063,7 @@ select.form-input {
 }
 
 .ai-chat-modal.active {
+  display: flex; /* 🔥 FIX: Show only when active */
   transform: translateY(0) scale(1);
   opacity: 1;
   pointer-events: auto;

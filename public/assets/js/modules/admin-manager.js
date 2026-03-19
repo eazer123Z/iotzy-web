@@ -27,69 +27,101 @@ const AdminManager = {
     },
 
     async loadUsers() {
-        const tbody = document.getElementById('adminUserTableBody');
-        if (!tbody) return;
-
         try {
             const res = await apiPost('admin_get_users');
             if (res.success) {
                 this.users = res.data;
-                this.renderUsers();
+                this.applyFilters();
                 this.updateStats();
             } else {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red)">Error: ${res.error || 'Gagal memuat daftar user'}</td></tr>`;
-                showToast(res.error || 'Gagal memuat daftar user', 'error');
+                throw new Error(res.error || 'Failed to fetch users');
             }
         } catch (e) {
-            console.error('[Admin] Load users error:', e);
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red)">System Error: Terjadi kesalahan saat memuat data.</td></tr>`;
+            console.error('Admin Load Error:', e);
+            const tbody = document.getElementById('adminUserTableBody');
+            if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:60px;color:var(--red)"><i class="fas fa-exclamation-triangle"></i> ${e.message}</td></tr>`;
         }
+    },
+
+    applyFilters() {
+        this.filteredUsers = this.users.filter(u => {
+            const matchesQuery = !this.currentQuery || 
+                u.username.toLowerCase().includes(this.currentQuery.toLowerCase()) ||
+                (u.full_name && u.full_name.toLowerCase().includes(this.currentQuery.toLowerCase())) ||
+                u.email.toLowerCase().includes(this.currentQuery.toLowerCase());
+            
+            const matchesRole = this.currentFilter === 'all' || u.role === this.currentFilter;
+            
+            return matchesQuery && matchesRole;
+        });
+        this.renderUsers();
+    },
+
+    setSearch(query) {
+        this.currentQuery = query;
+        this.applyFilters();
+    },
+
+    setRoleFilter(role) {
+        this.currentFilter = role;
+        this.applyFilters();
     },
 
     renderUsers() {
         const tbody = document.getElementById('adminUserTableBody');
-        if (!this.users.length) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:60px;color:var(--ink-5)">Tidak ada data pengguna.</td></tr>';
+        if (!tbody) return;
+
+        if (!this.filteredUsers.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:80px;color:var(--ink-5)">No matching operators found.</td></tr>';
             return;
         }
 
-        tbody.innerHTML = this.users.map(u => `
+        tbody.innerHTML = this.filteredUsers.map(u => `
             <tr>
                 <td>
-                    <div class="user-info-cell">
-                        <div class="user-avatar-small">${u.username.charAt(0).toUpperCase()}</div>
+                    <div class="user-id-box">
+                        <div class="user-avatar-hex">${u.username.charAt(0).toUpperCase()}</div>
                         <div>
-                            <div class="user-name-text">${u.full_name || u.username}</div>
-                            <div class="user-sub-text">@${u.username}</div>
+                            <span class="user-meta-name">${u.full_name || u.username}</span>
+                            <span class="user-meta-email">@${u.username}</span>
                         </div>
                     </div>
                 </td>
-                <td><span style="font-size:12px;opacity:0.8">${u.email}</span></td>
+                <td><span style="font-family:var(--mono); font-size:12px; opacity:0.7">${u.email}</span></td>
                 <td>
-                    <div style="display:flex; flex-direction:column; gap:4px">
-                        <span class="admin-stat-pill device"><i class="fas fa-microchip"></i> ${u.device_count || 0} Device</span>
-                        <span class="admin-stat-pill sensor"><i class="fas fa-signal"></i> ${u.sensor_count || 0} Sensor</span>
+                    <div style="display:flex; gap:6px">
+                        <span class="admin-stat-pill device" style="font-size:10px; padding:3px 8px"><i class="fas fa-microchip"></i> ${u.device_count || 0}</span>
+                        <span class="admin-stat-pill sensor" style="font-size:10px; padding:3px 8px"><i class="fas fa-signal"></i> ${u.sensor_count || 0}</span>
                     </div>
                 </td>
-                <td><span class="role-badge ${u.role}" style="font-size:10px; padding:2px 8px">${u.role.toUpperCase()}</span></td>
                 <td>
-                    <div style="display:flex; align-items:center; gap:6px">
-                        <span class="status-indicator ${u.is_active ? 'active' : 'inactive'}"></span>
-                        <span style="font-size:12px">${u.is_active ? 'Aktif' : 'Nonaktif'}</span>
-                    </div>
+                    <span class="role-badge ${u.role}" style="font-size:9px; font-weight:800; padding:2px 8px; border-radius:4px">
+                        ${u.role === 'admin' ? 'EXECUTIVE' : 'OPERATOR'}
+                    </span>
                 </td>
-                <td><span style="font-size:11px; color:var(--ink-4)">${u.last_login ? this.formatDate(u.last_login) : 'Belum pernah'}</span></td>
                 <td>
-                    <div class="table-actions" style="justify-content: flex-end">
-                        <button class="action-btn view" onclick="viewAdminUserDetails(${u.id}, '${u.username}')" title="Liat Detail Setup">
-                            <i class="fas fa-eye"></i>
+                    <span class="neon-pill ${u.is_active ? 'active' : 'inactive'}">
+                        <i class="fas ${u.is_active ? 'fa-check-double' : 'fa-ban'}"></i>
+                        ${u.is_active ? 'Active' : 'Restricted'}
+                    </span>
+                </td>
+                <td>
+                    <span style="font-size:11px; color:var(--ink-4)">
+                        <i class="fas fa-clock-rotate-left" style="font-size:10px"></i>
+                        ${u.last_login ? this.formatDate(u.last_login) : 'Never'}
+                    </span>
+                </td>
+                <td>
+                    <div style="display:flex; gap:8px; justify-content:flex-end">
+                        <button class="admin-action-btn view" onclick="viewAdminUserDetails(${u.id}, '${u.username}')" title="Insight Analysis">
+                            <i class="fas fa-chart-user"></i>
                         </button>
-                        <button class="action-btn edit" onclick="editAdminUser(${u.id})" title="Edit User">
-                            <i class="fas fa-edit"></i>
+                        <button class="admin-action-btn edit" onclick="editAdminUser(${u.id})" title="Modify Identity">
+                            <i class="fas fa-user-pen"></i>
                         </button>
                         ${u.role !== 'admin' ? `
-                        <button class="action-btn delete" onclick="deleteAdminUser(${u.id}, '${u.username}')" title="Hapus User">
-                            <i class="fas fa-trash-alt"></i>
+                        <button class="admin-action-btn delete" onclick="deleteAdminUser(${u.id}, '${u.username}')" title="Revoke Access">
+                            <i class="fas fa-user-xmark"></i>
                         </button>
                         ` : ''}
                     </div>
@@ -109,11 +141,12 @@ const AdminManager = {
     },
 
     openAddModal() {
-        document.getElementById('userModalTitle').textContent = 'Tambah User Baru';
-        document.getElementById('adminTargetUserId').value = '';
+        document.getElementById('adminModalTitle').textContent = 'Register New Operator';
+        document.getElementById('adminUserId').value = '';
         document.getElementById('adminUserForm').reset();
         document.getElementById('adminUsername').disabled = false;
-        document.getElementById('adminEmailGroup').style.display = 'block';
+        document.getElementById('adminPassLabel').textContent = 'Initial Password';
+        document.getElementById('adminPassword').placeholder = 'Min. 8 characters';
         openModal('modal-user');
     },
 
@@ -121,24 +154,23 @@ const AdminManager = {
         const user = this.users.find(u => u.id == id);
         if (!user) return;
 
-        document.getElementById('userModalTitle').textContent = 'Edit User: ' + user.username;
-        document.getElementById('adminTargetUserId').value = user.id;
+        document.getElementById('adminModalTitle').textContent = 'Modify Operator: ' + user.username;
+        document.getElementById('adminUserId').value = user.id;
         document.getElementById('adminUsername').value = user.username;
         document.getElementById('adminUsername').disabled = true;
         document.getElementById('adminEmail').value = user.email || '';
         document.getElementById('adminFullName').value = user.full_name || '';
         document.getElementById('adminRole').value = user.role;
         document.getElementById('adminIsActive').checked = user.is_active == 1;
-        
-        // Sembunyikan email group saat edit untuk simplicity (opsional) atau biarkan ada.
-        // Kita biarkan ada tapi password jadi opsional.
+        document.getElementById('adminPassLabel').textContent = 'Update Password';
+        document.getElementById('adminPassword').placeholder = 'Leave blank to keep current';
         
         openModal('modal-user');
     },
 
     async handleSubmit(e) {
         e.preventDefault();
-        const id = document.getElementById('adminTargetUserId').value;
+        const id = document.getElementById('adminUserId').value;
         const data = {
             id: id,
             username: document.getElementById('adminUsername').value,
@@ -251,3 +283,5 @@ window.handleAdminUserSubmit = (e) => AdminManager.handleSubmit(e);
 window.editAdminUser = (id) => AdminManager.editUser(id);
 window.deleteAdminUser = (id, username) => AdminManager.deleteUser(id, username);
 window.viewAdminUserDetails = (id, username) => AdminManager.viewUserDetails(id, username);
+window.filterAdminUsers = (q) => AdminManager.setSearch(q);
+window.filterAdminByRole = (r) => AdminManager.setRoleFilter(r);
