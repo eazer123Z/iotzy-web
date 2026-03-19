@@ -5,6 +5,14 @@
 
 require_once __DIR__ . '/../core/bootstrap.php';
 
+// Proteksi: Hanya bisa dijalankan jika menyertakan token rahasia di URL
+// Contoh: api/admin-fix.php?token=iotzy_super_secret_123
+$secret = 'iotzy_super_secret_123';
+if (($_GET['token'] ?? '') !== $secret) {
+    http_response_code(403);
+    die("Akses Ditolak. Gunakan token yang benar.");
+}
+
 $db = getLocalDB();
 if (!$db) {
     die("Gagal konek DB: " . ($GLOBALS['DB_LAST_ERROR'] ?? 'Unknown error'));

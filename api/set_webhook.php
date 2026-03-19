@@ -2,6 +2,14 @@
 // api/set_webhook.php
 require_once __DIR__ . '/../core/bootstrap.php';
 require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../config/telegram.php';
+
+// Proteksi: Hanya bisa dijalankan jika menyertakan token rahasia di URL
+$secret = 'iotzy_super_secret_123';
+if (($_GET['token'] ?? '') !== $secret) {
+    http_response_code(403);
+    die("Akses Ditolak. Gunakan token yang benar.");
+}
 
 // Webhook ini dipanggil oleh user yang sedang login di browser
 if (!isLoggedIn()) {
@@ -24,7 +32,7 @@ if (!$botToken) {
     die("❌ Error: Bot Token belum diatur di Pengaturan maupun Config.");
 }
 
-$webhookUrl = APP_URL . '/api/telegram_webhook.php';
+$webhookUrl = APP_URL . '/api/telegram_webhook.php?token=' . $secret;
 
 // Telegram requires HTTPS for webhooks
 if (strpos($webhookUrl, 'https://') !== 0) {

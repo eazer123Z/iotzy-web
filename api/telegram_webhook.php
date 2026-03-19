@@ -19,6 +19,14 @@ register_shutdown_function(function() {
 });
 
 require_once __DIR__ . '/../core/bootstrap.php';
+require_once __DIR__ . '/../config/telegram.php';
+
+// Proteksi: Hanya boleh dipanggil oleh Telegram dengan secret yang benar
+$secret = 'iotzy_super_secret_123';
+if (($_GET['token'] ?? '') !== $secret) {
+    http_response_code(403);
+    die("Akses Ditolak.");
+}
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../services/AIParser.php';
 require_once __DIR__ . '/../services/TelegramService.php';
