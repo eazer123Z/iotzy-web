@@ -41,6 +41,7 @@ function getLocalDB(): ?PDO {
         $pdo = new PDO($dsn, $u, $p, [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
         ]);
         $pdo->exec("SET NAMES " . DB_CHARSET);
     } catch (PDOException $e) {
