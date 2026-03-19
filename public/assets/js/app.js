@@ -143,6 +143,23 @@ function updateThemeIcon(theme) {
   icon.className = theme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
 }
 
+/* ==================== MODALS ==================== */
+function openModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.add("show");
+    document.body.style.overflow = "hidden"; // Prevent background scroll
+  }
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.remove("show");
+    document.body.style.overflow = ""; // Restore scroll
+  }
+}
+
 /* ==================== API ==================== */
 
 async function apiPost(action, data = {}) {
