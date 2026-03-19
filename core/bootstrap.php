@@ -1,12 +1,8 @@
-<?php
-/**
- * core/bootstrap.php — Master Loader
- */
-
-$baseDir = dirname(__DIR__);
-
-// 🔥 cegah header error
+// 🔥 1. CEGAH HEADER/JSON POLLUTION (Sangat Penting)
 ob_start();
+error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
 
 
 // ==================== LOAD ENV ====================
@@ -47,15 +43,6 @@ require_once $baseDir . '/config/telegram.php';
 // CORE
 require_once $baseDir . '/core/helpers.php';
 require_once $baseDir . '/core/response.php';
-
-registerApiErrorHandler();
-
-
-// ==================== ERROR SUPPRESSION (JSON PROTECTION) ====================
-// 🔥 Cegah HTML error pecahin JSON response
-error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
-ini_set('display_errors', '0');
-ini_set('log_errors', '1');
 
 // ==================== SESSION FIX ====================
 

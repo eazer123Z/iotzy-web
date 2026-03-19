@@ -4,12 +4,13 @@
  */
 
 $appUrl = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
-if ($appUrl === '/api') {
-    $appUrl = '';
-}
+// 🔥 Robust subfolder stripping (api, controllers, middleware, etc.)
+$appUrl = preg_replace('/\/(api|controllers|middleware|services|core|views)$/', '', $appUrl);
+if ($appUrl === '/') $appUrl = '';
+
 define('APP_NAME',         'IoTzy');
 define('APP_URL',          $appUrl);
-define('APP_VERSION',      '7.0.5');
+define('APP_VERSION',      '7.0.6');
 define('APP_SECRET',       getenv('APP_SECRET') ?: 'a7d8e9f0c1b2a3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0');
 define('SESSION_LIFETIME', 86400);
 define('APP_TIMEZONE',     'Asia/Makassar');

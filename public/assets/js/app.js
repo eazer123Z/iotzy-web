@@ -167,17 +167,34 @@ async function apiPost(action, data = {}) {
     const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/data_router.php";
     const hdrs = { "Content-Type": "application/json" };
     if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
+    
     const res  = await fetch(`${base}?action=${action}`, {
       method:  "POST",
       headers: hdrs,
-      credentials: "include", // 🔑 CRITICAL: Pastikan cookie (PHPSESSID) terkirim
+      credentials: "include", 
       body:    JSON.stringify(data),
     });
+
+    if (res.status === 401) {
+      console.warn("Session expired (401). Redirecting...");
+      window.location.href = (typeof APP_BASE !== "undefined" ? APP_BASE : "") + "/?route=login&expired=true";
+      return null;
+    }
+
+    if (res.status === 403) {
+      console.error("Access Denied or CSRF Mismatch (403).");
+      showToast("Access Denied (403)", "error");
+      return null;
+    }
+
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (e) {
     console.error("API error:", action, e);
-    showToast(`Error: ${action}`, "error");
+    // Don't show toast for "AbortError" (timeout) or common network hiccups
+    if (e.name !== 'AbortError') {
+       showToast(`API error: ${action}`, "error");
+    }
     return null;
   }
 }
@@ -191,8 +208,13 @@ async function apiPost(action, data = {}) {
  * dan memulai modul-modul utama (Automation, CV, MQTT).
  */
 document.addEventListener("DOMContentLoaded", async () => {
+  // 🔥 Version Check (Cegah Stale Cache)
+  const currentVersion = typeof PHP_SETTINGS !== 'undefined' ? (PHP_SETTINGS.app_version || '7.0.6') : '7.0.6';
+  
   initTheme();
   initClock();
+  
+  // Start loading data
   await loadCVConfig();
 
   loadFromPHP(); // Memuat data awal dari backend PHP
