@@ -1,6 +1,9 @@
 <?php
+echo "Debug 1: Started ";
 require_once __DIR__ . '/../core/bootstrap.php';
+echo "Debug 2: Bootstrap loaded ";
 require_once __DIR__ . '/../core/auth.php';
+echo "Debug 3: Auth loaded ";
 
 echo "IoTzy Debug: Core loaded successfully!"; exit;
 
