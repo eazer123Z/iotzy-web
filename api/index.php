@@ -94,10 +94,14 @@ include __DIR__ . '/../components/topbar.php';
 include __DIR__ . '/../pages/dashboard.php';
 include __DIR__ . '/../pages/devices.php';
 include __DIR__ . '/../pages/sensors.php';
-include __DIR__ . '/../pages/automation.php';
 include __DIR__ . '/../pages/camera.php';
+include __DIR__ . '/../pages/automation.php';
 include __DIR__ . '/../pages/analytics.php';
 include __DIR__ . '/../pages/settings.php';
+include __DIR__ . '/../pages/history.php';
+include __DIR__ . '/../pages/schedules.php';
+include __DIR__ . '/../pages/recordings.php';
+include __DIR__ . '/../pages/camera_cv.php';
 
 include __DIR__ . '/../components/bottom_nav.php';
 include __DIR__ . '/../components/modals.php';

@@ -1,143 +1,105 @@
-
-      <!-- ════════════ SETTINGS ════════════ -->
-      <div id="view-settings" class="view hidden">
-        <div class="view-header">
-          <div><h2 class="view-title">Pengaturan</h2><p class="view-sub">Konfigurasi akun, MQTT, dan sistem</p></div>
+<div id="settings" class="view app-section">
+  <div class="settings-grid">
+    <div class="settings-nav">
+      <div class="sn-header">
+        <i class="fas fa-sliders"></i>
+        <span>Pengaturan</span>
+      </div>
+      <div class="sn-list">
+        <button class="sn-item active" data-target="set-profile"><i class="fas fa-user-circle"></i> Profil Pengguna</button>
+        <button class="sn-item" data-target="set-mqtt"><i class="fas fa-network-wired"></i> Koneksi MQTT</button>
+        <button class="sn-item" data-target="set-telegram"><i class="fas fa-paper-plane"></i> Notifikasi Telegram</button>
+        <button class="sn-item" data-target="set-security"><i class="fas fa-shield-halved"></i> Keamanan & Akun</button>
+        <button class="sn-item" data-target="set-system"><i class="fas fa-server"></i> Informasi Sistem</button>
+        <button class="sn-item" data-target="set-backup"><i class="fas fa-database"></i> Backup & Restore</button>
+      </div>
+    </div>
+    <div class="settings-main">
+      <div id="set-profile" class="settings-panel active">
+        <div class="panel-header">Profil Pengguna</div>
+        <div class="panel-body">
+          <div class="field-item">
+            <label>Username</label>
+            <input type="text" value="<?= $userData['username'] ?? '' ?>" class="fi-input" disabled>
+          </div>
+          <div class="field-item">
+            <label>Nama Lengkap</label>
+            <input type="text" id="profName" value="<?= $userData['full_name'] ?? '' ?>" class="fi-input">
+          </div>
+          <div class="field-item">
+            <label>Email</label>
+            <input type="email" id="profEmail" value="<?= $userData['email'] ?? '' ?>" class="fi-input">
+          </div>
+          <button class="btn-primary" onclick="saveProfile()">Simpan Profil</button>
         </div>
-        <div class="settings-grid">
-          <div class="card">
-            <div class="card-header"><span class="card-title"><i class="fas fa-user" style="color:var(--a)"></i> Profil Akun</span></div>
-            <div class="card-body settings-body">
-              <div class="field-group">
-                <label>Nama Lengkap</label>
-                <input type="text" id="settingFullName" class="form-input"
-                  value="<?= htmlspecialchars($user['full_name'] ?? '') ?>"
-                  placeholder="Nama lengkap Anda">
-              </div>
-              <div class="field-group">
-                <label>Email</label>
-                <input type="email" id="settingEmail" class="form-input"
-                  value="<?= htmlspecialchars($user['email']) ?>">
-              </div>
-              <div class="field-group">
-                <label>Username</label>
-                <input type="text" class="form-input"
-                  value="<?= htmlspecialchars($user['username']) ?>" disabled>
-              </div>
-              <button onclick="saveProfile()" class="btn-primary" style="width:100%;justify-content:center">
-                <i class="fas fa-floppy-disk"></i> Simpan Profil
-              </button>
-            </div>
+      </div>
+      <div id="set-mqtt" class="settings-panel">
+        <div class="panel-header">Konfigurasi MQTT</div>
+        <div class="panel-body">
+          <div class="status-box">
+            <span>Status Koneksi:</span>
+            <span id="mqttStatusSettings" class="setting-val muted">Disconnected</span>
           </div>
-
-          <div class="card">
-            <div class="card-header"><span class="card-title"><i class="fas fa-key" style="color:var(--amber)"></i> Ganti Password</span></div>
-            <div class="card-body settings-body">
-              <div class="field-group">
-                <label>Password Saat Ini</label>
-                <input type="password" id="oldPassword" class="form-input" placeholder="Password lama" autocomplete="current-password">
-              </div>
-              <div class="field-group">
-                <label>Password Baru</label>
-                <input type="password" id="newPassword" class="form-input" placeholder="Minimal 8 karakter" autocomplete="new-password">
-              </div>
-              <div class="field-group">
-                <label>Konfirmasi Password Baru</label>
-                <input type="password" id="confirmPassword" class="form-input" placeholder="Ulangi password baru" autocomplete="new-password">
-              </div>
-              <button onclick="changePassword()" class="btn-primary" style="width:100%;justify-content:center">
-                <i class="fas fa-lock"></i> Ganti Password
-              </button>
-            </div>
+          <div class="field-item">
+            <label>Broker URL</label>
+            <input type="text" id="mqttBroker" class="fi-input" value="<?= $settings['mqtt_broker'] ?? '' ?>">
           </div>
-
-          <div class="card">
-            <div class="card-header"><span class="card-title"><i class="fab fa-telegram" style="color:#0088cc"></i> Integrasi Telegram</span></div>
-            <div class="card-body settings-body">
-              <div class="field-group">
-                <label>Telegram Chat ID</label>
-                <div style="display:flex;gap:8px">
-                  <input type="text" id="settingTelegramId" class="form-input"
-                    value="<?= htmlspecialchars($settings['telegram_chat_id'] ?? '') ?>"
-                    placeholder="Contoh: 12345678">
-                  <button onclick="saveTelegramId()" class="btn-primary small">Simpan</button>
-                </div>
-                <div style="margin-top:12px;display:flex;gap:8px">
-                  <button onclick="testTelegram()" class="btn-ghost small" style="flex:1">
-                    <i class="fab fa-telegram-plane"></i> Test Koneksi
-                  </button>
-                </div>
-                <p class="setting-hint" style="margin-top:12px">
-                  Dapatkan Chat ID Anda dengan mengirim perintah <code>/start</code> ke Bot Telegram IoTzy.
-                </p>
-              </div>
-            </div>
+          <div class="field-item">
+            <label>Port</label>
+            <input type="number" id="mqttPort" class="fi-input" value="<?= $settings['mqtt_port'] ?? '' ?>">
           </div>
-
-          <div class="card">
-            <div class="card-header"><span class="card-title"><i class="fas fa-network-wired" style="color:var(--a)"></i> Koneksi MQTT</span></div>
-            <div class="card-body settings-body">
-              <div class="setting-row">
-                <div>
-                  <div class="setting-row-label">Status Broker</div>
-                  <div id="mqttStatusSettings" class="setting-val muted">Disconnected</div>
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                  <button onclick="connectMQTT()" class="btn-primary small">Hubungkan</button>
-                  <button onclick="disconnectMQTT()" class="btn-ghost small">Putus</button>
-                </div>
-              </div>
-              <button onclick="openMQTTConfigModal()" class="btn-ghost full"><i class="fas fa-gear"></i> Konfigurasi Broker</button>
-            </div>
+          <button class="btn-primary" onclick="openMQTTConfigModal()">Edit Konfigurasi Detail</button>
+        </div>
+      </div>
+      <div id="set-telegram" class="settings-panel">
+        <div class="panel-header">Integrasi Telegram</div>
+        <div class="panel-body">
+          <p class="panel-desc">Gunakan Bot Telegram IoTzy untuk menerima notifikasi otomasi dan kontrol perangkat via chat.</p>
+          <div class="field-item">
+            <label>Telegram Chat ID</label>
+            <input type="text" id="teleId" value="<?= $settings['telegram_chat_id'] ?? '' ?>" class="fi-input" placeholder="Contoh: 12345678">
           </div>
-
-          <div class="card">
-            <div class="card-header"><span class="card-title"><i class="fas fa-brain" style="color:var(--purple)"></i> Computer Vision</span></div>
-            <div class="card-body settings-body">
-              <div class="setting-toggle-row">
-                <div><div class="setting-row-label">Bounding Box</div><div class="setting-hint">Kotak deteksi di sekitar objek</div></div>
-                <label class="toggle-wrapper">
-                  <input type="checkbox" id="cvShowBoundingBoxSettings" checked onchange="toggleBoundingBox(this.checked)" class="toggle-input">
-                  <span class="toggle-track"></span>
-                </label>
-              </div>
-              <div class="setting-toggle-row">
-                <div><div class="setting-row-label">Debug Overlay</div><div class="setting-hint">Informasi deteksi di layar kamera</div></div>
-                <label class="toggle-wrapper">
-                  <input type="checkbox" id="cvShowDebugInfoSettings" checked onchange="toggleDebugInfo(this.checked)" class="toggle-input">
-                  <span class="toggle-track"></span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header"><span class="card-title"><i class="fas fa-circle-info" style="color:var(--a)"></i> Info Aplikasi</span></div>
-            <div class="card-body">
-              <div class="info-table">
-                <div class="info-row"><span>Versi</span><span class="mono"><?= APP_VERSION ?></span></div>
-                <div class="info-row"><span>Perangkat</span><span class="mono" id="totalDevices"><?= count($devices) ?></span></div>
-                <div class="info-row"><span>Sensor</span><span class="mono" id="totalSensors"><?= count($sensors) ?></span></div>
-                <div class="info-row"><span>Login sebagai</span><span class="mono"><?= htmlspecialchars($user['username']) ?></span></div>
-                <div class="info-row"><span>Role</span><span class="mono"><?= htmlspecialchars($user['role']) ?></span></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card" style="border-color:rgba(220,38,38,.2)">
-            <div class="card-header"><span class="card-title" style="color:var(--red)"><i class="fas fa-triangle-exclamation"></i> Zona Berbahaya</span></div>
-            <div class="card-body settings-body">
-              <p class="setting-hint" style="margin-bottom:16px">Tindakan ini tidak dapat dibatalkan.</p>
-              <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <button onclick="clearLogs()" class="btn-ghost red"><i class="fas fa-trash"></i> Hapus Semua Log</button>
-                <form method="POST" action="<?= APP_URL ?>/?route=logout" style="margin:0">
-                  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generateCsrfToken()) ?>">
-                  <button type="submit" class="btn-danger">
-                    <i class="fas fa-right-from-bracket"></i> Logout
-                  </button>
-                </form>
-              </div>
-            </div>
+          <div class="btn-group">
+            <button class="btn-primary" onclick="saveTelegramId()">Simpan Chat ID</button>
+            <button class="btn-secondary" onclick="testTelegram()"><i class="fas fa-vial"></i> Kirim Test</button>
           </div>
         </div>
       </div>
+      <div id="set-security" class="settings-panel">
+        <div class="panel-header">Keamanan & Password</div>
+        <div class="panel-body">
+          <div class="field-item">
+            <label>Password Lama</label>
+            <input type="password" id="oldPass" class="fi-input">
+          </div>
+          <div class="field-item">
+            <label>Password Baru</label>
+            <input type="password" id="newPass" class="fi-input">
+          </div>
+          <button class="btn-primary" onclick="changePassword()">Ganti Password</button>
+        </div>
+      </div>
+      <div id="set-system" class="settings-panel">
+        <div class="panel-header">Informasi Sistem</div>
+        <div class="panel-body">
+          <div class="info-list">
+            <div class="info-item"><span>Versi App</span><span>v2.4.0 (Stabil)</span></div>
+            <div class="info-item"><span>Engine</span><span>PHP 8.2 + Node.js (Edge)</span></div>
+            <div class="info-item"><span>Database</span><span>Supabase (PostgreSQL)</span></div>
+            <div class="info-item"><span>Uptime Server</span><span><?= date("d M Y H:i") ?></span></div>
+          </div>
+        </div>
+      </div>
+      <div id="set-backup" class="settings-panel">
+        <div class="panel-header">Backup & Restore Konfigurasi</div>
+        <div class="panel-body">
+          <p class="panel-desc">Ekspor seluruh pengaturan dan data peranti Anda ke dalam file cadangan.</p>
+          <div class="btn-group">
+            <button class="btn-primary"><i class="fas fa-download"></i> Ekspor Konfigurasi (JSON)</button>
+            <button class="btn-secondary"><i class="fas fa-upload"></i> Impor Konfigurasi</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

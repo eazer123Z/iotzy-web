@@ -1,27 +1,30 @@
-<?php ?>
-  <main class="main-content">
-    <header class="topbar">
-      <div class="topbar-left">
-        <button onclick="toggleSidebar()" class="menu-btn"><i class="fas fa-bars"></i></button>
-        <div class="breadcrumb">
-          <span class="breadcrumb-app">IoTzy</span>
-          <i class="fas fa-chevron-right breadcrumb-sep"></i>
-          <span id="pageTitle" class="breadcrumb-page">Overview</span>
-        </div>
+<header class="topbar">
+  <div class="topbar-left">
+    <button id="sidebarToggle" class="sidebar-toggle"><i class="fas fa-bars-staggered"></i></button>
+    <div class="page-info">
+      <h2 id="currentPageTitle">Dashboard</h2>
+      <span class="breadcrumb">Home / <span id="breadcrumbCurrent">Dashboard</span></span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="topbar-actions">
+      <div class="mqtt-badge" id="mqttStatusBadge">
+        <i class="fas fa-circle-nodes"></i>
+        <span>MQTT</span>
+        <div class="status-dot disconnected"></div>
       </div>
-      <div class="topbar-right">
-        <button id="themeToggleBtn" onclick="toggleTheme()" class="icon-btn theme-toggle-btn" title="Ganti Tema">
-          <i class="fas fa-moon"></i>
-        </button>
-        <div class="mqtt-badge">
-          <span class="mqtt-dot" id="mqttStatusDot"></span>
-          <span id="mqttStatusText" class="mqtt-label">Disconnected</span>
-        </div>
-        <div style="text-align:right">
-          <span id="clock" class="clock-time">00:00:00</span>
-          <span id="date" class="clock-date">—</span>
-        </div>
+      <button class="icon-btn" onclick="toggleTheme()" id="themeToggle"><i class="fas fa-moon"></i></button>
+      <button class="icon-btn" onclick="openModal('logModal')"><i class="fas fa-terminal"></i></button>
+      <div class="notif-wrapper">
+        <button class="icon-btn"><i class="fas fa-bell"></i><span class="notif-dot"></span></button>
       </div>
-    </header>
-
-    <div class="page-wrapper">
+    </div>
+    <div class="user-profile" onclick="openPage('settings')">
+      <div class="profile-info">
+        <span><?= $userData['username'] ?? 'User' ?></span>
+        <small>Online</small>
+      </div>
+      <div class="profile-avatar"><?= substr($userData['username'] ?? 'U',0,1) ?></div>
+    </div>
+  </div>
+</header>

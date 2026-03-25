@@ -1,8 +1,3 @@
-/**
- * assets/js/modules/cv-config.js
- * ───
- * Konfigurasi default untuk sistem Computer Vision IoTzy.
- */
 let CV_CONFIG = {
   model: {
     base: "lite_mobilenet_v2",

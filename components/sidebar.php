@@ -1,76 +1,46 @@
-<?php ?>
-  <!-- ═══ SIDEBAR ═══ -->
-  <aside id="sidebar" class="sidebar">
-    <div class="sidebar-header">
-      <div class="sidebar-logo"><i class="fas fa-bolt"></i></div>
-      <div>
-        <span class="brand-name">IoTzy</span>
-      </div>
+<aside id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo"><i class="fas fa-bolt"></i></div>
+    <div class="brand-info">
+      <span class="brand-name">IoTzy<br><small style="font-size:9px;opacity:0.6;font-weight:600;letter-spacing:1px">DASHBOARD</small></span>
     </div>
-    <nav class="sidebar-nav">
-      <div class="nav-group-label">Monitor</div>
-      <a href="#" onclick="switchPage('dashboard',this)" class="nav-item active" data-page="dashboard">
-        <span class="nav-icon"><i class="fas fa-house"></i></span>
-        <span class="nav-label">Overview</span>
-      </a>
+    <button id="sidebarToggle" class="menu-btn" style="margin-left:auto"><i class="fas fa-bars-staggered"></i></button>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-group-label">OVERVIEW</div>
+    <a href="#dashboard" class="nav-item active" data-page="dashboard"><i class="fas fa-house-chimney nav-icon"></i><span class="nav-label">Overview</span></a>
 
-      <a href="#" onclick="switchPage('devices',this)" class="nav-item" data-page="devices">
-        <span class="nav-icon"><i class="fas fa-microchip"></i></span>
-        <span class="nav-label">Perangkat</span>
-        <span class="nav-badge" id="navDeviceCount"><?= count($devices) ?></span>
-      </a>
-      <a href="#" onclick="switchPage('sensors',this)" class="nav-item" data-page="sensors">
-        <span class="nav-icon"><i class="fas fa-signal"></i></span>
-        <span class="nav-label">Sensor</span>
-        <span class="nav-badge" id="navSensorCount"><?= count($sensors) ?></span>
-      </a>
+    <div class="nav-group-label">MONITOR</div>
+    <a href="#devices" class="nav-item" data-page="devices"><i class="fas fa-microchip nav-icon"></i><span class="nav-label">Devices</span></a>
+    <a href="#sensors" class="nav-item" data-page="sensors"><i class="fas fa-gauge-high nav-icon"></i><span class="nav-label">Sensors</span></a>
 
-      <div class="nav-group-label" style="margin-top:18px">Otomasi</div>
-      <a href="#" onclick="switchPage('automation',this)" class="nav-item" data-page="automation">
-        <span class="nav-icon"><i class="fas fa-sliders"></i></span>
-        <span class="nav-label">Aturan Otomasi</span>
-      </a>
-      <a href="#" onclick="switchPage('camera',this)" class="nav-item" data-page="camera">
-        <span class="nav-icon"><i class="fas fa-eye"></i></span>
-        <span class="nav-label">Kamera &amp; CV</span>
-        <span class="nav-dot" id="cvNavDot"></span>
-      </a>
+    <div class="nav-group-label">KAMERA & CV</div>
+    <a href="#camera" class="nav-item" data-page="camera"><i class="fas fa-video nav-icon"></i><span class="nav-label">Live Feed</span></a>
+    <a href="#camera_cv" class="nav-item" data-page="camera_cv"><i class="fas fa-brain nav-icon"></i><span class="nav-label">CV Detection</span></a>
+    <a href="#recordings" class="nav-item" data-page="recordings"><i class="fas fa-photo-film nav-icon"></i><span class="nav-label">Recordings</span></a>
 
-      <div class="nav-group-label" style="margin-top:18px">Sistem</div>
-      <a href="#" onclick="switchPage('analytics',this)" class="nav-item" data-page="analytics">
-        <span class="nav-icon"><i class="fas fa-list-ul"></i></span>
-        <span class="nav-label">Log Aktivitas</span>
-      </a>
-      <a href="#" onclick="switchPage('settings',this)" class="nav-item" data-page="settings">
-        <span class="nav-icon"><i class="fas fa-gear"></i></span>
-        <span class="nav-label">Pengaturan</span>
-      </a>
-    </nav>
-    <div class="sidebar-footer">
-      <div class="user-pill">
-        <div class="user-avatar"><?= htmlspecialchars(strtoupper(substr($user['username'], 0, 1))) ?></div>
-        <div class="user-meta">
-          <span class="user-name"><?= htmlspecialchars($user['full_name'] ?: $user['username']) ?></span>
-          <span class="user-role"><?= htmlspecialchars($user['role']) ?></span>
-        </div>
-        <form method="POST" action="<?= APP_URL ?>/?route=logout" class="logout-form">
-          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generateCsrfToken()) ?>">
-          <button type="submit" class="logout-btn" title="Logout">
-            <i class="fas fa-right-from-bracket"></i>
-          </button>
-        </form>
+    <div class="nav-group-label">AUTOMATION</div>
+    <a href="#automation" class="nav-item" data-page="automation"><i class="fas fa-robot nav-icon"></i><span class="nav-label">Rules & Triggers</span></a>
+    <a href="#schedule" class="nav-item" data-page="schedule"><i class="fas fa-calendar-check nav-icon"></i><span class="nav-label">Schedules</span></a>
+
+    <div class="nav-group-label">HISTORY</div>
+    <a href="#analytics" class="nav-item" data-page="analytics"><i class="fas fa-chart-line nav-icon"></i><span class="nav-label">Statistics</span></a>
+    <a href="#logs" class="nav-item" data-page="logs"><i class="fas fa-list-ul nav-icon"></i><span class="nav-label">Activity Logs</span></a>
+
+    <div class="nav-group-label">PREFERENCES</div>
+    <a href="#settings" class="nav-item" data-page="settings"><i class="fas fa-sliders nav-icon"></i><span class="nav-label">Settings</span></a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-pill">
+      <div class="user-avatar"><?= substr(strtoupper($user['username'] ?? 'U'),0,1) ?></div>
+      <div class="user-info">
+        <span class="user-name"><?= htmlspecialchars($user['username'] ?? 'User') ?></span>
+        <span class="user-role"><?= htmlspecialchars($user['role'] ?? 'Admin') ?></span>
       </div>
-      <div class="sidebar-bottom-row">
-        <div class="mqtt-pill">
-          <span class="mqtt-dot" id="sidebarMqttDot"></span>
-          <span id="sidebarMqttText">Offline</span>
-        </div>
-        <button onclick="connectMQTT()" class="icon-btn" title="Hubungkan MQTT"
-          style="border:1px solid var(--sb-border);background:rgba(255,255,255,.04);color:var(--sb-text)">
-          <i class="fas fa-wifi"></i>
-        </button>
-      </div>
+      <form action="?route=logout" method="POST" style="margin:0;display:inline">
+        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+        <button type="submit" class="logout-btn"><i class="fas fa-right-from-bracket"></i></button>
+      </form>
     </div>
-  </aside>
-
-  <div id="overlay" onclick="toggleSidebar()" class="sidebar-overlay"></div>
+  </div>
+</aside>
