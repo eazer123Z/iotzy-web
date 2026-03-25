@@ -51,7 +51,8 @@ function showToast(message, type = "info") {
 }
 
 // ═══ 3. NAVIGATION & UI ═══
-function switchPage(pageId, element) {
+function navSwitch(pageId, element) {
+  if (!element) element = document.querySelector(`.nav-item[data-page="${pageId}"]`);
   document.querySelectorAll(".view").forEach(p => p.classList.remove("active"));
   const view = document.getElementById(pageId);
   if (view) view.classList.add("active");
@@ -60,15 +61,119 @@ function switchPage(pageId, element) {
   renderView(pageId);
 }
 
+// Alias for old references
+const switchPage = navSwitch;
+
 function renderView(pageId) {
   switch(pageId) {
-    case 'dashboard': updateDashboardStats(); updateSummary(); break;
+    case 'dashboard': updateDashboardStats(); updateSummary(); initDashboardChart(); break;
     case 'devices': renderDevices(); break;
     case 'sensors': renderSensors(); break;
     case 'automation': renderAutomationView(); break;
     case 'camera': if (STATE.camera.active) updateCameraElements(true); break;
     case 'analytics': updateLogDisplay(); break;
   }
+}
+
+let dashboardChart = null;
+function initDashboardChart() {
+  const ctx = document.getElementById("ovOverviewChart");
+  if (!ctx) return;
+  if (dashboardChart) dashboardChart.destroy();
+  const ds = Object.values(STATE.sensors).map(s => {
+    return { label: s.name, data: [STATE.sensorData[s.id]||0], borderColor: 'var(--sky)', tension: 0.4 };
+  });
+  // Simple mock data for now
+  dashboardChart = new Chart(ctx, { type: 'line', data: { labels: [new Date().toLocaleTimeString()], datasets: ds }, options: { responsive: true, plugins: { legend: { display: false } } } });
+}
+
+// Modal Management
+function openModal(id) { const m = document.getElementById(id); if(m) m.classList.add("active"); }
+function closeModal(id) { const m = document.getElementById(id); if(m) m.classList.remove("active"); }
+
+function openQuickControlSettings() {
+  const list = document.getElementById("quickControlDevicesList");
+  if (!list) return;
+  const current = PHP_SETTINGS.quick_control_devices || [];
+  list.innerHTML = Object.values(STATE.devices).map(d => `
+    <div class="modal-list-item">
+      <label class="check-row">
+        <input type="checkbox" name="qc_device" value="${d.id}" ${current.includes(d.id)?'checked':''}>
+        <span><i class="fas ${d.icon}"></i> ${escHtml(d.name)}</span>
+      </label>
+    </div>
+  `).join("");
+  openModal("quickControlModal");
+}
+
+function closeQuickControlSettings() { closeModal("quickControlModal"); }
+async function saveQuickControlSettings() {
+  const ids = Array.from(document.querySelectorAll('input[name="qc_device"]:checked')).map(i => i.value);
+  const res = await apiPost("save_settings", { quick_control_devices: JSON.stringify(ids) });
+  if (res?.success) { showToast("Kontrol cepat disimpan", "success"); closeQuickControlSettings(); location.reload(); }
+}
+
+function openTopicSettings(id) {
+  const d = STATE.devices[id]; if (!d) return;
+  document.getElementById("topicDeviceName").textContent = d.name;
+  document.getElementById("editDeviceName").value = d.name;
+  document.getElementById("editDeviceIcon").value = d.icon;
+  document.getElementById("deviceTopicSub").value = d.topic_sub || "";
+  document.getElementById("deviceTopicPub").value = d.topic_pub || "";
+  STATE.current_device_id = id;
+  openModal("topicModal");
+}
+function closeTopicSettings() { closeModal("topicModal"); }
+async function saveDeviceSettings() {
+  const id = STATE.current_device_id;
+  const data = { id, name: document.getElementById("editDeviceName").value, icon: document.getElementById("editDeviceIcon").value, topic_sub: document.getElementById("deviceTopicSub").value, topic_pub: document.getElementById("deviceTopicPub").value };
+  const res = await apiPost("update_device", data);
+  if (res?.success) { showToast("Perangkat diperbarui", "success"); closeTopicSettings(); location.reload(); }
+}
+
+// Add/Edit Modals Logic
+function openAddDeviceModal() { openModal("addDeviceModal"); }
+function closeAddDeviceModal() { closeModal("addDeviceModal"); }
+async function saveNewDevice() {
+  const data = { name: document.getElementById("newDeviceName").value, icon: document.getElementById("newDeviceIcon").value, topic_pub: document.getElementById("newDeviceTopicPub").value };
+  const res = await apiPost("add_device", data);
+  if (res?.success) { showToast("Perangkat ditambahkan", "success"); location.reload(); }
+}
+
+function openAddSensorModal() { openModal("addSensorModal"); }
+function closeAddSensorModal() { closeModal("addSensorModal"); }
+async function saveNewSensor() {
+  const data = { name: document.getElementById("newSensorName").value, type: document.getElementById("newSensorType").value, unit: document.getElementById("newSensorUnit").value, topic: document.getElementById("newSensorTopic").value };
+  const res = await apiPost("add_sensor", data);
+  if (res?.success) { showToast("Sensor ditambahkan", "success"); location.reload(); }
+}
+
+function openMQTTConfigModal() {
+  document.getElementById("mqttBroker").value = PHP_SETTINGS.mqtt_broker || "";
+  document.getElementById("mqttPort").value = PHP_SETTINGS.mqtt_port || 1883;
+  document.getElementById("mqttUseSSL").checked = !!PHP_SETTINGS.mqtt_use_ssl;
+  openModal("mqttConfigModal");
+}
+function closeMQTTConfigModal() { closeModal("mqttConfigModal"); }
+async function saveMQTTConfig() {
+  const data = { mqtt_broker: document.getElementById("mqttBroker").value, mqtt_port: document.getElementById("mqttPort").value, mqtt_use_ssl: document.getElementById("mqttUseSSL").checked ? 1 : 0 };
+  const res = await apiPost("save_settings", data);
+  if (res?.success) { showToast("Konfigurasi MQTT disimpan", "success"); location.reload(); }
+}
+
+function openAddRuleModal() {
+  const sSel = document.getElementById("addRuleCondition");
+  const dSel = document.getElementById("addRuleDevice");
+  if (!sSel || !dSel) return;
+  sSel.innerHTML = Object.values(STATE.sensors).map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+  dSel.innerHTML = Object.values(STATE.devices).map(d => `<option value="${d.id}">${d.name}</option>`).join("");
+  openModal("addRuleModal");
+}
+function closeAddRuleModal() { closeModal("addRuleModal"); }
+async function saveNewAutomationRule() {
+  const data = { sensor_id: document.getElementById("addRuleCondition").value, threshold: document.getElementById("addRuleThreshold").value, device_id: document.getElementById("addRuleDevice").value, action: document.getElementById("addRuleAction").value };
+  const res = await apiPost("add_automation_rule", data);
+  if (res?.success) { showToast("Otomasi dibuat", "success"); location.reload(); }
 }
 
 // ═══ 4. MQTT MANAGER ═══

@@ -34,10 +34,14 @@ function registerApiErrorHandler(): void {
             while (ob_get_level() > 0) ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode([
-                'success' => false, 
-                'error' => "FATAL_DEBUG: " . $err['message'] . " in " . $err['file'] . " on line " . $err['line']
+                'success' => false,
+                'error'   => 'Fatal server error. Silakan coba lagi.'
             ]);
-            exit;
+            
+            $logMsg = '[' . date('Y-m-d H:i:s') . '] FATAL: ' 
+                     . $err['message'] . ' in ' . $err['file'] 
+                     . ' on line ' . $err['line'];
+            error_log($logMsg);
         }
     });
 }

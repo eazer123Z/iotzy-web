@@ -50,6 +50,7 @@ if (!$action) {
         exit;
     }
 
+    require_once __DIR__ . '/../core/UserDataService.php';
     requireLogin();
 
     $user = getCurrentUser();
@@ -64,7 +65,6 @@ if (!$action) {
         exit;
     }
 
-    require_once __DIR__ . '/../core/UserDataService.php';
     $settings = getUserSettings($user['id']);
     $devices = getUserDevices($user['id']);
     $sensors = getUserSensors($user['id']);
