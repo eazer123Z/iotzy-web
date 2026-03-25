@@ -1,8 +1,4 @@
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
+
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -149,16 +145,41 @@
 }
 .qc-item {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 10px;
   border-radius: var(--r);
-  border: 1.5px solid var(--border);
+  border: 1px solid var(--border);
   background: var(--surface-2);
   cursor: pointer;
-  transition: all var(--t);
+  transition: all .25s ease;
+  text-align: center;
+}
+.qc-item:hover {
+  border-color: var(--a-2);
+  transform: translateY(-2px);
+  background: var(--surface-3);
+}
+.qc-item .qc-icon {
+  font-size: 18px;
+  color: var(--ink-4);
+  transition: color .2s;
+}
+.qc-item .qc-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 }
 .qc-item.on {
   border-color: var(--a);
   background: var(--a-light);
+  box-shadow: 0 0 15px var(--a-dim);
 }
+.qc-item.on .qc-icon { color: var(--a); }
+.qc-item.on .qc-name { color: var(--ink); }

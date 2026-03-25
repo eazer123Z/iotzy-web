@@ -57,3 +57,19 @@ function closeModal(id) {
     document.body.style.overflow = "";
   }
 }
+function initSidebar() {
+  const toggles = document.querySelectorAll('#sidebarToggle');
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  toggles.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sidebar.classList.toggle('open');
+    });
+  });
+  document.addEventListener('click', (e) => {
+    if (sidebar.classList.contains('open') && !sidebar.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
+  });
+}

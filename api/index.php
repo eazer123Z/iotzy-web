@@ -89,20 +89,26 @@ unset($safeSettings['mqtt_password_enc']);
 // ─────────────── LAYOUT ───────────────
 include __DIR__ . '/../components/header.php';
 include __DIR__ . '/../components/sidebar.php';
-include __DIR__ . '/../components/topbar.php';
-
-include __DIR__ . '/../pages/dashboard.php';
-include __DIR__ . '/../pages/devices.php';
-include __DIR__ . '/../pages/sensors.php';
-include __DIR__ . '/../pages/camera.php';
-include __DIR__ . '/../pages/automation.php';
-include __DIR__ . '/../pages/analytics.php';
-include __DIR__ . '/../pages/settings.php';
-include __DIR__ . '/../pages/history.php';
-include __DIR__ . '/../pages/schedules.php';
-include __DIR__ . '/../pages/recordings.php';
-include __DIR__ . '/../pages/camera_cv.php';
-
+?>
+<main class="main-content">
+  <?php include __DIR__ . '/../components/topbar.php'; ?>
+  <div class="page-wrapper">
+    <?php
+    include __DIR__ . '/../pages/dashboard.php';
+    include __DIR__ . '/../pages/devices.php';
+    include __DIR__ . '/../pages/sensors.php';
+    include __DIR__ . '/../pages/camera.php';
+    include __DIR__ . '/../pages/automation.php';
+    include __DIR__ . '/../pages/analytics.php';
+    include __DIR__ . '/../pages/settings.php';
+    include __DIR__ . '/../pages/history.php';
+    include __DIR__ . '/../pages/schedules.php';
+    include __DIR__ . '/../pages/recordings.php';
+    include __DIR__ . '/../pages/camera_cv.php';
+    ?>
+  </div>
+</main>
+<?php
 include __DIR__ . '/../components/bottom_nav.php';
 include __DIR__ . '/../components/modals.php';
 include __DIR__ . '/../components/footer.php';

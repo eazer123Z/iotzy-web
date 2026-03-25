@@ -58,14 +58,7 @@ function updateDeviceUI(deviceId) {
   if (qc) {
     qc.classList.toggle("on", isOn);
     const qs = qc.querySelector(".qc-status");
-    if (qs) qs.textContent = isLock ? (isOn ? "Terbuka" : "Terkunci") : (isOn ? "Aktif" : "Mati");
-    const pill = qc.querySelector('.qc-pill');
-    if (pill) {
-      pill.className = `qc-pill ${isOn ? 'on' : 'off'}`;
-      pill.textContent = isLock ? (isOn ? 'OPEN' : 'LOCK') : (isOn ? 'ON' : 'OFF');
-    }
-    const qt = qc.querySelector("input[type=checkbox]");
-    if (qt) qt.checked = isOn;
+    if (qs) qs.textContent = isLock ? (isOn ? "OPEN" : "LOCKED") : (isOn ? "ON" : "OFF");
   }
 }
 
@@ -314,16 +307,10 @@ function renderQuickControls() {
     item.id = `qc-${id}`;
     item.onclick = () => isLock ? toggleLock(id) : toggleDeviceState(id, !STATE.deviceStates[id]);
     item.innerHTML = `
-      <div class="qc-info">
-        <div class="qc-icon"><i class="fas ${device.icon || 'fa-plug'}"></i></div>
-        <div>
-          <div class="qc-name">${escHtml(device.name)}</div>
-          <div class="qc-status">${isLock ? (isOn ? 'Terbuka' : 'Terkunci') : (isOn ? 'Aktif' : 'Mati')}</div>
-        </div>
-      </div>
-      <div class="qc-pill ${isOn ? 'on' : 'off'}">
-        ${isLock ? (isOn ? 'OPEN' : 'LOCK') : (isOn ? 'ON' : 'OFF')}
-      </div>`;
+      <div class="qc-icon"><i class="fas ${device.icon || 'fa-plug'}"></i></div>
+      <div class="qc-name">${escHtml(device.name)}</div>
+      <div class="qc-status" style="font-size:9px;opacity:0.6;font-weight:700">${isLock ? (isOn ? 'OPEN' : 'LOCKED') : (isOn ? 'ON' : 'OFF')}</div>
+    `;
     container.appendChild(item);
   });
 }

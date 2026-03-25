@@ -111,45 +111,49 @@
   border-top: 1px solid var(--sb-border);
   background: var(--sb-bg-2);
 }
-.user-card {
+.user-pill {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 10px;
   border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, .02);
-  border: 1px solid rgba(255, 255, 255, .04);
-}
-[data-theme="light"] .user-card {
-  background: #fff;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--sb-border);
 }
 .user-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--surface-3);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--a);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--a);
-  font-size: 14px;
-  position: relative;
   font-weight: 700;
+  font-size: 14px;
 }
 .user-info {
   flex: 1;
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 .user-name {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--sb-text-a);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.2;
 }
+.user-role {
+  font-size: 10px;
+  color: var(--sb-grp);
+  font-weight: 600;
+}
+.logout-btn {
+  color: var(--sb-grp);
+  transition: color .2s;
+  padding: 4px;
+}
+.logout-btn:hover { color: var(--red); }
 .topbar {
   height: 56px;
   background: rgba(10, 14, 26, .8);
@@ -191,4 +195,37 @@
   .bottom-nav {
     display: flex;
   }
+}
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+  position: relative;
+}
+.page-wrapper {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.view {
+  display: none;
+  width: 100%;
+}
+.view.active {
+  display: block;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+@media (max-width: 1200px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .stats-grid { grid-template-columns: 1fr; }
 }

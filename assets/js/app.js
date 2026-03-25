@@ -149,6 +149,7 @@ async function syncCVConfigFromServer() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   initTheme();
+  if (typeof initSidebar === 'function') initSidebar();
   if (typeof initClock === 'function') initClock();
   await loadCVConfig();
   loadFromPHP();
