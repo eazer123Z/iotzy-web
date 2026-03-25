@@ -142,6 +142,7 @@
   </div>
 </div>
 
+
 <div id="addRuleModal" class="modal-backdrop">
   <div class="modal">
     <div class="modal-header">
@@ -149,10 +150,48 @@
       <button onclick="closeAddRuleModal()" class="modal-close"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-fields">
-      <div class="field-group"><label>Jika Sensor</label><select id="addRuleCondition" class="form-input form-select"></select></div>
-      <div class="field-group"><label>Nilai Ambang</label><input type="number" id="addRuleThreshold" class="form-input"></div>
-      <div class="field-group"><label>Maka Perangkat</label><select id="addRuleDevice" class="form-input form-select"></select></div>
-      <div class="field-group"><label>Aksi</label><select id="addRuleAction" class="form-input form-select"><option value="on">⚡ Nyalakan</option><option value="off">✕ Matikan</option></select></div>
+      <!-- Sensor info row (disembunyikan untuk mode device/jadwal) -->
+      <div class="field-group" style="background:var(--surface-2);border-radius:var(--r);padding:10px 12px;margin-bottom:4px;">
+        <label>Sensor</label>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+          <div id="addRuleSensorIcon" style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;background:var(--a-light);color:var(--a)"></div>
+          <span id="addRuleSensorLabel" style="font-weight:600;font-size:13px;">—</span>
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Kondisi</label>
+        <select id="addRuleCondition" class="form-input form-select"></select>
+      </div>
+      <!-- Threshold tunggal (gt/lt) -->
+      <div class="field-group" id="addRuleThresholdRow">
+        <label>Nilai Ambang <span id="addRuleUnit" style="color:var(--ink-4);font-weight:500"></span></label>
+        <input type="number" id="addRuleThreshold" class="form-input" step="0.1">
+      </div>
+      <!-- Threshold range (min-max) -->
+      <div class="field-row-2" id="addRuleRangeRow" style="display:none">
+        <div class="field-group"><label>Batas Bawah</label><input type="number" id="addRuleThresholdMin" class="form-input" step="0.1"></div>
+        <div class="field-group"><label>Batas Atas</label><input type="number" id="addRuleThresholdMax" class="form-input" step="0.1"></div>
+      </div>
+      <div class="field-group">
+        <label>Perangkat yang Dikontrol</label>
+        <select id="addRuleDevice" class="form-input form-select"></select>
+      </div>
+      <div class="field-group">
+        <label>Aksi</label>
+        <select id="addRuleAction" class="form-input form-select">
+          <option value="on">⚡ Nyalakan (ON)</option>
+          <option value="off">✕ Matikan (OFF)</option>
+        </select>
+      </div>
+      <!-- Jam operasional (opsional) -->
+      <div class="field-row-2">
+        <div class="field-group"><label>Aktif Dari (opsional)</label><input type="time" id="addRuleStartTime" class="form-input"></div>
+        <div class="field-group"><label>Aktif Hingga (opsional)</label><input type="time" id="addRuleEndTime" class="form-input"></div>
+      </div>
+      <div class="field-group">
+        <label>Delay (ms)</label>
+        <input type="number" id="addRuleDelay" class="form-input" value="0" min="0" step="500">
+      </div>
     </div>
     <div class="modal-footer">
       <button onclick="closeAddRuleModal()" class="btn-ghost">Batal</button>

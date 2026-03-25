@@ -90,7 +90,7 @@
       <div class="card live-indicator-card">
         <div class="card-header">
           <span class="card-title"><i class="fas fa-video"></i> Kamera Utama</span>
-          <button onclick="navSwitch('camera')" class="ov-link">Detail <i class="fas fa-arrow-right"></i></button>
+          <button onclick="switchPage('camera')" class="ov-link">Detail <i class="fas fa-arrow-right"></i></button>
         </div>
         <div class="card-body camera-mini-wrap">
           <div id="miniCameraPreview" class="mini-cam-preview">

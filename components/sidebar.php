@@ -1,6 +1,4 @@
-<?php
-
-?>
+  <!-- ═══ SIDEBAR ═══ -->
   <aside id="sidebar" class="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-logo"><i class="fas fa-bolt"></i></div>
@@ -37,7 +35,6 @@
         <span class="nav-dot" id="cvNavDot"></span>
       </a>
 
-
       <div class="nav-group-label" style="margin-top:18px">Sistem</div>
       <a href="#" onclick="switchPage('analytics',this)" class="nav-item" data-page="analytics">
         <span class="nav-icon"><i class="fas fa-list-ul"></i></span>
@@ -51,7 +48,7 @@
     <div class="sidebar-footer">
       <div class="user-pill">
         <div class="user-avatar"><?= htmlspecialchars(strtoupper(substr($user['username'], 0, 1))) ?></div>
-        <div class="user-meta">
+        <div class="user-info">
           <span class="user-name"><?= htmlspecialchars($user['full_name'] ?: $user['username']) ?></span>
           <span class="user-role"><?= htmlspecialchars($user['role']) ?></span>
         </div>

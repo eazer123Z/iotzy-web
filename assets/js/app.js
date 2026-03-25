@@ -1,392 +1,548 @@
 /**
- * app.js — Unified IoTzy Logic (Ultimate Native Build)
- * Consolidated from 17+ modules into one powerful file.
+ * assets/js/app.js
+ * ─────────────────────────────────────────────────────────────────
+ * ORCHESTRATOR UTAMA IoTzy Frontend.
+ * Berisi HANYA: Global State, Config, Utility functions, API wrapper,
+ * data bootstrap, dan real-time sync. Semua logika UI spesifik
+ * ada di masing-masing file dalam /modules/.
+ *
+ * Urutan load (footer.php):
+ *   1. app.js          ← ini (pondasi, harus pertama)
+ *   2. navigation.js
+ *   3. overview-manager.js
+ *   4. mqtt-manager, device-manager, sensor-manager
+ *   5. log-manager, schedule-manager
+ *   6. automation-engine, automation-ui
+ *   7. camera-manager, cv-config, cv-detector, light-analyzer, cv-manager, cv-ui
+ *   8. settings-manager, ai-chat
  */
 
-// ═══ 1. GLOBAL CONFIG & STATE ═══
+/* ============================================================
+   KONFIGURASI GLOBAL
+   ============================================================ */
 const CONFIG = {
-  mqtt: { broker: "mosquitto", port: 1883, path: "/mqtt", maxReconnect: 5, reconnectDelay: 5000 },
-  app:  { maxLogs: 50, version: "2.6.0-native-ultimate" },
-  cv:   { model: { base: 'lite_mobilenet_v2' }, detection: { interval: 500, minConfidence: 0.6, debounceTime: 1500 } }
+  mqtt: {
+    broker:         "broker.hivemq.com",
+    port:           8884,
+    path:           "/mqtt",
+    maxReconnect:   5,
+    reconnectDelay: 3000,
+  },
+  app: { maxLogs: 500, updateInterval: 1000 },
 };
 
+/* ============================================================
+   STATE APLIKASI (Reactive-like store)
+   ============================================================ */
 const STATE = {
+  devices:             {},
+  deviceStates:        {},
+  deviceTopics:        {},
+  deviceOnAt:          {},
+  deviceExtras:        {},
+  sensors:             {},
+  sensorData:          {},
+  sensorHistory:       {},
+  automationRules:     {},
+  logs:                [],
+  logFilter:           "",
+  logTypeFilter:       "all",
+  quickControlDevices: [],
   mqtt: { client: null, connected: false, reconnectAttempts: 0, templates: [] },
-  devices: {}, deviceStates: {}, deviceTopics: {}, deviceExtras: {},
-  sensors: {}, sensorData: {}, sensorHistory: {},
-  logs: [], logTypeFilter: "all",
-  automationRules: {},
-  camera: { active: false, stream: null, selectedDeviceId: null, availableDevices: [] },
-  cv: { active: false, modelLoaded: false, personCount: 0, personPresent: false, brightness: 0, lightCondition: "unknown" },
-  sessionStart: Date.now()
+  camera: {
+    stream:           null,
+    active:           false,
+    selectedDeviceId: null,
+    availableDevices: [],
+  },
+  sessionStart: (function() {
+    const saved = sessionStorage.getItem('iotzy-session-start');
+    if (saved) return parseInt(saved);
+    const now = Date.now();
+    sessionStorage.setItem('iotzy-session-start', now);
+    return now;
+  })(),
+  cv: {
+    personCount:    0,
+    personPresent:  false,
+    lightCondition: "unknown",
+    brightness:     0,
+  },
 };
 
-// ═══ 2. CORE UTILS & API ═══
+/* ============================================================
+   KONFIGURASI COMPUTER VISION (state runtime)
+   ============================================================ */
+const CV = {
+  modelLoaded:   false,
+  modelLoading:  false,
+  detecting:     false,
+  model:         null,
+  fpsTimer:      null,
+  fps:           0,
+  frameCount:    0,
+  overlayCanvas: null,
+  overlayCtx:    null,
+  showBoxes:     true,
+  showDebug:     true,
+  confidence:    0.6,
+  humanPresent:  false,
+  humanTimer:    null,
+  lightCondition:"unknown",
+  lightTimer:    null,
+  cvRules: {
+    human: { enabled: true, onDetect: [], onAbsent: [], delay: 3000 },
+    light: { enabled: true, onDark:   [], onBright: [], delay: 2000 },
+  },
+};
+
+
+/* ============================================================
+   UTILITY FUNCTIONS
+   ============================================================ */
+
 function escHtml(str) {
   if (!str) return "";
-  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-async function apiPost(action, data = {}) {
-  try {
-    const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/index.php";
-    const hdrs = { "Content-Type": "application/json" };
-    if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
-    const res = await fetch(`${base}?action=${action}`, { method: "POST", headers: hdrs, credentials: "include", body: JSON.stringify(data) });
-    if (res.status === 401) { window.location.href = (typeof APP_BASE !== "undefined" ? APP_BASE : "") + "/api/index.php?route=login&expired=true"; return null; }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (e) { console.error(`API Error [${action}]:`, e); return null; }
+  return String(str)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 function showToast(message, type = "info") {
   const container = document.getElementById("toastContainer");
   if (!container) return;
-  const icons = { success: "fa-check-circle", error: "fa-times-circle", warning: "fa-exclamation-triangle", info: "fa-circle-info" };
-  const toast = document.createElement("div");
+  const icons = {
+    success: "fa-check-circle", error: "fa-times-circle",
+    warning: "fa-exclamation-triangle", info: "fa-circle-info",
+  };
+  const toast   = document.createElement("div");
   toast.className = `toast ${type}`;
-  toast.innerHTML = `<i class="fas ${icons[type] || icons.info} toast-icon"></i><span class="toast-msg">${escHtml(message)}</span><button class="toast-close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>`;
+  toast.innerHTML = `
+    <i class="fas ${icons[type] || icons.info} toast-icon"></i>
+    <span class="toast-msg">${escHtml(message)}</span>
+    <button class="toast-close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>`;
   container.appendChild(toast);
-  setTimeout(() => { toast.style.opacity = "0"; toast.style.transform = "translateX(20px)"; setTimeout(() => toast.remove(), 400); }, 3500);
+  setTimeout(() => {
+    toast.style.opacity    = "0";
+    toast.style.transform  = "translateX(12px)";
+    toast.style.transition = "all .3s";
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
 }
 
-// ═══ 3. NAVIGATION & UI ═══
-function navSwitch(pageId, element) {
-  if (!element) element = document.querySelector(`.nav-item[data-page="${pageId}"]`);
-  document.querySelectorAll(".view").forEach(p => p.classList.remove("active"));
-  const view = document.getElementById(pageId);
-  if (view) view.classList.add("active");
-  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-  if (element) element.classList.add("active");
-  renderView(pageId);
+function openModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) { modal.classList.add("show"); document.body.style.overflow = "hidden"; }
 }
 
-// Alias for old references
-const switchPage = navSwitch;
-
-function renderView(pageId) {
-  switch(pageId) {
-    case 'dashboard': updateDashboardStats(); updateSummary(); initDashboardChart(); break;
-    case 'devices': renderDevices(); break;
-    case 'sensors': renderSensors(); break;
-    case 'automation': renderAutomationView(); break;
-    case 'camera': if (STATE.camera.active) updateCameraElements(true); break;
-    case 'analytics': updateLogDisplay(); break;
-  }
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) { modal.classList.remove("show"); document.body.style.overflow = ""; }
 }
 
-let dashboardChart = null;
-function initDashboardChart() {
-  const ctx = document.getElementById("ovOverviewChart");
-  if (!ctx) return;
-  if (dashboardChart) dashboardChart.destroy();
-  const ds = Object.values(STATE.sensors).map(s => {
-    return { label: s.name, data: [STATE.sensorData[s.id]||0], borderColor: 'var(--sky)', tension: 0.4 };
-  });
-  // Simple mock data for now
-  dashboardChart = new Chart(ctx, { type: 'line', data: { labels: [new Date().toLocaleTimeString()], datasets: ds }, options: { responsive: true, plugins: { legend: { display: false } } } });
+/* ============================================================
+   THEME
+   ============================================================ */
+function initTheme() {
+  const saved = localStorage.getItem('iotzy-theme') || (typeof PHP_SETTINGS !== 'undefined' ? (PHP_SETTINGS.theme || 'dark') : 'dark');
+  document.documentElement.setAttribute('data-theme', saved);
+  updateThemeIcon(saved);
 }
 
-// Modal Management
-function openModal(id) { const m = document.getElementById(id); if(m) m.classList.add("active"); }
-function closeModal(id) { const m = document.getElementById(id); if(m) m.classList.remove("active"); }
-
-function openQuickControlSettings() {
-  const list = document.getElementById("quickControlDevicesList");
-  if (!list) return;
-  const current = PHP_SETTINGS.quick_control_devices || [];
-  list.innerHTML = Object.values(STATE.devices).map(d => `
-    <div class="modal-list-item">
-      <label class="check-row">
-        <input type="checkbox" name="qc_device" value="${d.id}" ${current.includes(d.id)?'checked':''}>
-        <span><i class="fas ${d.icon}"></i> ${escHtml(d.name)}</span>
-      </label>
-    </div>
-  `).join("");
-  openModal("quickControlModal");
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('iotzy-theme', next);
+  updateThemeIcon(next);
 }
 
-function closeQuickControlSettings() { closeModal("quickControlModal"); }
-async function saveQuickControlSettings() {
-  const ids = Array.from(document.querySelectorAll('input[name="qc_device"]:checked')).map(i => i.value);
-  const res = await apiPost("save_settings", { quick_control_devices: JSON.stringify(ids) });
-  if (res?.success) { showToast("Kontrol cepat disimpan", "success"); closeQuickControlSettings(); location.reload(); }
+function updateThemeIcon(theme) {
+  const btn = document.getElementById('themeToggleBtn');
+  if (!btn) return;
+  const icon = btn.querySelector('i');
+  if (icon) icon.className = theme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
 }
 
-function openTopicSettings(id) {
-  const d = STATE.devices[id]; if (!d) return;
-  document.getElementById("topicDeviceName").textContent = d.name;
-  document.getElementById("editDeviceName").value = d.name;
-  document.getElementById("editDeviceIcon").value = d.icon;
-  document.getElementById("deviceTopicSub").value = d.topic_sub || "";
-  document.getElementById("deviceTopicPub").value = d.topic_pub || "";
-  STATE.current_device_id = id;
-  openModal("topicModal");
-}
-function closeTopicSettings() { closeModal("topicModal"); }
-async function saveDeviceSettings() {
-  const id = STATE.current_device_id;
-  const data = { id, name: document.getElementById("editDeviceName").value, icon: document.getElementById("editDeviceIcon").value, topic_sub: document.getElementById("deviceTopicSub").value, topic_pub: document.getElementById("deviceTopicPub").value };
-  const res = await apiPost("update_device", data);
-  if (res?.success) { showToast("Perangkat diperbarui", "success"); closeTopicSettings(); location.reload(); }
-}
-
-// Add/Edit Modals Logic
-function openAddDeviceModal() { openModal("addDeviceModal"); }
-function closeAddDeviceModal() { closeModal("addDeviceModal"); }
-async function saveNewDevice() {
-  const data = { name: document.getElementById("newDeviceName").value, icon: document.getElementById("newDeviceIcon").value, topic_pub: document.getElementById("newDeviceTopicPub").value };
-  const res = await apiPost("add_device", data);
-  if (res?.success) { showToast("Perangkat ditambahkan", "success"); location.reload(); }
-}
-
-function openAddSensorModal() { openModal("addSensorModal"); }
-function closeAddSensorModal() { closeModal("addSensorModal"); }
-async function saveNewSensor() {
-  const data = { name: document.getElementById("newSensorName").value, type: document.getElementById("newSensorType").value, unit: document.getElementById("newSensorUnit").value, topic: document.getElementById("newSensorTopic").value };
-  const res = await apiPost("add_sensor", data);
-  if (res?.success) { showToast("Sensor ditambahkan", "success"); location.reload(); }
-}
-
-function openMQTTConfigModal() {
-  document.getElementById("mqttBroker").value = PHP_SETTINGS.mqtt_broker || "";
-  document.getElementById("mqttPort").value = PHP_SETTINGS.mqtt_port || 1883;
-  document.getElementById("mqttUseSSL").checked = !!PHP_SETTINGS.mqtt_use_ssl;
-  openModal("mqttConfigModal");
-}
-function closeMQTTConfigModal() { closeModal("mqttConfigModal"); }
-async function saveMQTTConfig() {
-  const data = { mqtt_broker: document.getElementById("mqttBroker").value, mqtt_port: document.getElementById("mqttPort").value, mqtt_use_ssl: document.getElementById("mqttUseSSL").checked ? 1 : 0 };
-  const res = await apiPost("save_settings", data);
-  if (res?.success) { showToast("Konfigurasi MQTT disimpan", "success"); location.reload(); }
-}
-
-function openAddRuleModal() {
-  const sSel = document.getElementById("addRuleCondition");
-  const dSel = document.getElementById("addRuleDevice");
-  if (!sSel || !dSel) return;
-  sSel.innerHTML = Object.values(STATE.sensors).map(s => `<option value="${s.id}">${s.name}</option>`).join("");
-  dSel.innerHTML = Object.values(STATE.devices).map(d => `<option value="${d.id}">${d.name}</option>`).join("");
-  openModal("addRuleModal");
-}
-function closeAddRuleModal() { closeModal("addRuleModal"); }
-async function saveNewAutomationRule() {
-  const data = { sensor_id: document.getElementById("addRuleCondition").value, threshold: document.getElementById("addRuleThreshold").value, device_id: document.getElementById("addRuleDevice").value, action: document.getElementById("addRuleAction").value };
-  const res = await apiPost("add_automation_rule", data);
-  if (res?.success) { showToast("Otomasi dibuat", "success"); location.reload(); }
-}
-
-// ═══ 4. MQTT MANAGER ═══
-async function connectMQTT() {
+/* ============================================================
+   API WRAPPER
+   ============================================================ */
+async function apiPost(action, data = {}) {
   try {
-    let broker = PHP_SETTINGS.mqtt_broker || CONFIG.mqtt.broker;
-    let port = parseInt(PHP_SETTINGS.mqtt_port) || CONFIG.mqtt.port;
-    if (port === 1883) port = 9001;
-    const clientId = "iotzy_" + Math.random().toString(16).substr(2, 6);
-    const path = PHP_SETTINGS.mqtt_path || "/mqtt";
-    STATE.mqtt.client = new Paho.MQTT.Client(broker, port, path, clientId);
-    STATE.mqtt.client.onConnectionLost = (res) => { updateMQTTStatus(false); if (res.errorCode !== 0) setTimeout(connectMQTT, 5000); };
-    STATE.mqtt.client.onMessageArrived = (msg) => handleMQTTMessage(msg.destinationName, msg.payloadString);
-    STATE.mqtt.client.connect({ useSSL: !!PHP_SETTINGS.mqtt_use_ssl, timeout: 5, onSuccess: () => { updateMQTTStatus(true); subscribeTopics(); }, onFailure: () => updateMQTTStatus(false) });
-  } catch (e) { console.error("MQTT Error:", e); }
-}
+    const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/data_router.php";
+    const hdrs = { "Content-Type": "application/json" };
+    if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
 
-function updateMQTTStatus(con) {
-  STATE.mqtt.connected = con;
-  const dot = document.getElementById("sidebarMqttDot");
-  if (dot) dot.className = "mqtt-dot " + (con ? "connected" : "");
-  const txt = document.getElementById("sidebarMqttText");
-  if (txt) txt.textContent = con ? "Online" : "Offline";
-}
-
-function subscribeTopics() {
-  if (!STATE.mqtt.connected) return;
-  Object.values(STATE.deviceTopics).forEach(t => { if (t.sub) STATE.mqtt.client.subscribe(t.sub); });
-  Object.values(STATE.sensors).forEach(s => { if (s.topic) STATE.mqtt.client.subscribe(s.topic); });
-}
-
-function publishMQTT(topic, payload) {
-  if (!STATE.mqtt.connected || !topic) return;
-  STATE.mqtt.client.send(new Paho.MQTT.Message(JSON.stringify(payload) || payload), topic);
-}
-
-function handleMQTTMessage(topic, payload) {
-  for (const [id, t] of Object.entries(STATE.deviceTopics)) {
-    if (t.sub === topic) { try { const data = JSON.parse(payload); STATE.deviceStates[id] = !!data.state; syncDeviceUI(id); } catch(_) { STATE.deviceStates[id] = payload == "1" || payload == "ON"; syncDeviceUI(id); } }
-  }
-  for (const [id, s] of Object.entries(STATE.sensors)) { if (s.topic === topic) { const val = parseFloat(payload); if (!isNaN(val)) processSensorValue(id, val); } }
-}
-
-// ═══ 5. DEVICE & SENSOR LOGIC ═══
-function syncDeviceUI(id) {
-  const card = document.getElementById(`card-${id}`); if (!card) return;
-  const isOn = !!STATE.deviceStates[id];
-  card.classList.toggle("on", isOn);
-  const tog = document.getElementById(`device-toggle-${id}`); if (tog) tog.checked = isOn;
-  const lbl = document.getElementById(`lbl-${id}`); if (lbl) lbl.textContent = isOn ? "Aktif" : "Mati";
-}
-
-function toggleDeviceState(id, state) {
-  STATE.deviceStates[id] = state; syncDeviceUI(id);
-  const t = STATE.deviceTopics[id]; if (t?.pub) publishMQTT(t.pub, { state: state ? 1 : 0 });
-  apiPost("update_device_state", { id, state: state ? 1 : 0 });
-}
-
-function processSensorValue(id, val) {
-  STATE.sensorData[id] = val;
-  const el = document.getElementById(`val-${id}`); if (el) el.textContent = val.toFixed(1);
-  if (automationEngine) automationEngine.evaluate(id, val);
-}
-
-function renderDevices() {
-  const grid = document.getElementById("devicesGrid"); if (!grid) return;
-  grid.innerHTML = Object.keys(STATE.devices).map(id => {
-    const d = STATE.devices[id], isOn = !!STATE.deviceStates[id];
-    return `<div class="device-card ${isOn?'on':''}" id="card-${id}">
-      <div class="device-card-header"><div class="device-icon ${isOn?'on':''}"><i class="fas ${d.icon||'fa-plug'}"></i></div></div>
-      <div class="device-name">${escHtml(d.name)}</div><div class="device-status" id="lbl-${id}">${isOn?"Aktif":"Mati"}</div>
-      <div class="device-controls"><label class="toggle-wrapper"><input type="checkbox" id="device-toggle-${id}" ${isOn?'checked':''} onchange="toggleDeviceState('${id}',this.checked)"><span class="toggle-track"></span></label></div>
-    </div>`;
-  }).join("");
-}
-
-function renderSensors() {
-  const grid = document.getElementById("sensorsGrid"); if (!grid) return;
-  grid.innerHTML = Object.values(STATE.sensors).map(s => `
-    <div class="sensor-card has-data"><div class="sensor-name">${escHtml(s.name)}</div><div class="sensor-value-big" id="val-${s.id}">${(STATE.sensorData[s.id]||0).toFixed(1)}${s.unit}</div></div>
-  `).join("");
-}
-
-// ═══ 6. AUTOMATION ENGINE ═══
-const automationEngine = {
-  cooldowns: {},
-  evaluate(sensorId, val) {
-    const rules = STATE.automationRules[sensorId] || [];
-    rules.forEach(rule => {
-      if (!rule.enabled || !this.shouldFire(rule, val)) return;
-      const key = `${sensorId}_${rule.ruleId}`, now = Date.now();
-      if (this.cooldowns[key] && now - this.cooldowns[key] < (rule.delay || 5000)) return;
-      this.cooldowns[key] = now;
-      this.execute(rule.deviceId, rule.action, `Sensor: ${val}`);
+    const res = await fetch(`${base}?action=${action}`, {
+      method:      "POST",
+      headers:     hdrs,
+      credentials: "include",
+      body:        JSON.stringify(data),
     });
-  },
-  shouldFire(rule, val) {
-    const v = parseFloat(val);
-    if (rule.condition === 'gt') return v > rule.threshold;
-    if (rule.condition === 'lt') return v < rule.threshold;
-    return false;
-  },
-  execute(devId, action, reason) {
-    if (action === 'on' || action === 'off') toggleDeviceState(devId, action === 'on');
-    addLog(STATE.devices[devId]?.name, `${action.toUpperCase()} — ${reason}`, 'Automation', 'success');
-  }
-};
 
-// ═══ 7. CAMERA & AI LOGIC (CV) ═══
-async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    STATE.camera.stream = stream; STATE.camera.active = true;
-    updateCameraElements(true); return true;
-  } catch (e) { showToast("Kamera ditolak: " + e.message, "error"); return false; }
-}
-
-function updateCameraElements(active) {
-  const vid = document.getElementById("cameraFocus");
-  if (vid && STATE.camera.stream) { vid.srcObject = STATE.camera.stream; vid.classList.toggle("hidden", !active); if(active) vid.play(); }
-}
-
-async function initCV() {
-  showToast("Memuat AI Model...", "info");
-  try {
-    if (!window.tf) await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0');
-    if (!window.cocoSsd) await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3');
-    STATE.cv.model = await cocoSsd.load();
-    STATE.cv.modelLoaded = true;
-    showToast("AI Model Siap!", "success");
-    startCVDetection();
-  } catch (e) { showToast("Gagal memuat AI", "error"); }
-}
-
-function startCVDetection() {
-  if (!STATE.cv.modelLoaded || !STATE.camera.active) return;
-  STATE.cv.active = true;
-  const loop = async () => {
-    if (!STATE.cv.active) return;
-    const vid = document.getElementById("cameraFocus");
-    if (vid && vid.readyState === 4) {
-      const preds = await STATE.cv.model.detect(vid);
-      const persons = preds.filter(p => p.class === 'person' && p.score > 0.6);
-      STATE.cv.personCount = persons.length;
-      document.getElementById("cvPersonCount") ? document.getElementById("cvPersonCount").textContent = persons.length : null;
+    if (res.status === 401) {
+      console.warn("Session expired. Redirecting...");
+      window.location.href = (typeof APP_BASE !== "undefined" ? APP_BASE : "") + "/?route=login&expired=true";
+      return null;
     }
-    requestAnimationFrame(loop);
-  };
-  loop();
+    if (res.status === 403) {
+      showToast("Access Denied (403)", "error");
+      return null;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.error("API error:", action, e);
+    if (e.name !== 'AbortError') showToast(`API error: ${action}`, "error");
+    return null;
+  }
 }
 
-// ═══ 8. LOGS & ANALYTICS ═══
-function addLog(dev, act, trig, type) {
-  const log = { waktu: new Date().toLocaleTimeString("id-ID"), device: dev || "System", activity: act, trigger: trig, type: type };
-  STATE.logs.unshift(log); if (STATE.logs.length > CONFIG.app.maxLogs) STATE.logs.pop();
-  updateLogDisplay();
+/* ============================================================
+   CV CONFIG HELPERS (diakses oleh cv-manager.js & cv-ui.js)
+   ============================================================ */
+async function loadCVConfig() {
+  const result = await apiPost("get_cv_config", {});
+  if (result) {
+    if (result.showBoundingBox !== undefined) CV.showBoxes  = result.showBoundingBox;
+    if (result.showDebugInfo   !== undefined) CV.showDebug  = result.showDebugInfo;
+    if (result.minConfidence   !== undefined) CV.confidence = result.minConfidence;
+  }
 }
 
-function updateLogDisplay() {
-  const container = document.getElementById("logsContainer"); if (!container) return;
-  container.innerHTML = `<table class="log-table"><thead><tr><th>Waktu</th><th>Perangkat</th><th>Aktivitas</th><th>Trigger</th></tr></thead><tbody>` +
-    STATE.logs.map(l => `<tr><td>${l.waktu}</td><td>${escHtml(l.device)}</td><td>${escHtml(l.activity)}</td><td><span class="log-badge ${l.type}">${l.trigger}</span></td></tr>`).join("") + `</tbody></table>`;
+async function loadCVRules() {
+  const result = await apiPost("get_cv_rules", {});
+  if (result) {
+    CV.cvRules = { ...CV.cvRules, ...result };
+    if (typeof automationEngine !== "undefined") automationEngine.updateCVRules(CV.cvRules);
+  }
 }
 
-// ═══ 9. AI CHAT ═══
-function initChat() {
-  const input = document.getElementById("aiChatInput"), send = document.getElementById("aiChatSend");
-  if (!input || !send) return;
-  send.onclick = async () => {
-    const text = input.value.trim(); if (!text) return;
-    appendChat(text, "user"); input.value = "";
-    const res = await apiPost("ai_chat_process", { message: text });
-    if (res?.success) appendChat(res.message, "bot");
-  };
+async function saveCVRules() {
+  await apiPost("save_cv_rules", { rules: CV.cvRules });
 }
 
-function appendChat(txt, side) {
-  const body = document.getElementById("aiChatBody"); if (!body) return;
-  const div = document.createElement("div"); div.className = `chat-bubble ${side}`; div.textContent = txt;
-  body.appendChild(div); body.scrollTop = body.scrollHeight;
+async function syncCVConfigFromServer() {
+  await loadCVConfig();
+  await loadCVRules();
+  const g = (id) => document.getElementById(id);
+  if (g("cvConfidenceThreshold")) g("cvConfidenceThreshold").value = Math.round(CV.confidence * 100);
+  if (g("cvShowBoundingBoxCamera")) g("cvShowBoundingBoxCamera").checked = CV.showBoxes;
+  if (g("cvShowDebugInfoCamera"))   g("cvShowDebugInfoCamera").checked   = CV.showDebug;
+  if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules(CV.cvRules);
 }
 
-// ═══ 10. INITIALIZATION ═══
-function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
+function toggleBoundingBox(val) {
+  CV.showBoxes = val;
+  ["cvShowBoundingBoxCamera", "cvShowBoundingBoxSettings"].forEach((id) => {
+    const el = document.getElementById(id); if (el && el.checked !== val) el.checked = val;
+  });
+  if (!val && CV.overlayCtx && CV.overlayCanvas)
+    CV.overlayCtx.clearRect(0, 0, CV.overlayCanvas.width, CV.overlayCanvas.height);
+  apiPost("save_cv_config", { config: { showBoundingBox: val, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
+}
 
-document.addEventListener("DOMContentLoaded", () => {
-  // Sync Initial State
-  if (typeof PHP_DEVICES !== "undefined") PHP_DEVICES.forEach(d => { STATE.devices[d.id] = d; STATE.deviceStates[d.id] = !!d.state; STATE.deviceTopics[d.id] = { sub: d.topic_sub, pub: d.topic_pub }; });
-  if (typeof PHP_SENSORS !== "undefined") PHP_SENSORS.forEach(s => { STATE.sensors[s.id] = s; STATE.sensorData[s.id] = s.last_value || 0; });
-  
-  connectMQTT();
-  initChat();
-  setInterval(() => { const el = document.getElementById("ovClock"); if (el) el.textContent = new Date().toLocaleTimeString("id-ID", { hour12: false }); }, 1000);
-  
-  // Theme Toggle
-  const themeBtn = document.getElementById("themeToggleBtn");
-  if (themeBtn) themeBtn.onclick = () => { const cur = document.documentElement.getAttribute("data-theme"); const next = cur === "dark" ? "light" : "dark"; document.documentElement.setAttribute("data-theme", next); };
+function toggleDebugInfo(val) {
+  CV.showDebug = val;
+  ["cvShowDebugInfoCamera", "cvShowDebugInfoSettings"].forEach((id) => {
+    const el = document.getElementById(id); if (el && el.checked !== val) el.checked = val;
+  });
+  const hud = document.getElementById("cvDetectionInfo");
+  if (hud) hud.style.display = val && CV.detecting ? "flex" : "none";
+  apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: val, minConfidence: CV.confidence } }).catch(() => {});
+}
 
-  // Sidebar Toggles
-  document.querySelectorAll(".sidebar-toggle").forEach(b => b.onclick = (e) => { e.stopPropagation(); document.getElementById("sidebar").classList.toggle("open"); });
-});
+function updateCVConfig(val) {
+  CV.confidence = parseFloat(val) / 100;
+  apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
+}
+
+/* ============================================================
+   CV PERSON COUNT CALLBACK (dipanggil oleh cv-detector.js)
+   ============================================================ */
+function onCVPersonCountUpdate(count) {
+  STATE.cv.personCount   = count;
+  STATE.cv.personPresent = count > 0;
+  const g = (id) => document.getElementById(id);
+  if (g("cvPersonCountBig")) g("cvPersonCountBig").textContent = count;
+  if (g("cvHumanCount"))     g("cvHumanCount").textContent     = count;
+  if (typeof automationEngine !== "undefined") automationEngine.notifyPersonCount(count);
+  updateDashboardStats();
+}
+
+/* ============================================================
+   LIGHT ANALYZER CALLBACK
+   ============================================================ */
+function onLightAnalysisUpdate(condition, brightness) {
+  STATE.cv.lightCondition = condition;
+  STATE.cv.brightness     = brightness;
+  const pct = Math.round(brightness * 100);
+  const g   = (id) => document.getElementById(id);
+  if (g("cvBrightness"))      g("cvBrightness").textContent      = `${pct}%`;
+  if (g("cvBrightnessLabel")) g("cvBrightnessLabel").textContent = `${pct}%`;
+  if (g("cvBrightnessBar"))   g("cvBrightnessBar").style.width   = pct + "%";
+  const condMap = { dark: "Gelap", normal: "Normal", bright: "Terang" };
+  if (g("cvLightCondition"))  g("cvLightCondition").textContent  = condMap[condition] || condition;
+}
+
+/* ============================================================
+   SYNC: Server → STATE (Real-Time Polling)
+   ============================================================ */
+async function syncDevicesFromServer() {
+  const data = await apiPost('get_devices');
+  if (!data || !Array.isArray(data)) return;
+  const newIds = data.map(d => String(d.id));
+  Object.keys(STATE.devices).forEach(id => {
+    if (!newIds.includes(String(id))) {
+      delete STATE.devices[id];
+      delete STATE.deviceStates[id];
+      delete STATE.deviceTopics[id];
+    }
+  });
+  data.forEach(d => {
+    const id = String(d.id);
+    const isNew = !STATE.devices[id];
+    STATE.devices[id] = { ...d, id };
+    if (STATE.deviceStates[id] === undefined)
+      STATE.deviceStates[id] = Boolean(Number(d.last_state ?? 0));
+    STATE.deviceTopics[id] = { sub: d.topic_sub || "", pub: d.topic_pub || "" };
+    if (isNew && STATE.mqtt.connected && d.topic_sub) {
+      try { STATE.mqtt.client.subscribe(d.topic_sub); } catch(e) { console.warn("MQTT Re-sub:", e); }
+    }
+  });
+  renderAll();
+}
+
+async function syncSensorsFromServer() {
+  const data = await apiPost('get_sensors');
+  if (!data || !Array.isArray(data)) return;
+  const newIds = data.map(s => String(s.id));
+  Object.keys(STATE.sensors).forEach(id => {
+    if (!newIds.includes(String(id))) {
+      delete STATE.sensors[id];
+      delete STATE.sensorData[id];
+      delete STATE.sensorHistory[id];
+    }
+  });
+  data.forEach(s => {
+    const id = String(s.id);
+    const isNew = !STATE.sensors[id];
+    STATE.sensors[id] = { ...s, id };
+    if (isNew) {
+      STATE.sensorData[id] = null;
+      STATE.sensorHistory[id] = [];
+      if (STATE.mqtt.connected && s.topic) {
+        try { STATE.mqtt.client.subscribe(s.topic); } catch(e) {}
+      }
+    }
+  });
+  renderAll();
+}
+
+async function syncAutomationFromServer() {
+  if (typeof initAutomationRules === 'function') await initAutomationRules();
+  if (typeof renderAutomationView === 'function') renderAutomationView();
+}
+
+async function syncAllFromServer() {
+  if (syncAllFromServer._inFlight) return;
+  syncAllFromServer._inFlight = true;
+  try {
+    const res = await apiPost("get_dashboard_data", {});
+    if (!res || !res.success) return;
+
+    const currentDeviceIds = Object.keys(STATE.devices);
+    const serverDeviceIds  = (res.devices || []).map(d => String(d.id));
+    const currentSensorIds = Object.keys(STATE.sensors);
+    const serverSensorIds  = (res.sensors || []).map(s => String(s.id));
+
+    const hasStructureChanged =
+      currentDeviceIds.length !== serverDeviceIds.length ||
+      currentSensorIds.length !== serverSensorIds.length ||
+      !currentDeviceIds.every(id => serverDeviceIds.includes(id)) ||
+      !currentSensorIds.every(id => serverSensorIds.includes(id));
+
+    if (hasStructureChanged) {
+      await syncDevicesFromServer();
+      await syncSensorsFromServer();
+      await syncAutomationFromServer();
+      return;
+    }
+
+    if (res.devices) {
+      res.devices.forEach(d => {
+        const id = String(d.id);
+        if (!STATE.devices[id]) return;
+        const oldState = STATE.deviceStates[id];
+        const newState = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
+        if (oldState !== newState) {
+          STATE.deviceStates[id] = newState;
+          if (typeof updateDeviceUI === 'function') updateDeviceUI(id);
+        }
+      });
+    }
+
+    if (res.sensors) {
+      res.sensors.forEach(s => {
+        const id = String(s.id);
+        if (STATE.sensors[id]) STATE.sensorData[id] = s.latest_value;
+      });
+      if (typeof renderSensors === 'function') renderSensors();
+    }
+
+    if (res.cv_state && !CV.detecting) {
+      STATE.cv.personCount    = res.cv_state.person_count || 0;
+      STATE.cv.brightness     = res.cv_state.brightness   || 0;
+      STATE.cv.lightCondition = res.cv_state.light_condition || 'unknown';
+    }
+
+    updateDashboardStats();
+  } catch (e) {
+    console.warn("syncAllFromServer Error:", e);
+  } finally {
+    syncAllFromServer._inFlight = false;
+  }
+}
+
+/* ============================================================
+   RENDER ALL & DASHBOARD STATS
+   ============================================================ */
+function renderAll() {
+  if (typeof renderDevices     === 'function') renderDevices();
+  if (typeof renderSensors     === 'function') renderSensors();
+  if (typeof renderQuickControls === 'function') renderQuickControls();
+  if (typeof renderAutomationView === 'function') renderAutomationView();
+  updateDashboardStats();
+}
 
 function updateDashboardStats() {
-  const active = Object.values(STATE.deviceStates).filter(Boolean).length;
-  if (document.getElementById("statActiveDevicesVal")) document.getElementById("statActiveDevicesVal").textContent = active;
-  if (document.getElementById("statMqttVal")) document.getElementById("statMqttVal").textContent = STATE.mqtt.connected ? "Online" : "Offline";
+  const totalDev  = Object.keys(STATE.devices).length;
+  const activeDev = Object.values(STATE.deviceStates).filter(Boolean).length;
+  const totalSen  = Object.keys(STATE.sensors).length;
+  const activeSen = Object.values(STATE.sensorData).filter(v => v !== null && v !== undefined).length;
+  const g = (id) => document.getElementById(id);
+  if (g("statActiveDevicesVal")) g("statActiveDevicesVal").textContent = activeDev;
+  if (g("statActiveDevicesSub")) g("statActiveDevicesSub").textContent = `dari ${totalDev}`;
+  if (g("statSensorsOnlineVal")) g("statSensorsOnlineVal").textContent = activeSen;
+  if (g("statSensorsOnlineSub")) g("statSensorsOnlineSub").textContent = `dari ${totalSen}`;
+  if (g("navDeviceCount"))       g("navDeviceCount").textContent       = totalDev;
+  if (g("navSensorCount"))       g("navSensorCount").textContent       = totalSen;
+  if (g("totalDevices"))         g("totalDevices").textContent         = totalDev;
+  if (g("totalSensors"))         g("totalSensors").textContent         = totalSen;
+  if (g("statMqttVal"))          g("statMqttVal").textContent          = STATE.mqtt.connected ? "Online" : "Offline";
+  if (g("statMqttSub"))          g("statMqttSub").textContent          = (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS.mqtt_broker) || "—";
+  if (g("cvPersonCountBig"))     g("cvPersonCountBig").textContent     = STATE.cv.personCount;
 }
 
-function updateSummary() {
-  const el = document.getElementById("ovStatusSummary"); if (!el) return;
-  const active = Object.values(STATE.deviceStates).filter(Boolean).length;
-  el.innerHTML = `<p><i class="fas fa-bolt" style="color:var(--amber)"></i> Ada <b>${active} perangkat</b> menyala. Sistem memantau energi secara real-time.</p>`;
+/* ============================================================
+   LOAD DATA AWAL DARI PHP (diinjeksi oleh footer.php)
+   ============================================================ */
+function loadFromPHP() {
+  try {
+    // Quick Control Devices
+    if (typeof PHP_SETTINGS !== 'undefined') {
+      const qc = PHP_SETTINGS.quick_control_devices;
+      STATE.quickControlDevices = Array.isArray(qc)
+        ? qc.map(String)
+        : typeof qc === "string" ? JSON.parse(qc || "[]").map(String) : [];
+
+      // CV Config dari DB
+      if (PHP_SETTINGS.cv_config && typeof PHP_SETTINGS.cv_config === 'object') {
+        if (typeof CV_CONFIG !== 'undefined') Object.assign(CV_CONFIG, PHP_SETTINGS.cv_config);
+        if (PHP_SETTINGS.cv_config.detection?.minConfidence) CV.confidence = PHP_SETTINGS.cv_config.detection.minConfidence;
+      }
+      if (PHP_SETTINGS.cv_rules && typeof PHP_SETTINGS.cv_rules === 'object') {
+        CV.cvRules = PHP_SETTINGS.cv_rules;
+        if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules(CV.cvRules);
+      }
+    }
+
+    // Perangkat
+    if (typeof PHP_DEVICES !== "undefined") {
+      PHP_DEVICES.forEach((d) => {
+        const id = String(d.id);
+        STATE.devices[id]      = { ...d, id };
+        STATE.deviceStates[id] = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
+        STATE.deviceTopics[id] = { sub: d.topic_sub || "", pub: d.topic_pub || "" };
+        STATE.deviceExtras[id] = { fanSpeed: 50, acMode: "cool", acTemp: 24, brightness: 100, volume: 60 };
+      });
+    }
+
+    // Sensor
+    if (typeof PHP_SENSORS !== "undefined") {
+      PHP_SENSORS.forEach((s) => {
+        const id = String(s.id);
+        STATE.sensors[id]       = { ...s, id };
+        STATE.sensorData[id]    = null;
+        STATE.sensorHistory[id] = [];
+      });
+    }
+
+    // Auto-start CV jika aktif di DB
+    if (typeof PHP_CV_STATE !== 'undefined' && PHP_CV_STATE && Number(PHP_CV_STATE.is_active) === 1) {
+      if (typeof initializeCV === 'function') {
+        initializeCV().then(() => {
+          if (typeof startCVDetection === 'function') startCVDetection();
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("loadFromPHP error:", e);
+    STATE.quickControlDevices = [];
+  }
 }
 
-function applyDeviceState(id, on, reason) { toggleDeviceState(id, on); }
-function renderAutomationView() { /* Implement if needed or keep as simple as possible */ }
+/* ============================================================
+   DOMContentLoaded — BOOTSTRAP UTAMA
+   ============================================================ */
+document.addEventListener("DOMContentLoaded", async () => {
+  // Ekspor ke window agar modul bisa akses
+  window.STATE = STATE;
+  window.CV    = CV;
+
+  initTheme();
+  initClock();         // navigation.js
+  initUptimeCounter(); // navigation.js
+
+  await loadCVConfig();
+  loadFromPHP();
+
+  if (typeof initAutomationRules === 'function') await initAutomationRules();
+  if (typeof automationEngine    !== 'undefined') automationEngine.initialize();
+  await loadCVRules();
+  if (typeof loadLogs === 'function') await loadLogs();
+
+  renderAll();
+
+  if (typeof loadMQTTTemplates === 'function') loadMQTTTemplates();
+
+  // Real-time polling setiap 3 detik
+  setInterval(syncAllFromServer, 3000);
+
+  // Hook light analyzer ke automation engine
+  if (typeof lightAnalyzer !== "undefined") {
+    lightAnalyzer.setCallbacks({
+      _tag: "app",
+      onLightChange: (condition, brightness) => {
+        if (typeof automationEngine !== "undefined") automationEngine.notifyLight(condition, brightness);
+      },
+    });
+  }
+
+  // Koneksi MQTT (delay agar inisialisasi UI selesai dulu)
+  setTimeout(() => {
+    if (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS.mqtt_broker) {
+      if (typeof connectMQTT === 'function') connectMQTT();
+    }
+  }, 900);
+
+  // Tutup Loading Screen & tampilkan app
+  setTimeout(() => {
+    const ls  = document.getElementById("appLoadingScreen");
+    const app = document.getElementById("mainApp");
+    if (ls) { ls.style.opacity = "0"; setTimeout(() => (ls.style.display = "none"), 500); }
+    if (app) app.classList.remove("opacity-0");
+    const aiBtn = document.getElementById("aiChatBtn");
+    if (aiBtn) aiBtn.classList.add("show");
+  }, 1200);
+});

@@ -1,3 +1,10 @@
+<div id="settings" class="view app-section">
+  <div class="view-header">
+    <div class="v-title">
+      <h3><i class="fas fa-gear"></i> Pengaturan Sistem</h3>
+      <p>Kelola profil, koneksi MQTT, notifikasi, dan keamanan akun Anda.</p>
+    </div>
+  </div>
   <div class="settings-layout">
     <div class="settings-sidebar">
       <div class="sn-list">
