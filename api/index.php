@@ -31,13 +31,13 @@ header('Content-Type: ' . ($action ? 'application/json' : 'text/html; charset=UT
 if (!$action) {
     // ═══ UI ROUTING LOGIC (PORTED FROM ROOT INDEX) ═══
     $route = $_GET['route'] ?? 'dashboard';
+    $db = getLocalDB(); // Initialize DB early for UI
 
     // Auth handling
     if (in_array($route, ['login', 'register'])) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once __DIR__ . '/../controllers/AuthController.php';
-            $db = getLocalDB();
-            if (!$db) { jsonOut(['success' => false, 'error' => 'Database tidak tersedia.']); }
+            if (!$db) { echo "Database unavailable"; exit; }
             handleAuthAction($route, $_POST, $db);
         }
         if (isLoggedIn()) { header('Location: ./'); exit; }
@@ -56,6 +56,9 @@ if (!$action) {
     $user = getCurrentUser();
     if (!$user) { logoutUser(); header('Location: ?route=login'); exit; }
 
+    if (!$db) { echo "Database connection failed"; exit; }
+    
+    require_once __DIR__ . '/../core/UserDataService.php';
     $settings = getUserSettings($user['id']);
     $devices  = getUserDevices($user['id']);
     $sensors  = getUserSensors($user['id']);
