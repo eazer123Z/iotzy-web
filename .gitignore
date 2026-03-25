@@ -1,0 +1,10 @@
+# Mengabaikan file yang mengandung Rahasia & Kredensial
+.env
+.DS_Store
+Thumbs.db
+# Mengabaikan folder dependency (jika ke depannya ada)
+vendor/
+node_modules/
+# Mengabaikan log error
+error_log
+*.log
