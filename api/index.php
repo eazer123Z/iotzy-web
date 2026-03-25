@@ -1,32 +1,20 @@
 <?php
-echo "Debug 1: Started ";
 require_once __DIR__ . '/../core/bootstrap.php';
-echo "Debug 2: Bootstrap loaded ";
 require_once __DIR__ . '/../core/auth.php';
-echo "Debug 3: Auth loaded ";
 
-echo "IoTzy Debug: Core loaded successfully!"; exit;
-
-// TEMPORARY DEBUGGING
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
-
-// Native API Error Handler
-function registerApiErrorHandler() {
-    set_error_handler(function($errno, $errstr, $errfile, $errline) {
-        if (!(error_reporting() & $errno)) return false;
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => "PHP Error [$errno]: $errstr in $errfile:$errline"]);
-        exit;
-    });
+// Native API Error Handler (from core/helpers.php)
+if (function_exists('registerApiErrorHandler')) {
+    registerApiErrorHandler();
 }
-registerApiErrorHandler();
 
 // Simple CORS
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN');
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 // Define action early to avoid undefined variable error
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
@@ -42,10 +30,16 @@ if (!$action) {
     if (in_array($route, ['login', 'register'])) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once __DIR__ . '/../controllers/AuthController.php';
-            if (!$db) { echo "Database unavailable"; exit; }
+            if (!$db) {
+                echo "Database unavailable";
+                exit;
+            }
             handleAuthAction($route, $_POST, $db);
         }
-        if (isLoggedIn()) { header('Location: ./'); exit; }
+        if (isLoggedIn()) {
+            header('Location: ./');
+            exit;
+        }
         require __DIR__ . "/../pages/auth/{$route}.php";
         exit;
     }
@@ -59,15 +53,22 @@ if (!$action) {
     requireLogin();
 
     $user = getCurrentUser();
-    if (!$user) { logoutUser(); header('Location: ?route=login'); exit; }
+    if (!$user) {
+        logoutUser();
+        header('Location: ?route=login');
+        exit;
+    }
 
-    if (!$db) { echo "Database connection failed"; exit; }
-    
+    if (!$db) {
+        echo "Database connection failed";
+        exit;
+    }
+
     require_once __DIR__ . '/../core/UserDataService.php';
     $settings = getUserSettings($user['id']);
-    $devices  = getUserDevices($user['id']);
-    $sensors  = getUserSensors($user['id']);
-    
+    $devices = getUserDevices($user['id']);
+    $sensors = getUserSensors($user['id']);
+
     // Fetch CV State
     $cvStateStmt = $db->prepare("SELECT * FROM cv_state WHERE user_id = ?");
     $cvStateStmt->execute([$user['id']]);
@@ -75,7 +76,7 @@ if (!$action) {
 
     include __DIR__ . '/../components/header.php';
     include __DIR__ . '/../components/sidebar.php';
-    ?>
+?>
     <main class="main-content">
       <?php include __DIR__ . '/../components/topbar.php'; ?>
       <div class="page-wrapper">
@@ -95,13 +96,15 @@ if (!$action) {
 // Parse Body
 $inputJSON = file_get_contents('php://input');
 $body = json_decode($inputJSON, true);
-if (json_last_error() !== JSON_ERROR_NONE) $body = $_POST;
+if (json_last_error() !== JSON_ERROR_NONE)
+    $body = $_POST;
 
 $db = getLocalDB();
-if (!$db) { 
-    http_response_code(500); 
-    echo json_encode(['success' => false, 'error' => 'Database unavailable']); 
-    exit; 
+if (!$db) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Database unavailable']);
+    exit;
+
 }
 
 // Auth Actions
@@ -112,10 +115,11 @@ if (in_array($action, ['login', 'register', 'logout'], true)) {
 }
 
 // Secure Actions
-if (!isLoggedIn()) { 
-    http_response_code(401); 
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']); 
-    exit; 
+if (!isLoggedIn()) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+    exit;
+
 }
 
 $userId = (int)$_SESSION['user_id'];
@@ -145,22 +149,22 @@ if ($action === 'update_cv_state') {
 
 // Controllers Map (adjusted path to ../controllers/)
 $routes = [
-    'get_devices' => 'DeviceController.php', 'add_device' => 'DeviceController.php', 
-    'update_device' => 'DeviceController.php', 'delete_device' => 'DeviceController.php', 
+    'get_devices' => 'DeviceController.php', 'add_device' => 'DeviceController.php',
+    'update_device' => 'DeviceController.php', 'delete_device' => 'DeviceController.php',
     'update_device_state' => 'DeviceController.php',
-    'get_sensors' => 'SensorController.php', 'add_sensor' => 'SensorController.php', 
-    'update_sensor' => 'SensorController.php', 'delete_sensor' => 'SensorController.php', 
+    'get_sensors' => 'SensorController.php', 'add_sensor' => 'SensorController.php',
+    'update_sensor' => 'SensorController.php', 'delete_sensor' => 'SensorController.php',
     'update_sensor_value' => 'SensorController.php',
-    'get_automation_rules' => 'AutomationController.php', 'add_automation_rule' => 'AutomationController.php', 
+    'get_automation_rules' => 'AutomationController.php', 'add_automation_rule' => 'AutomationController.php',
     'update_automation_rule' => 'AutomationController.php', 'delete_automation_rule' => 'AutomationController.php',
-    'get_cv_rules' => 'CVController.php', 'save_cv_rules' => 'CVController.php', 
+    'get_cv_rules' => 'CVController.php', 'save_cv_rules' => 'CVController.php',
     'get_cv_config' => 'CVController.php', 'save_cv_config' => 'CVController.php',
-    'get_settings' => 'SettingsController.php', 'save_settings' => 'SettingsController.php', 
+    'get_settings' => 'SettingsController.php', 'save_settings' => 'SettingsController.php',
     'get_mqtt_templates' => 'SettingsController.php',
     'get_logs' => 'LogController.php', 'add_log' => 'LogController.php', 'clear_logs' => 'LogController.php',
-    'get_user' => 'ProfileController.php', 'update_profile' => 'ProfileController.php', 
+    'get_user' => 'ProfileController.php', 'update_profile' => 'ProfileController.php',
     'change_password' => 'ProfileController.php',
-    'ai_chat_process' => 'AIChatController.php', 'delete_chat_history' => 'AIChatController.php', 
+    'ai_chat_process' => 'AIChatController.php', 'delete_chat_history' => 'AIChatController.php',
     'get_ai_chat_history' => 'AIChatController.php', 'test_telegram' => 'AIChatController.php'
 ];
 
@@ -170,11 +174,13 @@ if (isset($routes[$action])) {
     $handler = 'handle' . str_replace('Controller.php', 'Action', $file);
     if (function_exists($handler)) {
         $handler($action, $userId, $body, $db);
-    } else {
+    }
+    else {
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => "Handler '$handler' missing"]);
     }
-} else {
+}
+else {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => "Action '$action' unknown"]);
 }

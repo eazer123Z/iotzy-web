@@ -41,10 +41,10 @@ foreach ($_SERVER as $key => $val) {
     }
 }
 
-require_once $baseDir . '/config/app.php'; echo "config/app ok ";
-require_once $baseDir . '/config/database.php'; echo "config/db ok ";
-require_once $baseDir . '/config/telegram.php'; echo "config/tg ok ";
-require_once $baseDir . '/core/helpers.php'; echo "core/helpers ok ";
+require_once $baseDir . '/config/app.php';
+require_once $baseDir . '/config/database.php';
+require_once $baseDir . '/config/telegram.php';
+require_once $baseDir . '/core/helpers.php';
 
 
 $isVercel = getenv('VERCEL') === "1" || isset($_SERVER['VERCEL']) || isset($_ENV['VERCEL']);
