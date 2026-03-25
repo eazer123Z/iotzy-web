@@ -15,7 +15,7 @@ define('APP_NAME',         getenv('APP_NAME') ?: 'IoTzy');
 define('APP_URL',          getenv('APP_URL') ?: $detectedUrl);
 
 $isVercel = isset($_SERVER['VERCEL']) || getenv('VERCEL') === "1";
-define('ASSET_URL',        $isVercel ? APP_URL : APP_URL . '/assets');
+define('ASSET_URL',        APP_URL . '/assets');
 
 define('APP_VERSION',      '8.0.0-flat');
 
