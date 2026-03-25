@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!chatBtn || !chatModal) return;
     const FETCH_TIMEOUT_MS = 130_000;
 
+    const APP_ROOT = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
     window.addEventListener('load', () => { setTimeout(() => { chatBtn.classList.remove('hidden'); chatBtn.style.opacity = '1'; }, 500); });
     chatBtn.addEventListener('click', () => { openModal('aiChatModal'); if (chatModal.classList.contains('show')) { chatInput.focus(); loadChatHistory(); } });
     chatClose.addEventListener('click', () => { closeModal('aiChatModal'); chatModal.classList.remove('active'); chatBtn.classList.remove('active'); });
@@ -17,8 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadChatHistory() {
         if (chatBody.getAttribute('data-loaded') === 'true') return;
         try {
-            const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
-            const res  = await fetch(`${base}/api/router.php?action=get_ai_chat_history`, { headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }, credentials: 'include' });
+            const res  = await fetch(`${APP_ROOT}/api/router.php?action=get_ai_chat_history`, { headers: { 'X-CSRF-Token': CSRF_TOKEN }, credentials: 'include' });
             const data = await res.json();
             if (data.success && Array.isArray(data.history) && data.history.length > 0) {
                 data.history.forEach(chat => appendMessage(chat.message, chat.sender));
@@ -31,8 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chatClear.addEventListener('click', async () => {
             if (!confirm('Hapus seluruh riwayat percakapan?')) return;
             try {
-                const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
-                const res = await fetch(`${base}/api/router.php?action=delete_chat_history`, { method: 'POST', headers: { 'X-CSRF-TOKEN': CSRF_TOKEN }, credentials: 'include' });
+                const res = await fetch(`${APP_ROOT}/api/router.php?action=delete_chat_history`, { method: 'POST', headers: { 'X-CSRF-Token': CSRF_TOKEN }, credentials: 'include' });
                 const data = await res.json();
                 if (data.success) {
                     chatBody.innerHTML = `<div class="chat-bubble bot">Riwayat dihapus. Ada yang bisa saya bantu? 😊</div>`;
@@ -53,10 +52,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const loading = createLoadingBubble(); chatBody.appendChild(loading); scrollToBottom();
         const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
         try {
-            const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
-            const res = await fetch(`${base}/api/router.php?action=ai_chat_process`, {
+            const res = await fetch(`${APP_ROOT}/api/router.php?action=ai_chat_process`, {
                 method: 'POST', signal: controller.signal, credentials: "include",
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_TOKEN },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': CSRF_TOKEN },
                 body: JSON.stringify({ message: text, session_start: (typeof STATE !== 'undefined') ? STATE.sessionStart : null, cv_state: (typeof STATE !== 'undefined') ? { active: STATE.camera?.active || false, personCount: STATE.cv?.personCount || 0, brightness: STATE.cv?.brightness || 0, lightCondition: STATE.cv?.lightCondition || 'unknown' } : null }),
             });
             clearTimeout(timeout); const data = await res.json(); loading.remove();

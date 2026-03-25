@@ -37,9 +37,11 @@
         <span class="user-name"><?= htmlspecialchars($user['username'] ?? 'User') ?></span>
         <span class="user-role"><?= htmlspecialchars($user['role'] ?? 'Admin') ?></span>
       </div>
-      <form action="?route=logout" method="POST" style="margin:0;display:inline">
+      <form action="<?= APP_URL ?>/?route=logout" method="POST" style="margin:0;display:inline">
         <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-        <button type="submit" class="logout-btn"><i class="fas fa-right-from-bracket"></i></button>
+        <button type="submit" class="logout-btn" title="Keluar dari sistem">
+          <i class="fas fa-power-off"></i>
+        </button>
       </form>
     </div>
   </div>

@@ -64,9 +64,12 @@ body {
   50% { transform: translateY(-5px); }
   100% { transform: translateY(0px); }
 }
-.view.active > * {
-  animation: fadeIn 0.4s ease-out both;
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--a-dim); }
+
+.view.active { display: flex !important; flex-direction: column; animation: fadeIn 0.4s ease-out both; }
 .stat-icon i {
   animation: float 3s ease-in-out infinite;
 }

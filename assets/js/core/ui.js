@@ -1,3 +1,8 @@
+function escHtml(str) {
+  if (!str) return "";
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
 function showToast(message, type = "info") {
   const container = document.getElementById("toastContainer");
   if (!container) return;

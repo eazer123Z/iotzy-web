@@ -1,7 +1,9 @@
 <div id="schedule" class="view app-section">
   <div class="view-header">
-    <div class="view-title">Jadwal Otomatis</div>
-    <div class="view-sub">Atur waktu nyala/mati peranti secara terjadwal</div>
+    <div class="v-title">
+      <h3><i class="fas fa-calendar-check"></i> Jadwal Otomatis</h3>
+      <p>Manajemen waktu operasional perangkat secara terjadwal.</p>
+    </div>
   </div>
 
   <div class="dashboard-layout">

@@ -1,16 +1,12 @@
 <?php
-/**
- * controllers/DeviceController.php
- * ───
- * Mengelola siklus hidup perangkat IoT (CRUD) dan status operasionalnya.
- * Menangani pencatatan sesi penggunaan (durasi ON/OFF) dan log aktivitas.
- */
 
 require_once __DIR__ . '/../core/bootstrap.php';
-require_once __DIR__ . '/../core/UserDataService.php'; // Updated include path
+require_once __DIR__ . '/../core/UserDataService.php';
 
 function handleDeviceAction(string $action, int $userId, array $body, PDO $db): void {
     if ($action === 'get_devices') jsonOut(getUserDevices($userId));
+
+    requireCsrf();
 
     if ($action === 'add_device') {
         $name = trim($body['name'] ?? '');

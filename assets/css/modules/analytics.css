@@ -1,0 +1,83 @@
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+.full-width { grid-column: 1 / -1; }
+
+.mock-chart-container {
+  height: 120px;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding-top: 20px;
+  margin-bottom: 20px;
+}
+.mock-chart-bar {
+  flex: 1;
+  background: var(--surface-3);
+  border-radius: 6px 6px 2px 2px;
+  transition: all 1s ease;
+  animation: barGrow 1s ease-out forwards;
+  animation-delay: var(--del);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  border: 1px solid var(--border);
+}
+.mock-chart-bar.active {
+  background: var(--a-gradient);
+  box-shadow: 0 0 15px var(--a-dim);
+  border-color: var(--a);
+}
+
+@keyframes barGrow {
+  to { transform: scaleY(1); }
+}
+
+.stat-summary {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.ss-item { display: flex; flex-direction: column; gap: 4px; }
+.ss-item span { font-size: 11px; color: var(--ink-4); }
+.ss-item strong { font-size: 16px; color: #fff; font-family: var(--mono); }
+
+.uptime-circle-container {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+}
+.circular-chart { display: block; margin: 10px auto; max-width: 120px; max-height: 120px; }
+.circle-bg { fill: none; stroke: var(--surface-3); stroke-width: 2.8; }
+.circle { fill: none; stroke-width: 2.8; stroke-linecap: round; stroke: var(--a); animation: progress 1.5s ease-out forwards; }
+.percentage { fill: #fff; font-family: var(--mono); font-size: 8px; text-anchor: middle; font-weight: 800; }
+
+@keyframes progress { 0% { stroke-dasharray: 0 100; } }
+
+.stat-desc { font-size: 12px; color: var(--ink-4); text-align: center; line-height: 1.6; }
+
+.efficiency-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.eff-item {
+  background: var(--surface-2);
+  padding: 16px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid transparent;
+  transition: all var(--t);
+}
+.eff-item:hover { border-color: var(--border); background: var(--surface-3); }
+.eff-item i { font-size: 24px; color: var(--a); opacity: 0.8; }
+.eff-item strong { font-size: 20px; color: #fff; display: block; font-family: var(--mono); }
+.eff-item span { font-size: 11px; color: var(--ink-4); }
+
+@media (max-width: 800px) {
+  .analytics-grid, .efficiency-grid { grid-template-columns: 1fr; }
+}

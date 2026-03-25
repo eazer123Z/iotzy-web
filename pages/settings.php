@@ -1,10 +1,5 @@
-<div id="settings" class="view app-section">
-  <div class="settings-grid">
-    <div class="settings-nav">
-      <div class="sn-header">
-        <i class="fas fa-sliders"></i>
-        <span>Pengaturan</span>
-      </div>
+  <div class="settings-layout">
+    <div class="settings-sidebar">
       <div class="sn-list">
         <button class="sn-item active" data-target="set-profile"><i class="fas fa-user-circle"></i> Profil Pengguna</button>
         <button class="sn-item" data-target="set-mqtt"><i class="fas fa-network-wired"></i> Koneksi MQTT</button>
@@ -20,15 +15,15 @@
         <div class="panel-body">
           <div class="field-item">
             <label>Username</label>
-            <input type="text" value="<?= $userData['username'] ?? '' ?>" class="fi-input" disabled>
+            <input type="text" value="<?= $userData['username'] ?? '' ?>" class="form-input" disabled>
           </div>
           <div class="field-item">
             <label>Nama Lengkap</label>
-            <input type="text" id="profName" value="<?= $userData['full_name'] ?? '' ?>" class="fi-input">
+            <input type="text" id="settingFullName" value="<?= $userData['full_name'] ?? '' ?>" class="form-input">
           </div>
           <div class="field-item">
             <label>Email</label>
-            <input type="email" id="profEmail" value="<?= $userData['email'] ?? '' ?>" class="fi-input">
+            <input type="email" id="settingEmail" value="<?= $userData['email'] ?? '' ?>" class="form-input">
           </div>
           <button class="btn-primary" onclick="saveProfile()">Simpan Profil</button>
         </div>
@@ -42,11 +37,11 @@
           </div>
           <div class="field-item">
             <label>Broker URL</label>
-            <input type="text" id="mqttBroker" class="fi-input" value="<?= $settings['mqtt_broker'] ?? '' ?>">
+            <input type="text" id="mqttBroker" class="form-input" value="<?= $settings['mqtt_broker'] ?? '' ?>">
           </div>
           <div class="field-item">
             <label>Port</label>
-            <input type="number" id="mqttPort" class="fi-input" value="<?= $settings['mqtt_port'] ?? '' ?>">
+            <input type="number" id="mqttPort" class="form-input" value="<?= $settings['mqtt_port'] ?? '' ?>">
           </div>
           <button class="btn-primary" onclick="openMQTTConfigModal()">Edit Konfigurasi Detail</button>
         </div>
@@ -57,7 +52,7 @@
           <p class="panel-desc">Gunakan Bot Telegram IoTzy untuk menerima notifikasi otomasi dan kontrol perangkat via chat.</p>
           <div class="field-item">
             <label>Telegram Chat ID</label>
-            <input type="text" id="teleId" value="<?= $settings['telegram_chat_id'] ?? '' ?>" class="fi-input" placeholder="Contoh: 12345678">
+            <input type="text" id="settingTelegramId" value="<?= $settings['telegram_chat_id'] ?? '' ?>" class="form-input" placeholder="Contoh: 12345678">
           </div>
           <div class="btn-group">
             <button class="btn-primary" onclick="saveTelegramId()">Simpan Chat ID</button>
@@ -70,11 +65,15 @@
         <div class="panel-body">
           <div class="field-item">
             <label>Password Lama</label>
-            <input type="password" id="oldPass" class="fi-input">
+            <input type="password" id="oldPassword" class="form-input">
           </div>
           <div class="field-item">
             <label>Password Baru</label>
-            <input type="password" id="newPass" class="fi-input">
+            <input type="password" id="newPassword" class="form-input">
+          </div>
+          <div class="field-item">
+            <label>Konfirmasi Password Baru</label>
+            <input type="password" id="confirmPassword" class="form-input">
           </div>
           <button class="btn-primary" onclick="changePassword()">Ganti Password</button>
         </div>

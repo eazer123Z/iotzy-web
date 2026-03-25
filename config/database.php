@@ -1,10 +1,4 @@
 <?php
-/**
- * config/database.php
- * ───
- * Mengatur koneksi basis data (MySQL/PDO) untuk seluruh aplikasi IoTzy.
- * Menduking PHP 8.5 (Vercel Core) & Aiven Cloud MySQL secara aman.
- */
 
 define('DB_CHARSET', 'utf8mb4');
 
@@ -31,11 +25,11 @@ function getLocalDB(): ?PDO {
             PDO::ATTR_EMULATE_PREPARES   => false,
         ];
 
-        // 🛡️ PROTEKSI SSL
-        if (defined('\Pdo\Mysql::ATTR_SSL_CA')) {
-            $options[\Pdo\Mysql::ATTR_SSL_CA] = '';
-            $options[\Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT] = false;
+        if (defined('PDO::MYSQL_ATTR_SSL_CA')) {
+            $options[PDO::MYSQL_ATTR_SSL_CA] = '';
+            $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
         } else {
+            // Fallback to integer values (1007 = SSL_CA, 1014 = SSL_VERIFY)
             $options[1007] = '';    
             $options[1014] = false; 
         }

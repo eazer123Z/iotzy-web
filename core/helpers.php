@@ -1,15 +1,5 @@
 <?php
-/**
- * core/helpers.php
- * ───
- * Kumpulan fungsi utilitas (Helper) global untuk kebutuhan enkripsi,
- * manipulasi data, respon JSON, dan keamanan sistem IoTzy.
- * (Telah digabung dengan response.php)
- */
 
-/**
- * Encrypt a plaintext string using AES-256-CBC.
- */
 function encryptSecret(string $plainText): ?string {
     $plainText = trim($plainText);
     if ($plainText === '') return null;
@@ -26,9 +16,6 @@ function encryptSecret(string $plainText): ?string {
     return base64_encode($iv . $enc);
 }
 
-/**
- * Decrypt a ciphertext string encrypted with encryptSecret().
- */
 function decryptSecret(?string $cipherText): string {
     if (!$cipherText) return '';
 
@@ -43,9 +30,6 @@ function decryptSecret(?string $cipherText): string {
     return $dec === false ? '' : $dec;
 }
 
-/**
- * Output JSON response and terminate.
- */
 function jsonOut(mixed $data, int $code = 200): never {
     if ($code !== 200) http_response_code($code);
     while (ob_get_level() > 0) ob_end_clean();
@@ -55,9 +39,6 @@ function jsonOut(mixed $data, int $code = 200): never {
     exit;
 }
 
-/**
- * Register fatal error handler untuk API endpoints.
- */
 function registerApiErrorHandler(): void {
     register_shutdown_function(function() {
         $err = error_get_last();

@@ -1,12 +1,5 @@
 <?php
-/**
- * config/app.php
- * ───
- * Konfigurasi utama aplikasi IoTzy.
- * Menangani deteksi URL otomatis dan parameter dasar sistem.
- */
 
-// Otomatis mendeteksi path folder aplikasi
 $detectedUrl = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
 $detectedUrl = preg_replace('/\/(api|controllers|core|pages|components|assets)$/', '', $detectedUrl);
 if ($detectedUrl === '/')

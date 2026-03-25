@@ -22,8 +22,6 @@
 </div>
 <?php include 'modals.php'; ?>
 <script>
-  const APP_BASE = "<?= htmlspecialchars(APP_URL) ?>";
-  const CSRF_TOKEN = "<?= $_SESSION['csrf_token'] ?? '' ?>";
   var PHP_SETTINGS = <?= json_encode($settings ?? []) ?>;
   var PHP_DEVICES = <?= json_encode($devices ?? []) ?>;
   var PHP_SENSORS = <?= json_encode($sensors ?? []) ?>;

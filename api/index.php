@@ -1,17 +1,11 @@
 <?php
-/**
- * api/index.php — Main Entry Point / Front Controller for Vercel
- * ───
- * Dipindah dari root ke folder api/ agar memenuhi aturan ketat Vercel V2 Serverless Functions.
- */
 
 require_once __DIR__ . '/../core/bootstrap.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/UserDataService.php';
 
-$route = $_GET['route'] ?? 'dashboard';
 
-// ─────────────── RUTE PUBLIK ───────────────
+$route = $_GET['route'] ?? 'dashboard';
 
 if ($route === 'login') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -58,7 +52,6 @@ if ($route === 'logout') {
     exit;
 }
 
-// ─────────────── RUTE TERPROTEKSI ───────────────
 requireLogin();
 
 $user = getCurrentUser();
@@ -86,7 +79,6 @@ $cvState = $cvStateStmt->fetch(PDO::FETCH_ASSOC) ?: [
 $safeSettings = $settings;
 unset($safeSettings['mqtt_password_enc']);
 
-// ─────────────── LAYOUT ───────────────
 include __DIR__ . '/../components/header.php';
 include __DIR__ . '/../components/sidebar.php';
 ?>
@@ -110,5 +102,4 @@ include __DIR__ . '/../components/sidebar.php';
 </main>
 <?php
 include __DIR__ . '/../components/bottom_nav.php';
-include __DIR__ . '/../components/modals.php';
 include __DIR__ . '/../components/footer.php';

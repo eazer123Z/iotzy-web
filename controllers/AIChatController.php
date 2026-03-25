@@ -1,15 +1,9 @@
 <?php
-/**
- * controllers/AIChatController.php
- * ───
- * Pusat kendali asisten AI Dashboard. Menangani pemrosesan bahasa alami (NLP),
- * penghapusan riwayat chat, dan pengujian konektivitas Bot Telegram.
- */
 
 require_once __DIR__ . '/../core/bootstrap.php';
-require_once __DIR__ . '/../core/AIParser.php'; // Updated include path
-require_once __DIR__ . '/../core/TelegramService.php'; // Updated include path
-require_once __DIR__ . '/../core/UserDataService.php'; // Updated include path
+require_once __DIR__ . '/../core/AIParser.php';
+require_once __DIR__ . '/../core/TelegramService.php';
+require_once __DIR__ . '/../core/UserDataService.php';
 
 
 function handleAIChatAction(string $action, int $userId, array $body, PDO $db): void {

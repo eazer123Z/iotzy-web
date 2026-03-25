@@ -1,14 +1,7 @@
 <?php
-/**
- * controllers/SettingsController.php
- * ───
- * Mengelola konfigurasi profil dan sistem pengguna. Menangani pembaharuan
- * parameter MQTT, Token Telegram, ambang batas otomasi, dan tema UI.
- */
-
 
 require_once __DIR__ . '/../core/bootstrap.php';
-require_once __DIR__ . '/../core/UserDataService.php'; // Updated path
+require_once __DIR__ . '/../core/UserDataService.php';
 
 function handleSettingsAction(string $action, int $userId, array $body, PDO $db): void {
     if ($action === 'get_settings') jsonOut(getUserSettings($userId));
@@ -18,6 +11,7 @@ function handleSettingsAction(string $action, int $userId, array $body, PDO $db)
     }
 
     if ($action === 'save_settings') {
+        requireCsrf();
         $mqttDefaults = [
             'mqtt_broker'  => getenv('MQTT_HOST') ?: 'broker.hivemq.com',
             'mqtt_port'    => (int)(getenv('MQTT_PORT') ?: 8884),

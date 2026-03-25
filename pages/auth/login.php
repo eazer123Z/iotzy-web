@@ -12,38 +12,62 @@ $csrf  = $csrf ?? (function_exists('generateCsrfToken') ? generateCsrfToken() : 
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
-:root{
---a:#22d3ee;--a-h:#06b6d4;--a-700:#0e7490;
---ink:#f1f5f9;--ink-4:#94a3b8;--ink-5:#64748b;
---border:rgba(56,189,248,.12);--surface:rgba(15,23,42,.7);
---green:#34d399;--green-bg:rgba(52,211,153,.1);
---red:#f87171;--red-bg:rgba(248,113,113,.1);
---shadow-lg:0 8px 40px rgba(0,0,0,.4);
---r:12px;--r-2xl:28px;
---font:'Plus Jakarta Sans',system-ui,sans-serif;
+:root {
+  --a: #00e5ff; --a-h: #00b8d4; --a-dim: rgba(0, 229, 255, 0.4);
+  --ink: #ffffff; --ink-5: rgba(255, 255, 255, 0.5);
+  --border: rgba(0, 229, 255, 0.15); --surface: rgba(10, 15, 30, 0.6);
+  --r: 16px; --r-2xl: 24px;
 }
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{-webkit-font-smoothing:antialiased}
-body{font-family:var(--font);min-height:100vh;background:#0a0e1a;display:flex;align-items:center;justify-content:center;padding:20px;position:relative;overflow:hidden;}
-.wrap{width:100%;max-width:400px;position:relative;z-index:1;}
-.header{text-align:center;margin-bottom:28px;}
-.logo{width:68px;height:68px;border-radius:20px;background:linear-gradient(135deg,var(--a),var(--a-h));color:#fff;font-size:28px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(6,182,212,.5);margin-bottom:14px;}
-.title{font-size:28px;font-weight:800;color:var(--ink);letter-spacing:-.5px;}
-.sub{font-size:13px;color:var(--ink-5);margin-top:4px;}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-2xl);padding:28px 28px 24px;box-shadow:var(--shadow-lg);backdrop-filter:blur(20px);}
-.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
-.form-label{font-size:11px;font-weight:700;color:var(--ink-5);text-transform:uppercase;letter-spacing:.5px;}
-.input-wrap{position:relative;}
-.input-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-5);font-size:13px;}
-.form-input{width:100%;padding:11px 12px 11px 38px;border:1.5px solid var(--border);border-radius:var(--r);font-size:13.5px;color:var(--ink);background:rgba(255,255,255,.04);outline:none;}
-.form-input:focus{border-color:var(--a-h);box-shadow:0 0 0 3px rgba(6,182,212,.15);}
-.btn{width:100%;padding:12px 16px;background:linear-gradient(135deg,var(--a-h),var(--a-700));color:#fff;font-size:14px;font-weight:700;border:none;border-radius:var(--r);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px;}
-.alert{display:flex;align-items:flex-start;gap:9px;padding:11px 14px;border-radius:var(--r);font-size:12.5px;margin-bottom:16px;}
-.alert.error{background:var(--red-bg);color:var(--red);border:1px solid rgba(248,113,113,.2);}
-.alert.success{background:var(--green-bg);color:var(--green);border:1px solid rgba(52,211,153,.2);}
-.bottom-link{text-align:center;font-size:12.5px;color:var(--ink-5);margin-top:18px;}
-.bottom-link a{color:var(--a);font-weight:700;text-decoration:none;}
-.footer{text-align:center;margin-top:16px;font-size:11.5px;color:var(--ink-5);}
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: #03050a;
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-image: 
+    radial-gradient(circle at 20% 20%, rgba(0, 229, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(191, 0, 255, 0.08) 0%, transparent 50%);
+}
+.wrap { width: 100%; max-width: 400px; z-index: 2; animation: fadeIn 0.8s ease; }
+.logo {
+  width: 72px; height: 72px; border-radius: 20px;
+  background: linear-gradient(135deg, var(--a), var(--a-h));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; color: #fff; margin: 0 auto 20px;
+  box-shadow: 0 0 30px var(--a-dim);
+  animation: pulse 2s infinite ease-in-out;
+}
+.title { font-size: 32px; font-weight: 800; text-align: center; margin-bottom: 8px; }
+.card {
+  background: var(--surface);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
+  padding: 35px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+}
+.form-input {
+  width: 100%; padding: 12px 15px 12px 42px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: #fff; outline: none; transition: all 0.3s;
+}
+.form-input:focus { border-color: var(--a); background: rgba(255,255,255,0.06); box-shadow: 0 0 15px var(--a-dim); }
+.btn {
+  width: 100%; padding: 14px; border-radius: var(--r);
+  background: linear-gradient(135deg, var(--a), var(--a-h));
+  color: #fff; font-weight: 800; border: none; cursor: pointer;
+  box-shadow: 0 10px 20px -5px var(--a-dim);
+  transition: all 0.3s;
+}
+.btn:hover { transform: translateY(-2px); box-shadow: 0 15px 25px -5px var(--a); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 </style>
 </head>
 <body>

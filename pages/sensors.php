@@ -2,7 +2,7 @@
   <div class="view-header">
     <div class="v-title">
       <h3><i class="fas fa-gauge-high"></i> Monitoring Sensor</h3>
-      <p>Data metrik dari sensor terhubung</p>
+      <p>Data metrik dan kondisi lingkungan secara real-time.</p>
     </div>
     <div class="v-actions">
       <div class="search-box">

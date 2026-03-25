@@ -36,7 +36,12 @@ function initNavigation() {
     });
   });
 
+  function navigateTo(pageId) {
+    openPage(pageId);
+  }
+
   window.openPage = openPage;
+  window.navigateTo = navigateTo;
   const lastTab = localStorage.getItem('iotzy-last-tab') || 'dashboard';
   openPage(lastTab);
 }

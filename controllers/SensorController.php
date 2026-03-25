@@ -1,16 +1,12 @@
 <?php
-/**
- * controllers/SensorController.php
- * ───
- * Mengelola pendaftaran sensor dan penyimpanan data historis pembacaan.
- * Mendukung berbagai tipe sensor (Suhu, Kelembaban, Kecerahan, dll) dengan filter tipe.
- */
 
 require_once __DIR__ . '/../core/bootstrap.php';
-require_once __DIR__ . '/../core/UserDataService.php'; // Updated include path
+require_once __DIR__ . '/../core/UserDataService.php';
 
 function handleSensorAction(string $action, int $userId, array $body, PDO $db): void {
     if ($action === 'get_sensors') jsonOut(getUserSensors($userId));
+
+    requireCsrf();
 
     if ($action === 'add_sensor') {
         $name  = trim($body['name'] ?? '');

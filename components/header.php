@@ -15,6 +15,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/api/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 <link rel="stylesheet" href="<?= ASSET_URL ?>/css/dashboard.css?v=<?= APP_VERSION ?>">
+<script>
+  window.CSRF_TOKEN = "<?= $_SESSION['csrf_token'] ?? '' ?>";
+  window.APP_BASE   = "<?= rtrim(APP_URL, '/') ?>";
+</script>
 </head>
 <body>
 <div id="mainApp" class="app-shell">

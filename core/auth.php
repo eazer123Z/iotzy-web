@@ -1,12 +1,6 @@
 <?php
-/**
- * core/auth.php — Session, Authentication & CSRF (FINAL FIX APP)
- */
 
 require_once __DIR__ . '/bootstrap.php';
-
-
-// ==================== SESSION ====================
 
 function startSecureSession(): void
 {
@@ -33,8 +27,6 @@ function startSecureSession(): void
 
     session_start();
 }
-
-// ==================== LOGIN CHECK ====================
 
 function isLoggedIn(): bool
 {
@@ -95,8 +87,6 @@ function isLoggedIn(): bool
     }
 }
 
-// ==================== REQUIRE LOGIN ====================
-
 function requireLogin(): void
 {
     if (!isLoggedIn()) {
@@ -112,8 +102,6 @@ function requireLogin(): void
     }
 }
 
-
-// ==================== CSRF ====================
 
 function generateCsrfToken(): string
 {
@@ -150,8 +138,6 @@ function requireCsrf(): void
     }
 }
 
-
-// ==================== LOGIN ====================
 
 function loginUser(string $login, string $password): mixed
 {
@@ -236,8 +222,6 @@ function loginUser(string $login, string $password): mixed
 }
 
 
-// ==================== LOGOUT ====================
-
 function logoutUser(): void
 {
     startSecureSession();
@@ -279,8 +263,6 @@ function logoutUser(): void
     session_destroy();
 }
 
-
-// ==================== REGISTER ====================
 
 function registerUser(
     string $username,

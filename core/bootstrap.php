@@ -1,11 +1,4 @@
 <?php
-/**
- * core/bootstrap.php
- * ───
- * File inisialisasi utama (Kernel) IoTzy.
- * Menangani buffer output, pelaporan error, pemuatan konfigurasi,
- * environment variables, dan manajemen sesi serverless (Vercel).
- */
 
 ob_start();
 $baseDir = dirname(__DIR__);
@@ -14,7 +7,6 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 
-// ==================== LOAD ENV ====================
 $envPaths = [
     $baseDir . '/.env',
     dirname($baseDir) . '/.env',
@@ -43,24 +35,17 @@ foreach ($envPaths as $envFile) {
     }
 }
 
-// ==================== INJECT FASTCGI VARS to getenv() ====================
-// Vercel menyediakan variable lewat $_SERVER (atau $_ENV) namun tidak otomatis masuk ke getenv().
 foreach ($_SERVER as $key => $val) {
     if (is_string($val) && getenv($key) === false) {
         putenv("{$key}={$val}");
     }
 }
 
-// ==================== CONFIG ====================
 require_once $baseDir . '/config/app.php';
 require_once $baseDir . '/config/database.php';
 require_once $baseDir . '/config/telegram.php';
-
-// CORE
 require_once $baseDir . '/core/helpers.php';
 
-
-// ==================== MANAJEMEN SESI (Serverless Fix) ====================
 
 $isVercel = getenv('VERCEL') === "1" || isset($_SERVER['VERCEL']) || isset($_ENV['VERCEL']);
 $isDocker = file_exists('/.dockerenv');

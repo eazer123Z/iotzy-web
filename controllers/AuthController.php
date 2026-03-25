@@ -1,18 +1,11 @@
 <?php
-/**
- * controllers/AuthController.php
- * ───
- * Menangani proses otentikasi pengguna termasuk Login, Registrasi, 
- * dan Logout. Berintegrasi dengan core/auth untuk keamanan sesi.
- */
-
 
 require_once __DIR__ . '/../core/bootstrap.php';
-require_once __DIR__ . '/../core/auth.php'; // Updated path
+require_once __DIR__ . '/../core/auth.php';
+
 
 function handleAuthAction(string $action, array $body, PDO $db): void {
 
-    // ===================== LOGIN =====================
     if ($action === 'login') {
         requireCsrf();
         $login    = trim($body['username'] ?? $body['login'] ?? $body['email'] ?? '');
@@ -34,7 +27,6 @@ function handleAuthAction(string $action, array $body, PDO $db): void {
         ]);
     }
 
-    // ===================== REGISTER =====================
     if ($action === 'register') {
         requireCsrf();
         $username = trim($body['reg_username'] ?? $body['username'] ?? '');
@@ -57,7 +49,6 @@ function handleAuthAction(string $action, array $body, PDO $db): void {
         ]);
     }
 
-    // ===================== LOGOUT =====================
     if ($action === 'logout') {
         requireCsrf();
 
