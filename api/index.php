@@ -8,6 +8,10 @@
 require_once __DIR__ . '/../core/bootstrap.php';
 require_once __DIR__ . '/../core/auth.php';
 
+// TEMPORARY DEBUGGING
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+
 // Native API Error Handler
 function registerApiErrorHandler() {
     set_error_handler(function($errno, $errstr, $errfile, $errline) {
@@ -17,7 +21,6 @@ function registerApiErrorHandler() {
         exit;
     });
 }
-
 registerApiErrorHandler();
 
 // Simple CORS
@@ -25,6 +28,9 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
+
+// Define action early to avoid undefined variable error
+$action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 header('Content-Type: ' . ($action ? 'application/json' : 'text/html; charset=UTF-8'));
 
