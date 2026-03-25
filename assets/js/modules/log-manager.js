@@ -85,7 +85,7 @@ function updateLogDisplay() {
       <td class="log-time">${l.waktu}</td>
       <td class="log-dev">${escHtml(l.device)}</td>
       <td class="log-act">${escHtml(l.activity)}</td>
-      <td><span class="log-badge ${l.type}">${l.trigger}</span></td>
+      <td><span class="log-type-badge ${l.type}">${l.trigger}</span></td>
     </tr>`;
   });
   html += '</tbody></table>';

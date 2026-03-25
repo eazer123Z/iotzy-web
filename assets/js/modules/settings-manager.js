@@ -49,3 +49,27 @@ async function changePassword() {
     });
   } else showToast(result?.error || "Gagal mengubah password", "error");
 }
+
+// ==============================================================================
+// INIT SETTINGS UI
+// ==============================================================================
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".sn-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      // Hilangkan class active dari semua menu sidebar settings
+      document.querySelectorAll(".sn-item").forEach(b => b.classList.remove("active"));
+      // Sembunyikan semua panel
+      document.querySelectorAll(".settings-panel").forEach(p => p.classList.remove("active"));
+      
+      // Beri active ke tombol yang diklik
+      btn.classList.add("active");
+      
+      // Tampilkan panel tujuan
+      const targetId = btn.getAttribute("data-target");
+      if (targetId) {
+        const panel = document.getElementById(targetId);
+        if (panel) panel.classList.add("active");
+      }
+    });
+  });
+});
