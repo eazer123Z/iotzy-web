@@ -28,7 +28,7 @@ function escHtml(str) {
 
 async function apiPost(action, data = {}) {
   try {
-    const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/router.php";
+    const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/index.php";
     const hdrs = { "Content-Type": "application/json" };
     if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
     const res = await fetch(`${base}?action=${action}`, { method: "POST", headers: hdrs, credentials: "include", body: JSON.stringify(data) });
