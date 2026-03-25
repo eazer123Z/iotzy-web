@@ -2,18 +2,11 @@
   "functions": {
     "api/*.php": {
       "runtime": "vercel-php@0.7.2"
-    },
-    "index.php": {
-      "runtime": "vercel-php@0.7.2"
     }
   },
   "rewrites": [
     { "source": "/assets/(.*)", "destination": "/assets/$1" },
-    { "source": "/api/db-init.php", "destination": "/api/db-init.php" },
-    { "source": "/api/data_router.php", "destination": "/api/data_router.php" },
-    { "source": "/api/telegram_webhook.php", "destination": "/api/telegram_webhook.php" },
-    { "source": "/api/set_webhook.php", "destination": "/api/set_webhook.php" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.php" }
+    { "source": "/(.*)", "destination": "/api/index.php" }
   ]
 }
