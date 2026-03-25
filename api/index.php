@@ -1,4 +1,7 @@
 <?php
+// ISOLATION TEST
+echo "IoTzy Debug: Script is running!"; exit;
+
 /**
  * api/index.php — Unified Vercel-Ready AJAX Router (Native PHP)
  * This file handles all AJAX requests for the IoTzy platform.
