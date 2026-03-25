@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
-            const res  = await fetch(`${base}/api/data_router.php?action=get_ai_chat_history`, {
+            const res  = await fetch(`${base}/api/router.php?action=get_ai_chat_history`, {
                 headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
                 credentials: 'include'
             });
@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!confirm('Hapus seluruh riwayat percakapan dengan AI?')) return;
             try {
                 const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
-                const res = await fetch(`${base}/api/data_router.php?action=delete_chat_history`, {
+                const res = await fetch(`${base}/api/router.php?action=delete_chat_history`, {
                     method: 'POST',
                     headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
                     credentials: 'include'
@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
-            const response = await fetch(`${base}/api/data_router.php?action=ai_chat_process`, {
+            const response = await fetch(`${base}/api/router.php?action=ai_chat_process`, {
                 method:  'POST',
                 signal:  controller.signal,
                 credentials: "include",

@@ -14,7 +14,7 @@ const automationEngine = (() => {
     const _cooldowns = {};
 
     const _api = (action) => {
-        const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : '') + '/api/data_router.php';
+        const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : '') + '/api/router.php';
         return `${base}?action=${action}`;
     };
 

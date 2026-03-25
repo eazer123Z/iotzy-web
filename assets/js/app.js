@@ -163,7 +163,7 @@ function closeModal(id) {
 /* ==================== API POST ==================== */
 async function apiPost(action, data = {}) {
   try {
-    const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/data_router.php";
+    const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/router.php";
     const hdrs = { "Content-Type": "application/json" };
     if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
     
