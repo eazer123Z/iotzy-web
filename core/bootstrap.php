@@ -43,6 +43,13 @@ foreach ($envPaths as $envFile) {
     }
 }
 
+// ==================== INJECT FASTCGI VARS to getenv() ====================
+// Vercel menyediakan variable lewat $_SERVER (atau $_ENV) namun tidak otomatis masuk ke getenv().
+foreach ($_SERVER as $key => $val) {
+    if (is_string($val) && getenv($key) === false) {
+        putenv("{$key}={$val}");
+    }
+}
 
 // ==================== CONFIG ====================
 require_once $baseDir . '/config/app.php';
