@@ -60,7 +60,13 @@ async function connectMQTT() {
     let port       = parseInt(document.getElementById("mqttPort")?.value) || PHP_SETTINGS.mqtt_port || CONFIG.mqtt.port;
     const clientId = (document.getElementById("mqttClientId")?.value || "iotzy_web") + "_" + Math.random().toString(16).substr(2, 6);
     const path     = document.getElementById("mqttPath")?.value     || PHP_SETTINGS.mqtt_path     || "/mqtt";
-    const useSSL   = document.getElementById("mqttUseSSL")?.checked ?? !!PHP_SETTINGS.mqtt_use_ssl;
+    let   useSSL   = document.getElementById("mqttUseSSL")?.checked ?? !!PHP_SETTINGS.mqtt_use_ssl;
+    
+    // 🔥 FIX: Force WSS (useSSL) if loaded over HTTPS to prevent Mixed Content Error
+    if (window.location.protocol === "https:") {
+        useSSL = true;
+    }
+
     const user     = document.getElementById("mqttUsername")?.value  || PHP_SETTINGS.mqtt_username || "";
     const pass     = document.getElementById("mqttPassword")?.value || "";
 

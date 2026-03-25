@@ -182,7 +182,8 @@ $routes = [
     'get_user' => 'ProfileController.php', 'update_profile' => 'ProfileController.php',
     'change_password' => 'ProfileController.php',
     'ai_chat_process' => 'AIChatController.php', 'delete_chat_history' => 'AIChatController.php',
-    'get_ai_chat_history' => 'AIChatController.php', 'test_telegram' => 'AIChatController.php'
+    'get_ai_chat_history' => 'AIChatController.php', 'test_telegram' => 'AIChatController.php',
+    'get_dashboard_data' => 'DashboardController.php'
 ];
 
 if (isset($routes[$action])) {
