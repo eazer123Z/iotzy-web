@@ -18,7 +18,7 @@ define('APP_URL', getenv('APP_URL') ?: $detectedUrl);
 $isVercel = isset($_SERVER['VERCEL']) || getenv('VERCEL') === "1";
 define('ASSET_URL', APP_URL . '/assets');
 
-define('APP_VERSION', '8.0.1-premium');
+define('APP_VERSION',      '8.1.0-rebirth');
 
 $appSecret = getenv('APP_SECRET');
 if (!$appSecret) {

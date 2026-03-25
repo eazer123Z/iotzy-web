@@ -22,14 +22,14 @@ const Overview = {
     const totalDevs  = Object.keys(STATE.devices || {}).length;
     let html = '';
     if (activeDevs === 0) {
-      html = `<p><i class="fas fa-info-circle" style="color:var(--blue)"></i> Semua perangkat dalam kondisi <b>Standby</b>. Tidak ada konsumsi daya berlebih.</p>`;
+      html = `<p><i class="fas fa-info-circle" style="color:var(--a)"></i> Semua perangkat dalam kondisi <b>Standby</b>. Tidak ada konsumsi daya berlebih.</p>`;
     } else {
-      html = `<p><i class="fas fa-bolt" style="color:var(--amber)"></i> Ada <b>${activeDevs} perangkat</b> sedang menyala. Sistem memantau penggunaan energi secara real-time.</p>`;
+      html = `<p><i class="fas fa-bolt" style="color:var(--amber)"></i> Ada <b>${activeDevs} perangkat</b> menyala. Sistem memantau energi secara real-time.</p>`;
     }
     const tempSensor = Object.values(STATE.sensors || {}).find(s => s.type === 'temperature');
     if (tempSensor && STATE.sensorData[tempSensor.id]) {
       const val = parseFloat(STATE.sensorData[tempSensor.id]);
-      html += `<p><i class="fas fa-thermometer-half" style="color:var(--red)"></i> Suhu ruangan saat ini <b>${val}°C</b>. Kondisi cukup ${val > 28 ? 'hangat' : 'nyaman'}.</p>`;
+      html += `<p><i class="fas fa-temperature-half" style="color:var(--red)"></i> Suhu ruangan <b>${val}°C</b>. Kondisi ${val > 28 ? 'hangat' : 'nyaman'}.</p>`;
     }
     el.innerHTML = html;
   },

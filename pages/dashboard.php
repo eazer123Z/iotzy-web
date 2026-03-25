@@ -68,7 +68,7 @@
         <div class="card-header">
           <span class="card-title"><i class="fas fa-clipboard-list"></i> Ringkasan Status</span>
         </div>
-        <div class="card-body" id="ovStatusSummary">
+        <div class="card-body summary-list" id="ovStatusSummary">
           <p>Memindai kondisi ruangan...</p>
         </div>
       </div>

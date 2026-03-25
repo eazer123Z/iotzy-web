@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 :root {
   --sky-500: #00e5ff;
   --sky-600: #00b8d4;
@@ -6,34 +8,34 @@
   --a-2: #18ffff;
   --a-light: rgba(0, 229, 255, .15);
   --a-dim: rgba(0, 229, 255, .08);
-  --a-glow: 0 0 15px rgba(0, 229, 255, .3);
-  --bg: #050810;
-  --surface: rgba(13, 18, 30, .8);
-  --surface-2: rgba(20, 28, 48, .6);
-  --surface-3: rgba(30, 42, 70, .5);
-  --border: rgba(0, 229, 255, .15);
-  --border-2: rgba(0, 229, 255, .25);
+  --a-glow: 0 0 20px rgba(0, 229, 255, .35);
+  --bg: #03050a;
+  --surface: rgba(10, 15, 25, .82);
+  --surface-2: rgba(20, 30, 50, .65);
+  --surface-3: rgba(30, 45, 75, .55);
+  --border: rgba(0, 229, 255, .18);
+  --border-2: rgba(0, 229, 255, .3);
   --ink: #ffffff;
-  --ink-2: #e0f2fe;
-  --ink-3: #b0c4de;
-  --ink-4: #8a99af;
-  --sb-bg: #070a14;
-  --sb-active: rgba(0, 229, 255, .1);
-  --sb-hover: rgba(255, 255, 255, 0.04);
+  --ink-2: #f0f9ff;
+  --ink-3: #c0cfdf;
+  --ink-4: #8a9cb0;
+  --sb-bg: #05070f;
+  --sb-active: rgba(0, 229, 255, .12);
+  --sb-hover: rgba(255, 255, 255, 0.05);
   --sb-text-a: #00e5ff;
-  --green: #00ffa3;
+  --green: #00ffaa;
   --amber: #ffcc00;
   --red: #ff4d4d;
   --blue: #0099ff;
   --purple: #bf00ff;
-  --shadow-lg: 0 10px 40px rgba(0, 0, 0, .5), 0 0 1px rgba(0, 229, 255, .2);
-  --glass: blur(20px);
+  --shadow-lg: 0 12px 48px rgba(0, 0, 0, .6), 0 0 1px rgba(0, 229, 255, .25);
+  --glass: blur(24px);
   --r-sm: 8px;
-  --r: 14px;
-  --r-lg: 18px;
+  --r: 16px;
+  --r-lg: 20px;
   --font: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --t: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --mono: 'JetBrains Mono', monospace;
+  --t: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 *, *::before, *::after {
   box-sizing: border-box;

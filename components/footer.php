@@ -25,6 +25,9 @@
   const APP_BASE = "<?= htmlspecialchars(APP_URL) ?>";
   const CSRF_TOKEN = "<?= $_SESSION['csrf_token'] ?? '' ?>";
   var PHP_SETTINGS = <?= json_encode($settings ?? []) ?>;
+  var PHP_DEVICES = <?= json_encode($devices ?? []) ?>;
+  var PHP_SENSORS = <?= json_encode($sensors ?? []) ?>;
+  var PHP_CV_STATE = <?= json_encode($cvState ?? []) ?>;
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="<?= ASSET_URL ?>/js/core/api.js?v=<?= APP_VERSION ?>"></script>
