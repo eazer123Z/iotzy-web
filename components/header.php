@@ -17,12 +17,4 @@
 <link rel="stylesheet" href="<?= ASSET_URL ?>/css/dashboard.css?v=<?= APP_VERSION ?>">
 </head>
 <body>
-<div id="appLoadingScreen" class="loading-screen">
-  <div class="loading-inner">
-    <div class="loading-logo"><i class="fas fa-bolt"></i></div>
-    <h1 class="loading-title">IoTzy</h1>
-    <div class="loading-bar"><div class="loading-fill"></div></div>
-    <p class="loading-sub">Memuat sistem…</p>
-  </div>
-</div>
-<div id="mainApp" class="app-shell opacity-0">
+<div id="mainApp" class="app-shell">

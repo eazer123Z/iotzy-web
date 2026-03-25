@@ -9,19 +9,3 @@
 @import url('modules/settings.css');
 @import url('modules/logs.css');
 @import url('modules/ai-chat.css');
-@media (max-width: 1200px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .dashboard-main { grid-template-columns: 1fr; }
-  .camera-layout { grid-template-columns: 1fr; }
-}
-@media (max-width: 900px) {
-  .automation-grid { grid-template-columns: 1fr; }
-  .sensor-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
-  .device-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-}
-@media (max-width: 768px) {
-  .sidebar { position: fixed; transform: translateX(-100%); }
-  .sidebar.open { transform: translateX(0); }
-  .bottom-nav { display: flex; }
-  .page-wrapper { padding: 16px 14px 96px; }
-}

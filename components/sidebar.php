@@ -4,7 +4,7 @@
     <div class="brand-info">
       <span class="brand-name">IoTzy<br><small style="font-size:9px;opacity:0.6;font-weight:600;letter-spacing:1px">DASHBOARD</small></span>
     </div>
-    <button id="sidebarToggle" class="menu-btn" style="margin-left:auto"><i class="fas fa-bars-staggered"></i></button>
+    <button class="sidebar-toggle menu-btn" style="margin-left:auto"><i class="fas fa-bars-staggered"></i></button>
   </div>
   <nav class="sidebar-nav">
     <div class="nav-group-label">OVERVIEW</div>

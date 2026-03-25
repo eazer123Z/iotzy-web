@@ -178,13 +178,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS.mqtt_broker && typeof connectMQTT === 'function') connectMQTT();
   }, 900);
   setTimeout(() => {
-    const ls  = document.getElementById("appLoadingScreen");
-    const app = document.getElementById("mainApp");
-    if (ls) {
-      ls.style.opacity = "0";
-      setTimeout(() => (ls.style.display = "none"), 500);
-    }
-    if (app) app.classList.remove("opacity-0");
     const aiBtn = document.getElementById("aiChatBtn");
     if (aiBtn) aiBtn.classList.add("show");
   }, 1200);

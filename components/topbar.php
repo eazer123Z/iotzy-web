@@ -1,6 +1,6 @@
 <header class="topbar">
   <div class="topbar-left">
-    <button id="sidebarToggle" class="sidebar-toggle"><i class="fas fa-bars-staggered"></i></button>
+    <button class="sidebar-toggle"><i class="fas fa-bars-staggered"></i></button>
     <div class="page-info">
       <h2 id="currentPageTitle">Dashboard</h2>
       <span class="breadcrumb">Home / <span id="breadcrumbCurrent">Dashboard</span></span>

@@ -58,7 +58,7 @@ function closeModal(id) {
   }
 }
 function initSidebar() {
-  const toggles = document.querySelectorAll('#sidebarToggle');
+  const toggles = document.querySelectorAll('.sidebar-toggle');
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
   toggles.forEach(btn => {

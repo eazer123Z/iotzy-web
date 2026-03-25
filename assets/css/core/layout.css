@@ -156,18 +156,57 @@
 .logout-btn:hover { color: var(--red); }
 .topbar {
   height: 56px;
-  background: rgba(10, 14, 26, .8);
+  background: var(--sb-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 16px;
   position: sticky;
   top: 0;
   z-index: 100;
-  gap: 16px;
+}
+.topbar-left, .topbar-right, .topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  line-height: 1.2;
+}
+.profile-info span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.profile-info small {
+  font-size: 10px;
+  color: var(--green);
+}
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background .2s;
+}
+.user-profile:hover { background: var(--sb-hover); }
+.sidebar-toggle {
+  display: none;
+  font-size: 18px;
+  color: var(--ink);
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  .sidebar-toggle { display: block; }
+  .profile-info { display: none; }
 }
 [data-theme="light"] .topbar {
   background: rgba(240, 249, 255, .88);
@@ -188,21 +227,40 @@
   justify-content: space-around;
   padding: 0 10px;
 }
-@media(max-width: 850px) {
-  .sidebar {
-    display: none;
-  }
-  .bottom-nav {
-    display: flex;
-  }
-}
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  max-width: 100%;
   height: 100vh;
   position: relative;
+  background: var(--bg);
+}
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    box-shadow: 20px 0 50px rgba(0,0,0,0.5);
+    z-index: 1000;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    display: flex;
+  }
+  .bottom-nav {
+    display: flex;
+  }
+  .page-wrapper {
+    padding: 16px 16px 80px;
+  }
+}
+@media (min-width: 901px) {
+  .sidebar { transform: translateX(0) !important; display: flex !important; position: sticky; }
+  .bottom-nav { display: none; }
 }
 .page-wrapper {
   flex: 1;
@@ -210,12 +268,13 @@
   overflow-y: auto;
   overflow-x: hidden;
 }
-.view {
+.view, .app-section {
   display: none;
   width: 100%;
 }
-.view.active {
-  display: block;
+.view.active, .app-section.active {
+  display: flex !important;
+  flex-direction: column;
 }
 .stats-grid {
   display: grid;

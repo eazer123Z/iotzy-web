@@ -1,28 +1,4 @@
-.loading-screen {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: linear-gradient(135deg, #0a0e1a 0%, #0f172a 50%, #0a0e1a 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: opacity .4s;
-}
-[data-theme="light"] .loading-screen {
-  background: linear-gradient(135deg, #e8f4fd 0%, #dbeafe 50%, #e0f2fe 100%);
-}
-.loading-logo {
-  width: 60px;
-  height: 60px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, var(--a), var(--a-h));
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  box-shadow: 0 8px 32px rgba(6, 182, 212, .5);
-}
+
 .btn {
   display: inline-flex;
   align-items: center;
