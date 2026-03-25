@@ -1,312 +1,260 @@
-const STATE = {
-  devices:             {},
-  deviceStates:        {},
-  deviceTopics:        {},
-  deviceOnAt:          {},
-  deviceExtras:        {},
-  sensors:             {},
-  sensorData:          {},
-  sensorHistory:       {},
-  automationRules:     {},
-  logs:                [],
-  logFilter:           "",
-  logTypeFilter:       "all",
-  quickControlDevices: [],
-  mqtt: { client: null, connected: false, reconnectAttempts: 0, templates: [] },
-  camera: {
-    stream:           null,
-    active:           false,
-    selectedDeviceId: null,
-    availableDevices: [],
-  },
-  sessionStart: (function() {
-    const saved = sessionStorage.getItem('iotzy-session-start');
-    if (saved) return parseInt(saved);
-    const now = Date.now();
-    sessionStorage.setItem('iotzy-session-start', now);
-    return now;
-  })(),
-  cv: {
-    personCount:    0,
-    personPresent:  false,
-    lightCondition: "unknown",
-    brightness:     0,
-  },
-};
+/**
+ * app.js — Unified IoTzy Logic (Merged & Native)
+ */
 
-const CV = {
-  modelLoaded:   false,
-  modelLoading:  false,
-  detecting:     false,
-  model:         null,
-  fpsTimer:      null,
-  fps:           0,
-  frameCount:    0,
-  overlayCanvas: null,
-  overlayCtx:    null,
-  showBoxes:     true,
-  showDebug:     true,
-  confidence:    0.6,
-  humanPresent:  false,
-  humanTimer:    null,
-  lightCondition:"unknown",
-  lightTimer:    null,
-  cvRules: {
-    human: { enabled: true, onDetect: [], onAbsent: [], delay: 3000 },
-    light: { enabled: true, onDark:   [], onBright: [], delay: 2000 },
-  },
-};
-
+// ═══ GLOBAL CONFIG & STATE ═══
 const CONFIG = {
-  mqtt: {
-    broker:         (window.PHP_SETTINGS?.mqtt_broker || ""),
-    port:           (parseInt(window.PHP_SETTINGS?.mqtt_port) || 8884),
-    path:           (window.PHP_SETTINGS?.mqtt_path   || "/mqtt"),
-    maxReconnect:   5,
-    reconnectDelay: 3000,
-  },
-  app: { 
-    maxLogs: 500, 
-    updateInterval: (parseInt(window.PHP_SETTINGS?.update_interval) || 1000)
-  },
+  mqtt: { broker: "mosquitto", port: 1883, path: "/mqtt", maxReconnect: 5, reconnectDelay: 5000 },
+  app:  { maxLogs: 50, version: "2.5.0-native" }
 };
 
-async function syncDevicesFromServer() {
-  const data = await apiPost('get_devices');
-  if (data && Array.isArray(data)) {
-    const newIds = data.map(d => String(d.id));
-    Object.keys(STATE.devices).forEach(id => {
-      if (!newIds.includes(String(id))) {
-        delete STATE.devices[id];
-        delete STATE.deviceStates[id];
-        delete STATE.deviceTopics[id];
-      }
-    });
-    data.forEach(d => {
-      const id = String(d.id);
-      const isNew = !STATE.devices[id];
-      STATE.devices[id] = { ...d, id };
-      if (STATE.deviceStates[id] === undefined) {
-        STATE.deviceStates[id] = Boolean(Number(d.last_state ?? 0));
-      }
-      STATE.deviceTopics[id] = { sub: d.topic_sub || "", pub: d.topic_pub || "" };
-      if (isNew && STATE.mqtt.connected && d.topic_sub) {
-        try { STATE.mqtt.client.subscribe(d.topic_sub); } catch(e) {}
-      }
-    });
-    renderAll();
-  }
+const STATE = {
+  mqtt: { client: null, connected: false, reconnectAttempts: 0, templates: [] },
+  devices: {}, deviceStates: {}, deviceTopics: {}, deviceExtras: {}, deviceOnAt: {},
+  sensors: {}, sensorData: {}, sensorHistory: {},
+  logs: [], logTypeFilter: "all",
+  quickControlDevices: [],
+  camera: { active: false, stream: null, selectedDeviceId: null, availableDevices: [] },
+  cv: { active: false, modelLoaded: false, personCount: 0, personPresent: false, brightness: 0, lightCondition: "unknown" },
+  sessionStart: Date.now(),
+  automationRules: {}
+};
+
+// ═══ CORE UTILS ═══
+function escHtml(str) {
+  if (!str) return "";
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-async function syncSensorsFromServer() {
-  const data = await apiPost('get_sensors');
-  if (data && Array.isArray(data)) {
-    const newIds = data.map(s => String(s.id));
-    Object.keys(STATE.sensors).forEach(id => {
-      if (!newIds.includes(String(id))) {
-        delete STATE.sensors[id];
-        delete STATE.sensorData[id];
-        delete STATE.sensorHistory[id];
-      }
-    });
-    data.forEach(s => {
-      const id = String(s.id);
-      const isNew = !STATE.sensors[id];
-      STATE.sensors[id] = { ...s, id };
-      if (isNew) {
-        STATE.sensorData[id] = null;
-        STATE.sensorHistory[id] = [];
-        if (STATE.mqtt.connected && s.topic) {
-          try { STATE.mqtt.client.subscribe(s.topic); } catch(e) {}
-        }
-      }
-    });
-    renderAll();
-  }
-}
-
-async function syncAutomationFromServer() {
-  await initAutomationRules();
-  renderAutomationView();
-}
-
-async function syncCVConfigFromServer() {
-  await loadCVConfig();
-  await loadCVRules();
-  if (document.getElementById("cvConfidenceThreshold")) {
-    document.getElementById("cvConfidenceThreshold").value = Math.round(CV.confidence * 100);
-  }
-  if (document.getElementById("cvShowBoundingBoxCamera")) {
-    document.getElementById("cvShowBoundingBoxCamera").checked = CV.showBoxes;
-  }
-  if (document.getElementById("cvShowDebugInfoCamera")) {
-    document.getElementById("cvShowDebugInfoCamera").checked = CV.showDebug;
-  }
-  if (typeof automationEngine !== 'undefined') {
-    automationEngine.updateCVRules(CV.cvRules);
-  }
-}
-
-document.addEventListener("DOMContentLoaded", async () => {
-  initTheme();
-  if (typeof initSidebar === 'function') initSidebar();
-  if (typeof initClock === 'function') initClock();
-  await loadCVConfig();
-  loadFromPHP();
-  window.STATE = STATE;
-  window.CV    = CV;
-  await initAutomationRules();
-  if (typeof automationEngine !== 'undefined' && automationEngine.initialize) {
-    automationEngine.initialize();
-  }
-  await loadCVRules();
-  await loadLogs();
-  renderAll();
-  if (typeof initUptimeCounter === 'function') initUptimeCounter();
-  if (typeof loadMQTTTemplates === 'function') loadMQTTTemplates();
-  setInterval(syncAllFromServer, 3000);
-  if (typeof cvUI !== "undefined" && typeof cvUI.initialize === "function") cvUI.initialize();
-  if (typeof lightAnalyzer !== "undefined") {
-    lightAnalyzer.setCallbacks({
-      _tag: "app",
-      onLightChange: (condition, brightness) => {
-        if (typeof automationEngine !== "undefined") automationEngine.notifyLight(condition, brightness);
-      },
-    });
-  }
-  setTimeout(() => {
-    if (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS.mqtt_broker && typeof connectMQTT === 'function') connectMQTT();
-  }, 900);
-  setTimeout(() => {
-    const aiBtn = document.getElementById("aiChatBtn");
-    if (aiBtn) aiBtn.classList.add("show");
-  }, 1200);
-});
-
-function loadFromPHP() {
+async function apiPost(action, data = {}) {
   try {
-    if (typeof PHP_SETTINGS !== 'undefined') {
-        const qc = PHP_SETTINGS.quick_control_devices;
-        STATE.quickControlDevices = Array.isArray(qc) ? qc.map(String) : typeof qc === "string" ? JSON.parse(qc || "[]").map(String) : [];
-        if (PHP_SETTINGS.cv_config && typeof PHP_SETTINGS.cv_config === 'object') {
-           if (typeof CV_CONFIG !== 'undefined') {
-               Object.assign(CV_CONFIG, PHP_SETTINGS.cv_config);
-               if (CV_CONFIG.detection?.minConfidence) CV.confidence = CV_CONFIG.detection.minConfidence;
-           }
-        }
-        if (PHP_SETTINGS.cv_rules && typeof PHP_SETTINGS.cv_rules === 'object') {
-           CV.cvRules = PHP_SETTINGS.cv_rules;
-           if (typeof automationEngine !== 'undefined' && automationEngine.updateCVRules) automationEngine.updateCVRules(CV.cvRules);
-           if (typeof CV_CONFIG !== 'undefined') {
-               if (PHP_SETTINGS.cv_min_confidence) CV_CONFIG.detection.minConfidence = parseFloat(PHP_SETTINGS.cv_min_confidence);
-               if (PHP_SETTINGS.cv_dark_threshold) CV_CONFIG.light.darkThreshold = parseFloat(PHP_SETTINGS.cv_dark_threshold);
-               if (PHP_SETTINGS.cv_bright_threshold) CV_CONFIG.light.brightThreshold = parseFloat(PHP_SETTINGS.cv_bright_threshold);
-           }
-           if (PHP_SETTINGS.cv_human_rules_enabled !== undefined) CV.cvRules.human.enabled = Number(PHP_SETTINGS.cv_human_rules_enabled) === 1;
-           if (PHP_SETTINGS.cv_light_rules_enabled !== undefined) CV.cvRules.light.enabled = Number(PHP_SETTINGS.cv_light_rules_enabled) === 1;
-        }
+    const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/router.php";
+    const hdrs = { "Content-Type": "application/json" };
+    if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
+    const res = await fetch(`${base}?action=${action}`, { method: "POST", headers: hdrs, credentials: "include", body: JSON.stringify(data) });
+    if (res.status === 401) { window.location.href = (typeof APP_BASE !== "undefined" ? APP_BASE : "") + "/?route=login&expired=true"; return null; }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) { console.error(`API Error [${action}]:`, e); return null; }
+}
+
+function showToast(message, type = "info") {
+  const container = document.getElementById("toastContainer");
+  if (!container) return;
+  const icons = { success: "fa-check-circle", error: "fa-times-circle", warning: "fa-exclamation-triangle", info: "fa-circle-info" };
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<i class="fas ${icons[type] || icons.info} toast-icon"></i><span class="toast-msg">${escHtml(message)}</span><button class="toast-close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.classList.add("hide"); setTimeout(() => toast.remove(), 400); }, 3500);
+}
+
+// ═══ NAVIGATION (SPA) ═══
+function switchPage(pageId, element) {
+  document.querySelectorAll(".view").forEach((p) => p.classList.remove("active"));
+  const view = document.getElementById(pageId);
+  if (view) view.classList.add("active");
+  document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"));
+  if (element) element.classList.add("active");
+  if (pageId === "dashboard") updateDashboardStats();
+  if (pageId === "devices") renderDevices();
+  if (pageId === "sensors") renderSensors();
+  if (pageId === "automation") renderAutomationView();
+}
+
+// ═══ MQTT MANAGER ═══
+async function connectMQTT() {
+  try {
+    let broker = PHP_SETTINGS.mqtt_broker || CONFIG.mqtt.broker;
+    let port = parseInt(PHP_SETTINGS.mqtt_port) || CONFIG.mqtt.port;
+    if (port === 1883) port = 9001;
+    const clientId = "iotzy_" + Math.random().toString(16).substr(2, 6);
+    const path = PHP_SETTINGS.mqtt_path || "/mqtt";
+    const useSSL = !!PHP_SETTINGS.mqtt_use_ssl;
+
+    if (STATE.mqtt.client && STATE.mqtt.connected) { try { STATE.mqtt.client.disconnect(); } catch (_) {} }
+    STATE.mqtt.client = new Paho.MQTT.Client(broker, port, path, clientId);
+    STATE.mqtt.client.onConnectionLost = (res) => { updateMQTTStatus(false); if (res.errorCode !== 0) setTimeout(connectMQTT, 5000); };
+    STATE.mqtt.client.onMessageArrived = (msg) => handleMQTTMessage(msg.destinationName, msg.payloadString);
+
+    STATE.mqtt.client.connect({
+      useSSL, timeout: 5, onSuccess: () => { updateMQTTStatus(true); subscribeToAllTopics(); },
+      onFailure: () => updateMQTTStatus(false)
+    });
+  } catch (e) { console.error("MQTT Connect Error:", e); }
+}
+
+function updateMQTTStatus(connected) {
+  STATE.mqtt.connected = connected;
+  document.getElementById("sidebarMqttDot")?.classList.toggle("connected", connected);
+  document.getElementById("sidebarMqttText")?.textContent = connected ? "Online" : "Offline";
+}
+
+function subscribeToAllTopics() {
+  if (!STATE.mqtt.connected) return;
+  Object.values(STATE.deviceTopics).forEach(t => { if (t.sub) STATE.mqtt.client.subscribe(t.sub); });
+  Object.values(STATE.sensors).forEach(s => { if (s.topic) STATE.mqtt.client.subscribe(s.topic); });
+}
+
+function publishMQTT(topic, payload) {
+  if (!STATE.mqtt.connected || !topic) return;
+  const msg = new Paho.MQTT.Message(JSON.stringify(payload));
+  msg.destinationName = topic;
+  STATE.mqtt.client.send(msg);
+}
+
+function handleMQTTMessage(topic, payload) {
+  // Device Check
+  for (const [id, t] of Object.entries(STATE.deviceTopics)) {
+    if (t.sub === topic) {
+      try {
+        const data = JSON.parse(payload);
+        STATE.deviceStates[id] = !!data.state;
+        updateDeviceUI(id);
+      } catch (_) {}
     }
-    if (typeof PHP_CV_STATE !== 'undefined' && PHP_CV_STATE) {
-       STATE.cv.personCount = PHP_CV_STATE.person_count || 0;
-       STATE.cv.brightness = PHP_CV_STATE.brightness || 0;
-       STATE.cv.lightCondition = PHP_CV_STATE.light_condition || 'unknown';
-       if (Number(PHP_CV_STATE.is_active) === 1) {
-          if (typeof initializeCV === 'function') initializeCV().then(() => { if (typeof startCVDetection === 'function') startCVDetection(); });
-       }
+  }
+  // Sensor Check
+  for (const [id, s] of Object.entries(STATE.sensors)) {
+    if (s.topic === topic) {
+      const val = parseFloat(payload);
+      if (!isNaN(val)) processSensorValue(id, val);
     }
-  } catch (e) { STATE.quickControlDevices = []; }
+  }
+}
+
+// ═══ DEVICE MANAGER ═══
+function updateDeviceUI(id) {
+  const card = document.getElementById(`card-${id}`);
+  if (!card) return;
+  const isOn = !!STATE.deviceStates[id];
+  card.classList.toggle("on", isOn);
+  const tog = document.getElementById(`device-toggle-${id}`);
+  if (tog) tog.checked = isOn;
+  const lbl = document.getElementById(`lbl-${id}`);
+  if (lbl) lbl.textContent = isOn ? "Aktif" : "Mati";
+}
+
+function toggleDeviceState(id, state) {
+  STATE.deviceStates[id] = state;
+  updateDeviceUI(id);
+  const t = STATE.deviceTopics[id];
+  if (t?.pub) publishMQTT(t.pub, { state: state ? 1 : 0 });
+  apiPost("update_device_state", { id, state: state ? 1 : 0 });
+}
+
+function renderDevices() {
+  const grid = document.getElementById("devicesGrid");
+  if (!grid) return;
+  grid.innerHTML = Object.keys(STATE.devices).map(id => {
+    const d = STATE.devices[id];
+    const isOn = !!STATE.deviceStates[id];
+    return `
+      <div class="device-card ${isOn ? 'on' : ''}" id="card-${id}">
+        <div class="device-card-header">
+          <div class="device-icon ${isOn ? 'on' : ''}"><i class="fas ${d.icon || 'fa-plug'}"></i></div>
+          <div class="device-actions"><button onclick="removeDevice('${id}')" class="trash-btn"><i class="fas fa-trash"></i></button></div>
+        </div>
+        <div class="device-info">
+          <div class="device-name">${escHtml(d.name)}</div>
+          <div class="device-status" id="lbl-${id}">${isOn ? "Aktif" : "Mati"}</div>
+        </div>
+        <div class="device-controls">
+          <label class="toggle-wrapper"><input type="checkbox" id="device-toggle-${id}" ${isOn?'checked':''} onchange="toggleDeviceState('${id}',this.checked)"><span class="toggle-track"></span></label>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+// ═══ SENSOR MANAGER ═══
+function processSensorValue(id, val) {
+  STATE.sensorData[id] = val;
+  updateSensorValueUI(id);
+  if (typeof automationEngine !== "undefined" && automationEngine.evaluateSensorRules) {
+    automationEngine.evaluateSensorRules(id, val);
+  }
+}
+
+function updateSensorValueUI(id) {
+  const el = document.getElementById(`val-${id}`);
+  if (el) el.textContent = STATE.sensorData[id].toFixed(1);
+}
+
+function renderSensors() {
+  const grid = document.getElementById("sensorsGrid");
+  if (!grid) return;
+  grid.innerHTML = Object.values(STATE.sensors).map(s => {
+    const val = STATE.sensorData[s.id] || 0;
+    return `
+      <div class="sensor-card has-data">
+        <div class="sensor-card-top"><div class="sensor-name">${escHtml(s.name)}</div></div>
+        <div class="sensor-value-big" id="val-${s.id}">${val.toFixed(1)}${s.unit}</div>
+      </div>`;
+  }).join("");
+}
+
+// ═══ DASHBOARD ═══
+function updateDashboardStats() {
+  const active = Object.values(STATE.deviceStates).filter(Boolean).length;
+  const total = Object.keys(STATE.devices).length;
+  if (document.getElementById("statActiveDevicesVal")) document.getElementById("statActiveDevicesVal").textContent = active;
+  if (document.getElementById("statActiveDevicesSub")) document.getElementById("statActiveDevicesSub").textContent = `dari ${total} perangkat`;
+  if (document.getElementById("statMqttVal")) {
+    document.getElementById("statMqttVal").textContent = STATE.mqtt.connected ? "Online" : "Offline";
+    document.getElementById("statMqttVal").style.color = STATE.mqtt.connected ? "var(--green)" : "var(--red)";
+  }
+}
+
+// ═══ AI CHAT ═══
+function initAIChat() {
+  const input = document.getElementById("aiChatInput");
+  const send = document.getElementById("aiChatSend");
+  if (!input || !send) return;
+  send.onclick = async () => {
+    const msg = input.value.trim(); if (!msg) return;
+    appendChatMessage(msg, "user");
+    input.value = "";
+    const res = await apiPost("ai_chat_process", { message: msg });
+    if (res?.success) appendChatMessage(res.message, "bot");
+  };
+}
+
+function appendChatMessage(text, side) {
+  const body = document.getElementById("aiChatBody");
+  if (!body) return;
+  const div = document.createElement("div");
+  div.className = `chat-bubble ${side}`;
+  div.textContent = text;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+// ═══ INITIALIZATION ═══
+document.addEventListener("DOMContentLoaded", () => {
+  // Sync Data from PHP
   if (typeof PHP_DEVICES !== "undefined") {
-    PHP_DEVICES.forEach((d) => {
-      const id = String(d.id);
-      STATE.devices[id]      = { ...d, id };
-      STATE.deviceStates[id] = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
-      STATE.deviceTopics[id] = { sub: d.topic_sub || "", pub: d.topic_pub || "" };
-      STATE.deviceExtras[id] = { fanSpeed: 50, acMode: "cool", acTemp: 24, brightness: 100, volume: 60 };
+    PHP_DEVICES.forEach(d => {
+      STATE.devices[d.id] = d;
+      STATE.deviceStates[d.id] = !!d.state;
+      STATE.deviceTopics[d.id] = { sub: d.topic_sub, pub: d.topic_pub };
     });
   }
   if (typeof PHP_SENSORS !== "undefined") {
-    PHP_SENSORS.forEach((s) => {
-      const id = String(s.id);
-      STATE.sensors[id]        = { ...s, id };
-      STATE.sensorData[id]     = null;
-      STATE.sensorHistory[id]  = [];
-    });
+    PHP_SENSORS.forEach(s => { STATE.sensors[s.id] = s; STATE.sensorData[s.id] = s.last_value || 0; });
   }
-}
 
-async function syncAllFromServer() {
-  if (syncAllFromServer._inFlight) return;
-  syncAllFromServer._inFlight = true;
-  try {
-    const res = await apiPost("get_dashboard_data", {});
-    if (!res || !res.success) return;
-    const currentDeviceIds = Object.keys(STATE.devices);
-    const serverDeviceIds  = (res.devices || []).map(d => String(d.id));
-    const currentSensorIds = Object.keys(STATE.sensors);
-    const serverSensorIds  = (res.sensors || []).map(s => String(s.id));
-    const hasStructureChanged = currentDeviceIds.length !== serverDeviceIds.length || currentSensorIds.length !== serverSensorIds.length || !currentDeviceIds.every(id => serverDeviceIds.includes(id)) || !currentSensorIds.every(id => serverSensorIds.includes(id));
-    if (hasStructureChanged) {
-        await syncDevicesFromServer();
-        await syncSensorsFromServer();
-        await syncAutomationFromServer();
-        return; 
-    }
-    if (res.devices) {
-      res.devices.forEach(d => {
-         const id = String(d.id);
-         if (STATE.devices[id]) {
-            const oldState = STATE.deviceStates[id];
-            const newState = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
-            if (oldState !== newState) {
-               STATE.deviceStates[id] = newState;
-               if (typeof updateDeviceUI === 'function') updateDeviceUI(id);
-            }
-         }
-      });
-    }
-    if (res.sensors) {
-      res.sensors.forEach(s => {
-         const id = String(s.id);
-         if (STATE.sensors[id]) STATE.sensorData[id] = s.latest_value;
-      });
-      if (typeof renderSensors === 'function') renderSensors();
-    }
-    if (res.cv_state) {
-       if (!CV.detecting) {
-          STATE.cv.personCount = res.cv_state.person_count || 0;
-          STATE.cv.brightness = res.cv_state.brightness || 0;
-          STATE.cv.lightCondition = res.cv_state.light_condition || 'unknown';
-       }
-    }
-    updateDashboardStats();
-  } catch (e) {
-  } finally { syncAllFromServer._inFlight = false; }
-}
-
-function renderAll() {
-  if (typeof renderDevices === 'function') renderDevices();
-  if (typeof renderSensors === 'function') renderSensors();
-  if (typeof renderQuickControls === 'function') renderQuickControls();
-  if (typeof renderAutomationView === 'function') renderAutomationView();
+  initAIChat();
+  connectMQTT();
   updateDashboardStats();
-}
-
-function updateDashboardStats() {
-  const totalDev  = Object.keys(STATE.devices).length;
-  const activeDev = Object.values(STATE.deviceStates).filter(Boolean).length;
-  const totalSen  = Object.keys(STATE.sensors).length;
-  const activeSen = Object.values(STATE.sensorData).filter((v) => v !== null && v !== undefined).length;
-  const g = (id) => document.getElementById(id);
-  if (g("statActiveDevicesVal")) g("statActiveDevicesVal").textContent = activeDev;
-  if (g("statActiveDevicesSub")) g("statActiveDevicesSub").textContent = `dari ${totalDev} perangkat`;
-  if (g("statSensorsOnlineVal")) g("statSensorsOnlineVal").textContent = activeSen;
-  if (g("statSensorsOnlineSub")) g("statSensorsOnlineSub").textContent = `dari ${totalSen} sensor`;
-  if (g("navDeviceCount"))       g("navDeviceCount").textContent       = totalDev;
-  if (g("navSensorCount"))       g("navSensorCount").textContent       = totalSen;
-  if (g("totalDevices"))         g("totalDevices").textContent         = totalDev;
-  if (g("totalSensors"))         g("totalSensors").textContent         = totalSen;
-  if (g("statMqttVal"))          g("statMqttVal").textContent          = STATE.mqtt.connected ? "Connected" : "Disconnected";
-  if (g("statMqttSub"))          g("statMqttSub").textContent          = STATE.mqtt.connected ? (PHP_SETTINGS.mqtt_broker || "Online") : "Tidak terhubung";
-  if (g("cvPersonCountBig"))     g("cvPersonCountBig").textContent     = STATE.cv.personCount;
-  if (window.Overview && typeof window.Overview.updateSummary === 'function') window.Overview.updateSummary();
-}
+  
+  // Sidebar Toggle
+  document.querySelectorAll(".sidebar-toggle").forEach(btn => {
+    btn.onclick = (e) => { e.stopPropagation(); document.getElementById("sidebar").classList.toggle("open"); };
+  });
+  
+  // Auto Clock
+  setInterval(() => {
+    const el = document.getElementById("ovClock");
+    if (el) el.textContent = new Date().toLocaleTimeString("id-ID", { hour12: false });
+  }, 1000);
+});

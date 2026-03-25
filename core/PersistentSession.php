@@ -64,7 +64,7 @@ class PersistentSessionHandler implements SessionHandlerInterface
         }
     }
 
-    public function gc($maxlifetime): int|false
+    public function gc($maxlifetime): mixed
     {
         if (!$this->db)
             return false;

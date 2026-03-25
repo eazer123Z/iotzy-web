@@ -28,25 +28,6 @@
   var PHP_CV_STATE = <?= json_encode($cvState ?? []) ?>;
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="<?= ASSET_URL ?>/js/core/api.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/core/ui.js?v=<?= APP_VERSION ?>"></script>
 <script src="<?= ASSET_URL ?>/js/app.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/log-manager.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/settings-manager.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/camera-manager.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/mqtt-manager.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/device-manager.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/sensor-manager.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/automation-engine.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/automation-ui.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/navigation.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/overview-manager.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/schedule-manager.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/cv-config.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/cv-detector.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/light-analyzer.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/cv-ui.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/cv-manager.js?v=<?= APP_VERSION ?>"></script>
-<script src="<?= ASSET_URL ?>/js/modules/ai-chat.js?v=<?= APP_VERSION ?>"></script>
 </body>
 </html>
