@@ -1,15 +1,8 @@
 <?php
-// ISOLATION TEST
-echo "IoTzy Debug: Script is running!"; exit;
-
-/**
- * api/index.php — Unified Vercel-Ready AJAX Router (Native PHP)
- * This file handles all AJAX requests for the IoTzy platform.
- */
-
-// Adjust paths because we are now in api/ subfolder
 require_once __DIR__ . '/../core/bootstrap.php';
 require_once __DIR__ . '/../core/auth.php';
+
+echo "IoTzy Debug: Core loaded successfully!"; exit;
 
 // TEMPORARY DEBUGGING
 ini_set('display_errors', '1');
