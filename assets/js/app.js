@@ -55,13 +55,7 @@ const STATE = {
     selectedDeviceId: null,
     availableDevices: [],
   },
-  sessionStart: (function() {
-    const saved = sessionStorage.getItem('iotzy-session-start');
-    if (saved) return parseInt(saved);
-    const now = Date.now();
-    sessionStorage.setItem('iotzy-session-start', now);
-    return now;
-  })(),
+  sessionStart: Date.now(),
   cv: {
     personCount:    0,
     personPresent:  false,
@@ -144,17 +138,19 @@ function closeModal(id) {
    THEME
    ============================================================ */
 function initTheme() {
-  const saved = localStorage.getItem('iotzy-theme') || (typeof PHP_SETTINGS !== 'undefined' ? (PHP_SETTINGS.theme || 'dark') : 'dark');
-  document.documentElement.setAttribute('data-theme', saved);
-  updateThemeIcon(saved);
+  const t = (typeof PHP_SETTINGS !== 'undefined' ? (PHP_SETTINGS.theme || 'dark') : 'dark');
+  document.documentElement.setAttribute('data-theme', t);
+  updateThemeIcon(t);
 }
 
 function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') || 'dark';
-  const next = current === 'dark' ? 'light' : 'dark';
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('iotzy-theme', next);
   updateThemeIcon(next);
+  
+  // Update theme on backend automatically
+  apiPost("save_settings", { theme: next }).catch(e => console.warn("Gagal sinkron tema:", e));
 }
 
 function updateThemeIcon(theme) {

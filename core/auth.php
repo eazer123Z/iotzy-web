@@ -7,20 +7,13 @@ function startSecureSession(): void
     if (session_status() === PHP_SESSION_ACTIVE)
         return;
 
-    $isVercel = getenv('VERCEL') === "1" || isset($_SERVER['VERCEL']) || isset($_ENV['VERCEL']);
-
-    if (!$isVercel && DIRECTORY_SEPARATOR === '/') {
-        if (!is_dir('/tmp')) @mkdir('/tmp', 0777, true);
-        @session_save_path('/tmp');
-    }
-
     $lifetime = defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400;
 
     session_set_cookie_params([
         'lifetime' => $lifetime,
         'path'     => '/',
         'domain'   => null,
-        'secure'   => $isVercel || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+        'secure'   => true, // Force true karena ini full Vercel deployment HTTPS
         'httponly' => true,
         'samesite' => 'Lax'
     ]);

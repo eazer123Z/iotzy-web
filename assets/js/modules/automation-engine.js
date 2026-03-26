@@ -281,16 +281,10 @@ const automationEngine = (() => {
     }
 
     function _isDeduped(key) {
-        try {
-            if (sessionStorage.getItem(key)) return true;
-            sessionStorage.setItem(key, '1');
-            return false;
-        } catch (_) {
-            if (!_schedDedup) _schedDedup = {};
-            if (_schedDedup[key]) return true;
-            _schedDedup[key] = true;
-            return false;
-        }
+        if (_schedDedup[key]) return true;
+        _schedDedup[key] = true;
+        setTimeout(() => delete _schedDedup[key], 65000); // Bersihkan setelah 1 menit lebih sedikit
+        return false;
     }
 
     function _shouldFire(rule, val) {
