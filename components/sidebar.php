@@ -30,7 +30,7 @@
       </a>
       <a href="javascript:void(0)" onclick="switchPage('camera',this)" class="nav-item" data-page="camera">
         <span class="nav-icon"><i class="fas fa-eye"></i></span>
-        <span class="nav-label">Vision AI</span>
+        <span class="nav-label">Computer Vision</span>
         <span class="nav-dot" id="cvNavDot"></span>
       </a>
 

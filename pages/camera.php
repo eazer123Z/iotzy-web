@@ -1,25 +1,18 @@
 <div id="camera" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
-      <h3><i class="fas fa-video"></i> AI Vision Center</h3>
+      <h3><i class="fas fa-video"></i> Computer Vision</h3>
       <p>Deteksi objek & analisis pencahayaan real-time berbasis Computer Vision.</p>
-    </div>
-    <div class="v-actions">
-      <select id="cameraSelect" class="ov-select" onchange="switchCamera(this.value)">
-        <option value="">Pilih Kamera</option>
-      </select>
     </div>
   </div>
 
   <div class="camera-layout">
     <div class="camera-panel">
-      <div class="camera-feed" id="cameraFocusContainer">
-        <video id="cameraFeed" autoplay playsinline muted style="display:none"></video>
-        <canvas id="cvOverlayCanvas" style="display:none"></canvas>
-        <i class="fas fa-video-slash" style="font-size:2rem;opacity:.3"></i>
-        <span style="font-size:.85rem">Kamera belum aktif</span>
-      </div>
-      <div class="camera-controls">
+      
+      <div class="camera-controls-top" style="display:flex; gap:10px; margin-bottom:16px; align-items:center; flex-wrap:wrap">
+        <select id="cameraSelect" class="form-select" onchange="switchCamera(this.value)" style="flex:1; min-width:200px; padding:8px 14px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text)">
+          <option value="">Deteksi Kamera...</option>
+        </select>
         <button id="btnStartCam" class="btn-primary btn-sm" onclick="startCamera()">
           <i class="fas fa-play"></i> Mulai Kamera
         </button>
@@ -33,6 +26,14 @@
           <i class="fas fa-stop"></i> Stop Deteksi
         </button>
       </div>
+
+      <div class="camera-feed" id="cameraFocusContainer">
+        <video id="cameraFocus" autoplay playsinline muted style="display:none"></video>
+        <canvas id="cvOverlayCanvas" style="display:none"></canvas>
+        <i id="cameraFocusTag" class="fas fa-video-slash" style="font-size:2rem;opacity:.3"></i>
+        <span id="cameraFocusPlaceholder" style="font-size:.85rem">Kamera belum aktif</span>
+      </div>
+      
     </div>
 
     <div class="cv-stats-panel">

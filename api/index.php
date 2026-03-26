@@ -74,6 +74,9 @@ if (!$action) {
     $cvStateStmt->execute([$user['id']]);
     $cvState = $cvStateStmt->fetch(PDO::FETCH_ASSOC) ?: ['is_active' => 0, 'person_count' => 0, 'brightness' => 0, 'light_condition' => 'unknown'];
 
+    // Wajib generate CSRF Token agar bisa disuntikkan ke window.CSRF_TOKEN di Javascript
+    generateCsrfToken();
+
     include __DIR__ . '/../components/header.php';
     include __DIR__ . '/../components/sidebar.php';
 ?>

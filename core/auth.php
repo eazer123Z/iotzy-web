@@ -9,11 +9,14 @@ function startSecureSession(): void
 
     $lifetime = defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400;
 
+    $isVercel = getenv('VERCEL') === "1" || isset($_SERVER['VERCEL']) || isset($_ENV['VERCEL']);
+    $isSecure = $isVercel || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443;
+
     session_set_cookie_params([
         'lifetime' => $lifetime,
         'path'     => '/',
         'domain'   => null,
-        'secure'   => true, // Force true karena ini full Vercel deployment HTTPS
+        'secure'   => $isSecure,
         'httponly' => true,
         'samesite' => 'Lax'
     ]);

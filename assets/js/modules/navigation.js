@@ -61,7 +61,7 @@ const PAGE_TITLES = {
   devices:    "Perangkat",
   sensors:    "Sensor",
   automation: "Rules Engine",
-  camera:     "Vision AI",
+  camera:     "Computer Vision",
   analytics:  "Log & Analytics",
   settings:   "Pengaturan",
 };

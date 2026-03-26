@@ -55,12 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chatBody.getAttribute('data-loaded') === 'true') return;
 
         try {
-            const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
-            const res  = await fetch(`${base}/api/index.php?action=get_ai_chat_history`, {
-                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
-                credentials: 'include'
-            });
-            const data = await res.json();
+            const data = await apiPost('get_ai_chat_history');
 
             if (data.success && Array.isArray(data.history) && data.history.length > 0) {
                 data.history.forEach(chat => appendMessage(chat.message, chat.sender));
@@ -79,15 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
         chatClear.addEventListener('click', async () => {
             if (!confirm('Hapus seluruh riwayat percakapan dengan AI?')) return;
             try {
-                const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
-                const res = await fetch(`${base}/api/index.php?action=delete_chat_history`, {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
-                    credentials: 'include'
-                });
-                const data = await res.json();
-                
-                if (data.success) {
+                const data = await apiPost('delete_chat_history');
+                if (data && data.success) {
                     chatBody.innerHTML = `
                         <div class="chat-bubble bot">
                             Riwayat dihapus. Ada yang bisa saya bantu? 😊
@@ -95,10 +83,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     chatBody.setAttribute('data-loaded', 'false');
                     showToast('Riwayat chat berhasil dihapus', 'success');
                 } else {
-                    showToast(data.error || 'Gagal menghapus riwayat', 'error');
+                    showToast((data && data.error) || 'Gagal menghapus riwayat', 'error');
                 }
             } catch (err) {
-                console.error(err);
+                console.error('[AI Chat Clear]', err);
                 showToast('Gagal terhubung ke server', 'error');
             }
         });
@@ -139,33 +127,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const timeoutId  = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
         try {
-            const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : "");
-            const response = await fetch(`${base}/api/index.php?action=ai_chat_process`, {
-                method:  'POST',
-                signal:  controller.signal,
-                credentials: "include", // 🔑 CRITICAL
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': CSRF_TOKEN,
-                },
-                body: JSON.stringify({
-                    message: text,
-                    session_start: (typeof STATE !== 'undefined') ? STATE.sessionStart : null,
-                    cv_state: (typeof STATE !== 'undefined') ? {
-                        active: STATE.camera?.active || false,
-                        personCount: STATE.cv?.personCount || 0,
-                        brightness: STATE.cv?.brightness || 0,
-                        lightCondition: STATE.cv?.lightCondition || 'unknown'
-                    } : null
-                }),
+            const data = await apiPost('ai_chat_process', {
+                message: text,
+                session_start: (typeof STATE !== 'undefined') ? STATE.sessionStart : null,
+                cv_state: (typeof STATE !== 'undefined') ? {
+                    active: STATE.camera?.active || false,
+                    personCount: STATE.cv?.personCount || 0,
+                    brightness: STATE.cv?.brightness || 0,
+                    lightCondition: STATE.cv?.lightCondition || 'unknown'
+                } : null
             });
+            
             clearTimeout(timeoutId);
-
-            const data = await response.json();
             loadingBubble.remove();
 
-            if (data.success) {
+            if (data && data.success) {
                 // Ambil response_text dari dalam data.data (sesuai struktur PHP)
                 const botText = data.data?.response_text
                              || data.response_text
