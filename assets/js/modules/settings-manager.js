@@ -4,27 +4,58 @@
  * Manages settings panel interactions — ID sesuai dengan settings.php V2.
  */
 
+let isSettingsBusy = false;
+
 async function saveProfile() {
+  if (isSettingsBusy) return;
   const fullName = document.getElementById("settFullName")?.value.trim();
   const email    = document.getElementById("settEmail")?.value.trim();
+  const btn      = document.getElementById("btnSaveProfile");
+  
   if (!email) { showToast("Email tidak boleh kosong!", "warning"); return; }
-  const result = await apiPost("update_profile", { full_name: fullName, email });
-  if (result?.success) showToast("Profil disimpan!", "success");
-  else showToast(result?.error || "Gagal menyimpan profil", "error");
+  
+  try {
+    isSettingsBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
+
+    const result = await apiPost("update_profile", { full_name: fullName, email });
+    if (result?.success) showToast("Profil berhasil diperbarui!", "success");
+    else showToast(result?.error || "Gagal menyimpan profil", "error");
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isSettingsBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Simpan Profil'; }
+  }
 }
 
 async function saveTelegramSettings() {
+  if (isSettingsBusy) return;
   const chatId = document.getElementById("settTelegramChatId")?.value.trim();
-  const result = await apiPost("save_settings", { telegram_chat_id: chatId });
-  if (result?.success) {
-    showToast("Telegram Chat ID berhasil disimpan!", "success");
-    if (typeof PHP_SETTINGS !== 'undefined') PHP_SETTINGS.telegram_chat_id = chatId;
-  } else {
-    showToast(result?.error || "Gagal menyimpan Chat ID Telegram", "error");
+  const btn    = document.getElementById("btnSaveTelegram");
+  
+  try {
+    isSettingsBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> menyimpan...'; }
+
+    const result = await apiPost("save_settings", { telegram_chat_id: chatId });
+    if (result?.success) {
+      showToast("Telegram Chat ID berhasil disimpan!", "success");
+      if (typeof PHP_SETTINGS !== 'undefined') PHP_SETTINGS.telegram_chat_id = chatId;
+    } else {
+      showToast(result?.error || "Gagal menyimpan Chat ID Telegram", "error");
+    }
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isSettingsBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Simpan'; }
   }
 }
 
 async function saveMQTTSettings() {
+  if (isSettingsBusy) return;
+  const btn = document.getElementById("btnSaveMQTT");
   const data = {
     mqtt_broker:    document.getElementById("mqttBroker")?.value.trim(),
     mqtt_port:      parseInt(document.getElementById("mqttPort")?.value) || 8884,
@@ -34,12 +65,29 @@ async function saveMQTTSettings() {
     mqtt_password:  document.getElementById("mqttPassword")?.value,
     mqtt_use_ssl:   document.getElementById("mqttUseSSL")?.checked ? 1 : 0,
   };
-  const result = await apiPost("save_settings", data);
-  if (result?.success) showToast("Konfigurasi MQTT disimpan!", "success");
-  else showToast(result?.error || "Gagal menyimpan MQTT", "error");
+
+  try {
+    isSettingsBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
+
+    const result = await apiPost("save_settings", data);
+    if (result?.success) {
+      showToast("Konfigurasi MQTT berhasil disimpan!", "success");
+      if (typeof PHP_SETTINGS !== 'undefined') Object.assign(PHP_SETTINGS, data);
+    } else {
+      showToast(result?.error || "Gagal menyimpan MQTT", "error");
+    }
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isSettingsBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Simpan MQTT'; }
+  }
 }
 
 async function saveAutomationSettings() {
+  if (isSettingsBusy) return;
+  const btn = document.getElementById("btnSaveAuto");
   const data = {
     automation_lamp:    document.getElementById("settAutoLamp")?.checked ? 1 : 0,
     automation_fan:     document.getElementById("settAutoFan")?.checked ? 1 : 0,
@@ -51,34 +99,50 @@ async function saveAutomationSettings() {
     lock_delay:         parseInt(document.getElementById("settLockDelay")?.value) || 5000,
   };
 
-  const result = await apiPost("save_settings", data);
-  if (result?.success) {
-    showToast("Pengaturan Otomasi disimpan!", "success");
-    // Sync to global PHP_SETTINGS for immediate effect
-    if (typeof PHP_SETTINGS !== 'undefined') {
-       Object.assign(PHP_SETTINGS, data);
+  try {
+    isSettingsBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
+
+    const result = await apiPost("save_settings", data);
+    if (result?.success) {
+      showToast("Pengaturan Otomasi disimpan!", "success");
+      if (typeof PHP_SETTINGS !== 'undefined') Object.assign(PHP_SETTINGS, data);
+    } else {
+      showToast(result?.error || "Gagal menyimpan otomasi", "error");
     }
-  } else {
-    showToast(result?.error || "Gagal menyimpan otomasi", "error");
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isSettingsBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Simpan Otomasi'; }
   }
 }
 
 async function saveCVSettings() {
+  if (isSettingsBusy) return;
+  const btn = document.getElementById("btnSaveCV");
   const data = {
     cv_min_confidence:  parseFloat(document.getElementById("settCvConfidence")?.value) || 0.5,
     cv_dark_threshold:  parseFloat(document.getElementById("settCvDark")?.value) || 0.3,
     cv_bright_threshold: parseFloat(document.getElementById("settCvBright")?.value) || 0.7,
   };
 
-  const result = await apiPost("save_settings", data);
-  if (result?.success) {
-    showToast("Pengaturan AI disimpan!", "success");
-    // Sync to global PHP_SETTINGS
-    if (typeof PHP_SETTINGS !== 'undefined') {
-       Object.assign(PHP_SETTINGS, data);
+  try {
+    isSettingsBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
+
+    const result = await apiPost("save_settings", data);
+    if (result?.success) {
+      showToast("Pengaturan AI berhasil disimpan!", "success");
+      if (typeof PHP_SETTINGS !== 'undefined') Object.assign(PHP_SETTINGS, data);
+    } else {
+      showToast(result?.error || "Gagal menyimpan AI setting", "error");
     }
-  } else {
-    showToast(result?.error || "Gagal menyimpan AI setting", "error");
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isSettingsBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Simpan AI Setting'; }
   }
 }
 
@@ -99,19 +163,35 @@ async function testTelegram() {
 }
 
 async function changePasswordFromSettings() {
+  if (isSettingsBusy) return;
   const oldP = document.getElementById("settOldPassword")?.value;
   const newP = document.getElementById("settNewPassword")?.value;
   const conP = document.getElementById("settConfirmPassword")?.value;
+  const btn  = document.getElementById("btnSaveSecurity");
+
   if (!oldP || !newP || !conP) { showToast("Semua field harus diisi!", "warning"); return; }
   if (newP !== conP)           { showToast("Password baru tidak cocok!", "warning"); return; }
   if (newP.length < 8)        { showToast("Password minimal 8 karakter!", "warning"); return; }
-  const result = await apiPost("change_password", { current_password: oldP, new_password: newP });
-  if (result?.success) {
-    showToast("Password berhasil diubah!", "success");
-    ["settOldPassword", "settNewPassword", "settConfirmPassword"].forEach((id) => {
-      const el = document.getElementById(id); if (el) el.value = "";
-    });
-  } else showToast(result?.error || "Gagal mengubah password", "error");
+  
+  try {
+    isSettingsBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...'; }
+
+    const result = await apiPost("change_password", { current_password: oldP, new_password: newP });
+    if (result?.success) {
+      showToast("Password berhasil diubah!", "success");
+      ["settOldPassword", "settNewPassword", "settConfirmPassword"].forEach((id) => {
+        const el = document.getElementById(id); if (el) el.value = "";
+      });
+    } else {
+      showToast(result?.error || "Gagal mengubah password", "error");
+    }
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isSettingsBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-key"></i> Ganti Password'; }
+  }
 }
 
 function applyMQTTTemplate(slug) {

@@ -11,7 +11,7 @@
     </div>
     <div class="modal-footer">
       <button onclick="closeQuickControlSettings()" class="btn-secondary">Batal</button>
-      <button onclick="saveQuickControlSettings()" class="btn-primary">Simpan</button>
+      <button onclick="saveQuickControlSettings()" id="btnSaveQuickControl" class="btn-primary">Simpan</button>
     </div>
   </div>
 </div>
@@ -59,7 +59,7 @@
     </div>
     <div class="modal-footer">
       <button onclick="closeTopicSettings()" class="btn-secondary">Batal</button>
-      <button onclick="saveDeviceSettings()" class="btn-primary">Simpan</button>
+      <button onclick="saveDeviceSettings()" id="btnSaveDeviceEdit" class="btn-primary">Simpan</button>
     </div>
   </div>
 </div>
@@ -87,7 +87,7 @@
     </div>
     <div class="modal-footer">
       <button onclick="closeAddDeviceModal()" class="btn-secondary">Batal</button>
-      <button onclick="saveNewDevice()" class="btn-primary">Tambah</button>
+      <button onclick="saveNewDevice()" id="btnSaveNewDevice" class="btn-primary">Tambah</button>
     </div>
   </div>
 </div>
@@ -108,7 +108,7 @@
     </div>
     <div class="modal-footer">
       <button onclick="closeAddSensorModal()" class="btn-secondary">Batal</button>
-      <button onclick="saveNewSensor()" class="btn-primary">Tambah</button>
+      <button onclick="saveNewSensor()" id="btnSaveNewSensor" class="btn-primary">Tambah</button>
     </div>
   </div>
 </div>
@@ -126,7 +126,7 @@
     </div>
     <div class="modal-footer">
       <button onclick="closeSensorSettings()" class="btn-secondary">Batal</button>
-      <button onclick="saveSensorSettings()" class="btn-primary">Simpan</button>
+      <button onclick="saveSensorSettings()" id="btnSaveSensorEdit" class="btn-primary">Simpan</button>
     </div>
   </div>
 </div>
@@ -151,7 +151,7 @@
     </div>
     <div class="modal-footer">
       <button onclick="closeMQTTConfigModal()" class="btn-secondary">Batal</button>
-      <button onclick="saveMQTTConfig()" class="btn-primary">Hubungkan</button>
+      <button onclick="saveMQTTConfig()" id="btnSaveMQTT" class="btn-primary">Hubungkan</button>
     </div>
   </div>
 </div>
@@ -201,7 +201,7 @@
     </div>
     <div class="modal-footer">
       <button onclick="closeAddRuleModal()" class="btn-secondary">Batal</button>
-      <button onclick="saveNewAutomationRule()" class="btn-primary">Buat Aturan</button>
+      <button onclick="saveNewAutomationRule()" id="btnSaveNewRule" class="btn-primary">Buat Aturan</button>
     </div>
   </div>
 </div>

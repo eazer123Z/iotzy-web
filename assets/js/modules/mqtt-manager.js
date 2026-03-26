@@ -6,6 +6,8 @@
  * Menggunakan library Paho MQTT untuk komunikasi real-time dengan broker.
  */
 
+let isMqttActionBusy = false;
+
 /**
  * Memuat daftar template MQTT dari database dan menyimpannya ke state lokal.
  */
@@ -54,7 +56,13 @@ function applyMQTTTemplate(slug) {
 
 
 async function connectMQTT() {
+  if (isMqttActionBusy) return;
+  const btn = document.getElementById("btnTestMQTT") || event?.currentTarget;
+  
   try {
+    isMqttActionBusy = true;
+    if (btn && btn.id === "btnTestMQTT") { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghubungkan...'; }
+
     // Ambil kredensial dari elemen input (jika di halaman settings) atau dari PHP_SETTINGS
     let broker     = document.getElementById("mqttBroker")?.value   || PHP_SETTINGS.mqtt_broker   || CONFIG.mqtt.broker;
     let port       = parseInt(document.getElementById("mqttPort")?.value) || PHP_SETTINGS.mqtt_port || CONFIG.mqtt.port;
@@ -63,63 +71,53 @@ async function connectMQTT() {
     let   useSSL   = document.getElementById("mqttUseSSL")?.checked ?? !!PHP_SETTINGS.mqtt_use_ssl;
     
     // 🔥 FIX: Force WSS (useSSL) if loaded over HTTPS to prevent Mixed Content Error
-    if (window.location.protocol === "https:") {
-        useSSL = true;
-    }
+    if (window.location.protocol === "https:") useSSL = true;
 
     const user     = document.getElementById("mqttUsername")?.value  || PHP_SETTINGS.mqtt_username || "";
     const pass     = document.getElementById("mqttPassword")?.value || "";
 
-    // 🔥 FIX: Browser hanya bisa menggunakan WebSockets (bukan TCP murni)
-    // Jika port MQTT standar (1883/8883) digunakan, arahkan ke port WebSockets (9001/8884)
     if (port === 1883) port = 9001;
     if (port === 8883) port = 8884;
 
-    // Jika broker adalah nama internal Docker atau IP Tailscale yang sama dengan browser, 
-    // gunakan window.location.hostname agar lebih stabil
     if (broker === "iotzy-mosquitto" || broker === "mosquitto" || broker === window.location.hostname) {
       broker = window.location.hostname;
     }
 
-    // Bersihkan client lama jika masih ada
     if (STATE.mqtt.client && STATE.mqtt.connected) {
       try { STATE.mqtt.client.disconnect(); } catch (_) {}
     }
 
-    // Inisialisasi client Paho MQTT
     STATE.mqtt.client = new Paho.MQTT.Client(broker, port, path, clientId);
     
-    // Handler saat koneksi terputus
     STATE.mqtt.client.onConnectionLost = (res) => {
       updateMQTTStatus(false);
       addLog("MQTT", "Terputus: " + res.errorMessage, "System", "error");
-      
-      // Auto-reconnect logic
       if (res.errorCode !== 0 && STATE.mqtt.reconnectAttempts < CONFIG.mqtt.maxReconnect) {
         const delay = CONFIG.mqtt.reconnectDelay * Math.pow(2, STATE.mqtt.reconnectAttempts++);
         setTimeout(() => { if (!STATE.mqtt.connected) connectMQTT(); }, delay);
       }
     };
 
-    // Handler saat ada pesan masuk
     STATE.mqtt.client.onMessageArrived = (msg) => handleMQTTMessage(msg.destinationName, msg.payloadString);
 
     const opts = {
       timeout: 10, keepAliveInterval: 30, cleanSession: true, useSSL,
       onSuccess: () => {
+        isMqttActionBusy = false;
         STATE.mqtt.reconnectAttempts = 0;
         updateMQTTStatus(true);
         addLog("MQTT", `Terhubung ke ${broker}:${port}`, "System", "success");
         showToast("MQTT terhubung!", "success");
-        
-        // Subscribe ke semua topik perangkat dan sensor yang terdaftar
         subscribeToAllTopics();
         updateDashboardStats();
+        if (btn && btn.id === "btnTestMQTT") { btn.disabled = false; btn.innerHTML = '<i class="fas fa-wifi"></i> Test Koneksi'; }
       },
       onFailure: (err) => {
+        isMqttActionBusy = false;
         updateMQTTStatus(false);
         addLog("MQTT", "Gagal: " + (err.errorMessage || "Unknown"), "System", "error");
         showToast("Koneksi MQTT gagal", "error");
+        if (btn && btn.id === "btnTestMQTT") { btn.disabled = false; btn.innerHTML = '<i class="fas fa-wifi"></i> Test Koneksi'; }
       },
     };
 
@@ -128,7 +126,9 @@ async function connectMQTT() {
     
     STATE.mqtt.client.connect(opts);
   } catch (e) {
+    isMqttActionBusy = false;
     showToast("Error MQTT: " + e.message, "error");
+    if (btn && btn.id === "btnTestMQTT") { btn.disabled = false; btn.innerHTML = '<i class="fas fa-wifi"></i> Test Koneksi'; }
   }
 }
 
@@ -293,15 +293,18 @@ function closeMQTTConfigModal() { document.getElementById("mqttConfigModal")?.cl
  * Menyimpan konfigurasi MQTT baru ke sistem dan mencoba menyambungkan ulang.
  */
 async function saveMQTTConfig() {
-  const broker   = document.getElementById("mqttBroker")?.value.trim();
-  const port     = parseInt(document.getElementById("mqttPort")?.value);
+  if (isMqttActionBusy) return;
+  const btn    = document.getElementById("btnSaveMQTTConfig");
+  const broker = document.getElementById("mqttBroker")?.value.trim();
+  const port   = parseInt(document.getElementById("mqttPort")?.value);
+  
+  if (!broker || !port) { showToast("Broker dan port harus diisi!", "warning"); return; }
+
   const clientId = document.getElementById("mqttClientId")?.value.trim() || "iotzy_web";
   const path     = document.getElementById("mqttPath")?.value.trim()     || "/mqtt";
   const useSSL   = document.getElementById("mqttUseSSL")?.checked        ?? true;
   const username = document.getElementById("mqttUsername")?.value.trim() || "";
   const password = document.getElementById("mqttPassword")?.value || "";
-  
-  if (!broker || !port) { showToast("Broker dan port harus diisi!", "warning"); return; }
   
   const payload = {
     mqtt_broker: broker, mqtt_port: port, mqtt_client_id: clientId,
@@ -309,12 +312,22 @@ async function saveMQTTConfig() {
   };
   if (password) payload.mqtt_password = password;
   
-  const result = await apiPost("save_settings", payload);
-  if (result?.success) { 
-    showToast("Konfigurasi MQTT disimpan!", "success"); 
-    closeMQTTConfigModal(); 
-    await connectMQTT(); 
-  } else {
-    showToast("Gagal menyimpan konfigurasi", "error");
+  try {
+    isMqttActionBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> menyimpan...'; }
+
+    const result = await apiPost("save_settings", payload);
+    if (result?.success) { 
+      showToast("Konfigurasi MQTT berhasil disimpan!", "success"); 
+      closeMQTTConfigModal(); 
+      await connectMQTT(); 
+    } else {
+      showToast(result?.error || "Gagal menyimpan konfigurasi", "error");
+    }
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isMqttActionBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = "Simpan Konfigurasi"; }
   }
 }

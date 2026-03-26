@@ -498,6 +498,76 @@ function getDevice3DSVG(dtype) {
 const QC_3D = { scenes: {} };
 
 /**
+ * Membuat grup ikon 3D berdasarkan tipe perangkat.
+ */
+function create3DIcon(dtype, hexColor) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(hexColor),
+    emissive: new THREE.Color(hexColor),
+    emissiveIntensity: 0.5,
+    roughness: 0.2,
+    metalness: 0.8
+  });
+
+  if (dtype === "light") {
+    // Stem
+    const stemGeo = new THREE.CylinderGeometry(0.1, 0.15, 0.3);
+    const stem = new THREE.Mesh(stemGeo, material);
+    stem.position.y = -0.3;
+    group.add(stem);
+    // Bulb
+    const bulbGeo = new THREE.SphereGeometry(0.4, 20, 20);
+    const bulb = new THREE.Mesh(bulbGeo, material);
+    bulb.position.y = 0.2;
+    group.add(bulb);
+  } else if (dtype === "fan" || dtype === "ac") {
+    // Hub
+    const hubGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.2, 16);
+    const hub = new THREE.Mesh(hubGeo, material);
+    hub.rotation.x = Math.PI / 2;
+    group.add(hub);
+    // Blades
+    for (let i = 0; i < 4; i++) {
+      const bladeGeo = new THREE.BoxGeometry(0.7, 0.15, 0.03);
+      const blade = new THREE.Mesh(bladeGeo, material);
+      blade.position.x = 0.45;
+      const pivot = new THREE.Group();
+      pivot.rotation.z = (i * Math.PI) / 2;
+      pivot.add(blade);
+      group.add(pivot);
+    }
+  } else if (dtype === "lock" || dtype === "door") {
+    // Body
+    const bodyGeo = new THREE.BoxGeometry(0.6, 0.5, 0.2);
+    const body = new THREE.Mesh(bodyGeo, material);
+    body.position.y = -0.15;
+    group.add(body);
+    // Shackle
+    const shackleGeo = new THREE.TorusGeometry(0.25, 0.08, 12, 24, Math.PI);
+    const shackle = new THREE.Mesh(shackleGeo, material);
+    shackle.position.y = 0.1;
+    group.add(shackle);
+  } else if (dtype === "tv" || dtype === "speaker") {
+    const screenGeo = new THREE.BoxGeometry(0.8, 0.5, 0.1);
+    const screen = new THREE.Mesh(screenGeo, material);
+    group.add(screen);
+    const standGeo = new THREE.CylinderGeometry(0.05, 0.1, 0.2);
+    const stand = new THREE.Mesh(standGeo, material);
+    stand.position.y = -0.35;
+    group.add(stand);
+  } else {
+    // Default: Drop shape for pump
+    const dropGeo = new THREE.IcosahedronGeometry(0.5, 2);
+    const drop = new THREE.Mesh(dropGeo, material);
+    drop.scale.set(1, 1.4, 1);
+    group.add(drop);
+  }
+
+  return group;
+}
+
+/**
  * Inisialisasi visual Three.js untuk tombol perangkat.
  */
 function initDevice3D(canvasId, hexColor, deviceId) {
@@ -512,34 +582,32 @@ function initDevice3D(canvasId, hexColor, deviceId) {
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
   camera.position.z = 2.8;
 
-  const geo = new THREE.IcosahedronGeometry(0.85, 1);
-  const mat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(hexColor),
-    roughness: 0.2,
-    metalness: 0.8,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.6
-  });
-  const mesh = new THREE.Mesh(geo, mat);
-  scene.add(mesh);
+  const dtype = getDeviceType(STATE.devices[deviceId]?.icon);
+  const iconGroup = create3DIcon(dtype, hexColor);
+  scene.add(iconGroup);
 
-  const pl = new THREE.PointLight(new THREE.Color(hexColor), 2, 10);
-  pl.position.set(2, 2, 2);
-  scene.add(pl);
-  scene.add(new THREE.AmbientLight(0x444466, 0.5));
+  // Lighting
+  const am = new THREE.AmbientLight(0xffffff, 0.8);
+  scene.add(am);
+  const dl = new THREE.DirectionalLight(0xffffff, 1.2);
+  dl.position.set(1, 2, 3);
+  scene.add(dl);
 
-  QC_3D.scenes[canvasId] = { mesh, renderer, scene, camera, active: !!STATE.deviceStates[deviceId] };
+  QC_3D.scenes[canvasId] = { iconGroup, renderer, scene, camera, active: !!STATE.deviceStates[deviceId] };
 
   function loop() {
-    if (!document.getElementById(canvasId)) return; // Cleanup if element is removed
+    if (!document.getElementById(canvasId)) return;
     requestAnimationFrame(loop);
-    if (QC_3D.scenes[canvasId].active) {
-      mesh.rotation.x += 0.008;
-      mesh.rotation.y += 0.012;
+    
+    const sc = QC_3D.scenes[canvasId];
+    if (sc.active) {
+      iconGroup.rotation.y += 0.02;
+      if (dtype === "fan" || dtype === "ac") iconGroup.rotation.z += 0.1; 
+      iconGroup.position.y = Math.sin(Date.now() * 0.003) * 0.05;
     } else {
-      mesh.rotation.x *= 0.95;
-      mesh.rotation.y *= 0.95;
+      iconGroup.rotation.y *= 0.94;
+      iconGroup.rotation.z *= 0.94;
+      iconGroup.position.y *= 0.94;
     }
     renderer.render(scene, camera);
   }
@@ -733,10 +801,10 @@ function openTopicSettings(deviceId) {
 
 function closeTopicSettings() { document.getElementById("topicModal")?.classList.remove("active"); }
 
-/**
- * Menyimpan pembaruan Nama/Icon/Topik perangkat ke Backend.
- */
+let isDeviceActionBusy = false;
+
 async function saveDeviceSettings() {
+  if (isDeviceActionBusy) return;
   const modal = document.getElementById("topicModal");
   if (!modal) return;
   
@@ -744,25 +812,35 @@ async function saveDeviceSettings() {
   const name = document.getElementById("editDeviceName")?.value.trim();
   const icon = document.getElementById("editDeviceIcon")?.value;
   const top  = document.getElementById("deviceTopic")?.value.trim();
+  const btn  = document.getElementById("btnSaveDeviceEdit");
 
   if (!name) { showToast("Nama perangkat harus diisi!", "warning"); return; }
 
-  const result = await apiPost("update_device", { id, name, icon, topic_sub: top, topic_pub: top });
-  if (result?.success) {
-    STATE.devices[id]      = { ...STATE.devices[id], name, icon, topic_sub: top, topic_pub: top };
-    STATE.deviceTopics[id] = { sub: top, pub: top };
-    
-    // Resubscribe jika topik berubah
-    if (STATE.mqtt.connected && top) { 
-      try { STATE.mqtt.client.subscribe(top); } catch (_) {} 
-    }
+  try {
+    isDeviceActionBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
 
-    renderDevices(); 
-    renderQuickControls(); 
-    closeTopicSettings();
-    showToast("Setting disimpan!", "success");
-  } else {
-    showToast("Gagal menyimpan setting", "error");
+    const result = await apiPost("update_device", { id, name, icon, topic_sub: top, topic_pub: top });
+    if (result?.success) {
+      STATE.devices[id]      = { ...STATE.devices[id], name, icon, topic_sub: top, topic_pub: top };
+      STATE.deviceTopics[id] = { sub: top, pub: top };
+      
+      if (STATE.mqtt.connected && top) { 
+        try { STATE.mqtt.client.subscribe(top); } catch (_) {} 
+      }
+
+      renderDevices(); 
+      renderQuickControls(); 
+      closeTopicSettings();
+      showToast("Perubahan berhasil disimpan!", "success");
+    } else {
+      showToast(result?.error || "Gagal menyimpan setting", "error");
+    }
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isDeviceActionBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = "Simpan"; }
   }
 }
 
@@ -775,76 +853,89 @@ function openAddDeviceModal() {
 
 function closeAddDeviceModal() { document.getElementById("addDeviceModal")?.classList.remove("active"); }
 
-/**
- * Mendaftarkan perangkat baru ke sistem IOTZY.
- */
 async function saveNewDevice() {
+  if (isDeviceActionBusy) return;
   const name = document.getElementById("newDeviceName")?.value.trim();
-  if (!name) { showToast("Nama perangkat harus diisi!", "warning"); return; }
-
   const icon = document.getElementById("newDeviceIcon")?.value  || "fa-plug";
   const top  = document.getElementById("newDeviceTopic")?.value.trim();
+  const btn  = document.getElementById("btnSaveNewDevice");
 
-  const result = await apiPost("add_device", { name, icon, topic_sub: top, topic_pub: top });
-  if (result?.success) {
-    const id = String(result.id);
-    
-    // Tambahkan ke State Lokal
-    STATE.devices[id]      = { id, name, icon, type: "switch", device_key: result.device_key, topic_sub: top, topic_pub: top };
-    STATE.deviceTopics[id] = { sub: top || "", pub: top || "" };
-    STATE.deviceStates[id] = false;
-    STATE.deviceExtras[id] = { fanSpeed: 50, acMode: "cool", acTemp: 24, brightness: 100, volume: 60 };
+  if (!name) { showToast("Nama perangkat harus diisi!", "warning"); return; }
 
-    if (STATE.mqtt.connected && top) { try { STATE.mqtt.client.subscribe(top); } catch (_) {} }
+  try {
+    isDeviceActionBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menambahkan...'; }
 
-    renderDevices(); 
-    renderQuickControls();
-    
-    document.getElementById("navDeviceCount").textContent = Object.keys(STATE.devices).length;
-    closeAddDeviceModal(); 
-    showToast("Perangkat ditambahkan!", "success");
-    addLog(name, "Perangkat baru ditambahkan", "System", "success");
-    
-    // Update UI otomasi YOLO jika ada
-    if (typeof cvUI !== "undefined" && typeof cvUI.renderAutomationSettings === "function") {
-      cvUI.renderAutomationSettings();
+    const result = await apiPost("add_device", { name, icon, topic_sub: top, topic_pub: top });
+    if (result?.success) {
+      const id = String(result.id);
+      STATE.devices[id]      = { id, name, icon, type: "switch", device_key: result.device_key, topic_sub: top, topic_pub: top };
+      STATE.deviceTopics[id] = { sub: top || "", pub: top || "" };
+      STATE.deviceStates[id] = false;
+      STATE.deviceExtras[id] = { fanSpeed: 50, acMode: "cool", acTemp: 24, brightness: 100, volume: 60 };
+
+      if (STATE.mqtt.connected && top) { try { STATE.mqtt.client.subscribe(top); } catch (_) {} }
+
+      renderDevices(); 
+      renderQuickControls();
+      
+      const countEl = document.getElementById("navDeviceCount");
+      if (countEl) countEl.textContent = Object.keys(STATE.devices).length;
+
+      closeAddDeviceModal(); 
+      showToast("Perangkat berhasil ditambahkan!", "success");
+      addLog(name, "Perangkat baru ditambahkan", "System", "success");
+      
+      if (typeof cvUI !== "undefined" && typeof cvUI.renderAutomationSettings === "function") {
+        cvUI.renderAutomationSettings();
+      }
+    } else {
+      showToast(result?.error || "Gagal menambah perangkat", "error");
     }
-  } else {
-    showToast(result?.error || "Gagal menambah perangkat", "error");
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isDeviceActionBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = "Tambah"; }
   }
 }
 
-/**
- * Menghapus perangkat secara permanen.
- */
 async function removeDevice(deviceId) {
+  if (isDeviceActionBusy) return;
   const id = String(deviceId);
-  if (!confirm(`Hapus "${STATE.devices[id]?.name}"? Perangkat ini tidak bisa dikontrol lagi.`)) return;
+  const name = STATE.devices[id]?.name || "Perangkat";
+  if (!confirm(`Hapus "${name}"? Perangkat ini tidak bisa dikontrol lagi.`)) return;
   
-  const result = await apiPost("delete_device", { id });
-  if (result?.success) {
-    const name = STATE.devices[id]?.name;
-    
-    // Hapus dari state
-    delete STATE.devices[id]; 
-    delete STATE.deviceStates[id];
-    delete STATE.deviceTopics[id]; 
-    delete STATE.deviceExtras[id]; 
-    delete STATE.deviceOnAt[id];
+  try {
+    isDeviceActionBusy = true;
+    showToast(`Menghapus ${name}...`, "info");
 
-    STATE.quickControlDevices = STATE.quickControlDevices.filter((x) => String(x) !== id);
-    
-    renderDevices(); 
-    renderQuickControls(); 
-    updateDashboardStats();
-    
-    showToast("Perangkat dihapus", "info"); 
-    addLog(name, "Perangkat dihapus", "System", "warning");
+    const result = await apiPost("delete_device", { id });
+    if (result?.success) {
+      delete STATE.devices[id]; 
+      delete STATE.deviceStates[id];
+      delete STATE.deviceTopics[id]; 
+      delete STATE.deviceExtras[id]; 
+      delete STATE.deviceOnAt[id];
 
-    if (typeof cvUI !== "undefined" && typeof cvUI.renderAutomationSettings === "function") {
-      cvUI.renderAutomationSettings();
+      STATE.quickControlDevices = STATE.quickControlDevices.filter((x) => String(x) !== id);
+      
+      renderDevices(); 
+      renderQuickControls(); 
+      updateDashboardStats();
+      
+      showToast("Perangkat dihapus", "info"); 
+      addLog(name, "Perangkat dihapus", "System", "warning");
+
+      if (typeof cvUI !== "undefined" && typeof cvUI.renderAutomationSettings === "function") {
+        cvUI.renderAutomationSettings();
+      }
+    } else {
+      showToast("Gagal menghapus perangkat", "error");
     }
-  } else {
-    showToast("Gagal menghapus perangkat", "error");
+  } catch (err) {
+    showToast("Kesalahan sistem saat menghapus", "error");
+  } finally {
+    isDeviceActionBusy = false;
   }
 }

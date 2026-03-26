@@ -266,6 +266,8 @@ function filterSensors(q) {
 
 /* ==================== SENSOR CRUD ==================== */
 
+let isSensorActionBusy = false;
+
 function openAddSensorModal() {
   ["newSensorName", "newSensorUnit", "newSensorTopic"].forEach((id) => {
     const el = document.getElementById(id); if (el) el.value = "";
@@ -275,43 +277,51 @@ function openAddSensorModal() {
 
 function closeAddSensorModal() { document.getElementById("addSensorModal")?.classList.remove("active"); }
 
-/**
- * Menyimpan pendaftaran sensor baru ke backend.
- */
 async function saveNewSensor() {
+  if (isSensorActionBusy) return;
   const name = document.getElementById("newSensorName")?.value.trim();
-  if (!name) { showToast("Nama sensor harus diisi!", "warning"); return; }
-  
   const type  = document.getElementById("newSensorType")?.value  || "temperature";
   const unit  = document.getElementById("newSensorUnit")?.value.trim();
   const topic = document.getElementById("newSensorTopic")?.value.trim();
-  
+  const btn   = document.getElementById("btnSaveNewSensor");
+
+  if (!name) { showToast("Nama sensor harus diisi!", "warning"); return; }
   if (!topic) { showToast("MQTT topic harus diisi!", "warning"); return; }
 
-  const result = await apiPost("add_sensor", { name, type, unit, topic });
-  if (result?.success) {
-    const id      = String(result.id);
-    const iconMap = {
-      temperature: "fa-temperature-half", humidity: "fa-droplet", air_quality: "fa-wind",
-      presence: "fa-user-check", brightness: "fa-sun", motion: "fa-person-running",
-      smoke: "fa-fire", gas: "fa-triangle-exclamation",
-    };
-    
-    // Update state lokal
-    STATE.sensors[id]       = { id, name, type, icon: iconMap[type] || "fa-microchip", unit, topic, sensor_key: result.sensor_key };
-    STATE.sensorData[id]    = null;
-    STATE.sensorHistory[id] = [];
-    
-    // Subscribe ke broker MQTT
-    if (STATE.mqtt.connected && topic) { try { STATE.mqtt.client.subscribe(topic); } catch (_) {} }
-    
-    renderSensors();
-    document.getElementById("navSensorCount").textContent = Object.keys(STATE.sensors).length;
-    closeAddSensorModal(); 
-    showToast("Sensor ditambahkan!", "success");
-    addLog(name, "Sensor baru ditambahkan", "System", "success");
-  } else {
-    showToast(result?.error || "Gagal menambah sensor", "error");
+  try {
+    isSensorActionBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menambahkan...'; }
+
+    const result = await apiPost("add_sensor", { name, type, unit, topic });
+    if (result?.success) {
+      const id      = String(result.id);
+      const iconMap = {
+        temperature: "fa-temperature-half", humidity: "fa-droplet", air_quality: "fa-wind",
+        presence: "fa-user-check", brightness: "fa-sun", motion: "fa-person-running",
+        smoke: "fa-fire", gas: "fa-triangle-exclamation",
+      };
+      
+      STATE.sensors[id]       = { id, name, type, icon: iconMap[type] || "fa-microchip", unit, topic, sensor_key: result.sensor_key };
+      STATE.sensorData[id]    = null;
+      STATE.sensorHistory[id] = [];
+      
+      if (STATE.mqtt.connected && topic) { try { STATE.mqtt.client.subscribe(topic); } catch (_) {} }
+      
+      renderSensors();
+      const countEl = document.getElementById("navSensorCount");
+      if (countEl) countEl.textContent = Object.keys(STATE.sensors).length;
+      
+      closeAddSensorModal(); 
+      showToast("Sensor berhasil ditambahkan!", "success");
+      addLog(name, "Sensor baru ditambahkan", "System", "success");
+    } else {
+      showToast(result?.error || "Gagal menambah sensor", "error");
+    }
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isSensorActionBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = "Tambah"; }
   }
 }
 
@@ -332,6 +342,7 @@ function openSensorSettings(sensorId) {
 function closeSensorSettings() { document.getElementById("sensorSettingModal")?.classList.remove("active"); }
 
 async function saveSensorSettings() {
+  if (isSensorActionBusy) return;
   const modal = document.getElementById("sensorSettingModal");
   if (!modal) return;
   const id    = String(modal.dataset.sensorId);
@@ -339,43 +350,65 @@ async function saveSensorSettings() {
   const type  = document.getElementById("ssEditType")?.value;
   const unit  = document.getElementById("ssEditUnit")?.value.trim();
   const topic = document.getElementById("ssEditTopic")?.value.trim();
+  const btn   = document.getElementById("btnSaveSensorEdit");
   
   if (!name || !topic) { showToast("Nama dan topic harus diisi!", "warning"); return; }
   
-  const result = await apiPost("update_sensor", { id, name, type, unit, topic });
-  if (result?.success) {
-    const iconMap = {
-      temperature: "fa-temperature-half", humidity: "fa-droplet", air_quality: "fa-wind",
-      presence: "fa-user-check", brightness: "fa-sun", motion: "fa-person-running",
-      smoke: "fa-fire", gas: "fa-triangle-exclamation",
-    };
-    STATE.sensors[id] = { ...STATE.sensors[id], name, type, icon: iconMap[type] || STATE.sensors[id]?.icon || "fa-microchip", unit, topic };
-    if (STATE.mqtt.connected && topic) { try { STATE.mqtt.client.subscribe(topic); } catch (_) {} }
-    renderSensors(); 
-    closeSensorSettings(); 
-    showToast("Sensor diperbarui!", "success");
-  } else {
-    showToast("Gagal memperbarui sensor", "error");
+  try {
+    isSensorActionBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
+
+    const result = await apiPost("update_sensor", { id, name, type, unit, topic });
+    if (result?.success) {
+      const iconMap = {
+        temperature: "fa-temperature-half", humidity: "fa-droplet", air_quality: "fa-wind",
+        presence: "fa-user-check", brightness: "fa-sun", motion: "fa-person-running",
+        smoke: "fa-fire", gas: "fa-triangle-exclamation",
+      };
+      STATE.sensors[id] = { ...STATE.sensors[id], name, type, icon: iconMap[type] || STATE.sensors[id]?.icon || "fa-microchip", unit, topic };
+      if (STATE.mqtt.connected && topic) { try { STATE.mqtt.client.subscribe(topic); } catch (_) {} }
+      
+      renderSensors(); 
+      closeSensorSettings(); 
+      showToast("Sensor berhasil diperbarui!", "success");
+    } else {
+      showToast("Gagal memperbarui sensor", "error");
+    }
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isSensorActionBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = "Simpan"; }
   }
 }
 
 async function removeSensor(sensorId) {
+  if (isSensorActionBusy) return;
   const id = String(sensorId);
-  if (!confirm(`Hapus sensor "${STATE.sensors[id]?.name}"? Seluruh histori data akan hilang.`)) return;
+  const name = STATE.sensors[id]?.name || "Sensor";
+  if (!confirm(`Hapus sensor "${name}"? Seluruh histori data akan hilang.`)) return;
   
-  const result = await apiPost("delete_sensor", { id });
-  if (result?.success) {
-    const name = STATE.sensors[id]?.name;
-    delete STATE.sensors[id]; delete STATE.sensorData[id]; delete STATE.sensorHistory[id];
-    if (STATE.automationRules[id]) delete STATE.automationRules[id];
-    
-    renderSensors(); 
-    renderAutomationView(); 
-    updateDashboardStats();
-    
-    showToast("Sensor dihapus", "info"); 
-    addLog(name, "Sensor dihapus", "System", "warning");
-  } else {
-    showToast("Gagal menghapus sensor", "error");
+  try {
+    isSensorActionBusy = true;
+    showToast(`Menghapus ${name}...`, "info");
+
+    const result = await apiPost("delete_sensor", { id });
+    if (result?.success) {
+      delete STATE.sensors[id]; delete STATE.sensorData[id]; delete STATE.sensorHistory[id];
+      if (STATE.automationRules[id]) delete STATE.automationRules[id];
+      
+      renderSensors(); 
+      renderAutomationView(); 
+      updateDashboardStats();
+      
+      showToast("Sensor telah dihapus", "info"); 
+      addLog(name, "Sensor dihapus", "System", "warning");
+    } else {
+      showToast("Gagal menghapus sensor", "error");
+    }
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isSensorActionBusy = false;
   }
 }

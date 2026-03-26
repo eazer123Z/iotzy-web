@@ -31,47 +31,77 @@ async function initAutomationRules() {
 }
 
 async function addAutomationRule(sensorId, rule) {
+  if (isAutoActionBusy) return;
   const sid = sensorId ? parseInt(sensorId) : null;
-  const result = await apiPost("add_automation_rule", {
-    sensor_id:     sid,
-    device_id:     parseInt(rule.deviceId),
-    condition:     rule.condition,
-    threshold:     rule.threshold,
-    threshold_min: rule.thresholdMin,
-    threshold_max: rule.thresholdMax,
-    action:        rule.action,
-    delay:         rule.delay || 0,
-    start_time:    rule.startTime || null,
-    end_time:      rule.endTime || null,
-    from_template: rule.fromTemplate || null,
-  });
-  if (result?.success) {
-    const key = sensorId ? String(sensorId) : ('device_' + rule.deviceId);
-    if (!STATE.automationRules[key]) STATE.automationRules[key] = [];
-    STATE.automationRules[key].push({
-      ...rule,
-      ruleId:    result.rule_id,
-      dbId:      result.id,
-      enabled:   true,
-      lastFired: null,
+  const btn = document.getElementById("btnSaveNewRule");
+
+  try {
+    isAutoActionBusy = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...'; }
+
+    const result = await apiPost("add_automation_rule", {
+      sensor_id:     sid,
+      device_id:     parseInt(rule.deviceId),
+      condition:     rule.condition,
+      threshold:     rule.threshold,
+      threshold_min: rule.thresholdMin,
+      threshold_max: rule.thresholdMax,
+      action:        rule.action,
+      delay:         rule.delay || 0,
+      start_time:    rule.startTime || null,
+      end_time:      rule.endTime || null,
+      from_template: rule.fromTemplate || null,
     });
-    if (typeof renderAutomationView === 'function') renderAutomationView();
-    showToast("Aturan ditambahkan!", "success");
-  } else {
-    showToast("Gagal menambah aturan", "error");
+
+    if (result?.success) {
+      const key = sensorId ? String(sensorId) : ('device_' + rule.deviceId);
+      if (!STATE.automationRules[key]) STATE.automationRules[key] = [];
+      STATE.automationRules[key].push({
+        ...rule,
+        ruleId:    result.rule_id,
+        dbId:      result.id,
+        enabled:   true,
+        lastFired: null,
+      });
+      if (typeof renderAutomationView === 'function') renderAutomationView();
+      closeAddRuleModal();
+      showToast("Aturan otomasi berhasil ditambahkan!", "success");
+    } else {
+      showToast(result?.error || "Gagal menambah aturan", "error");
+    }
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isAutoActionBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = "Buat Aturan"; }
   }
 }
 
 async function removeAutomationRule(sensorId, ruleId) {
+  if (isAutoActionBusy) return;
   const id   = String(sensorId);
   const rule = (STATE.automationRules[id] || []).find((r) => r.ruleId === ruleId);
   if (!rule?.dbId) return;
-  const result = await apiPost("delete_automation_rule", { id: rule.dbId });
-  if (result?.success) {
-    STATE.automationRules[id] = (STATE.automationRules[id] || []).filter((r) => r.ruleId !== ruleId);
-    if (!STATE.automationRules[id].length) delete STATE.automationRules[id];
-    if (typeof renderAutomationView === 'function') renderAutomationView();
-    showToast("Aturan dihapus", "info");
+
+  if (!confirm("Hapus aturan otomasi ini?")) return;
+
+  try {
+    isAutoActionBusy = true;
+    showToast("Menghapus aturan...", "info");
+
+    const result = await apiPost("delete_automation_rule", { id: rule.dbId });
+    if (result?.success) {
+      STATE.automationRules[id] = (STATE.automationRules[id] || []).filter((r) => r.ruleId !== ruleId);
+      if (!STATE.automationRules[id].length) delete STATE.automationRules[id];
+      if (typeof renderAutomationView === 'function') renderAutomationView();
+      showToast("Aturan berhasil dihapus!", "success");
+    } else {
+      showToast("Gagal menghapus aturan", "error");
+    }
+  } catch (err) {
+    showToast("Terjadi kesalahan sistem", "error");
+  } finally {
+    isAutoActionBusy = false;
   }
 }
 
@@ -337,15 +367,18 @@ function updateRuleConditionUI(cond, meta) {
 function closeAddRuleModal() { document.getElementById("addRuleModal")?.classList.remove("active"); _addRuleSensorId = null; }
 
 function saveNewAutomationRule() {
+  if (isAutoActionBusy) return;
   const cond       = document.getElementById("addRuleCondition").value;
   const deviceId   = document.getElementById("addRuleDevice").value;
   const action     = document.getElementById("addRuleAction").value;
   const delay      = parseInt(document.getElementById("addRuleDelay").value) || 0;
   const startTime  = document.getElementById("addRuleStartTime").value;
   const endTime    = document.getElementById("addRuleEndTime").value;
+
   if (!deviceId || !STATE.devices[String(deviceId)]) { 
-    showToast("Pilih perangkat!", "warning"); return; 
+    showToast("Pilih perangkat untuk otomasi!", "warning"); return; 
   }
+
   const rule = { 
     condition: cond, 
     deviceId: String(deviceId), 
@@ -354,17 +387,22 @@ function saveNewAutomationRule() {
     startTime: startTime || null,
     endTime:   endTime   || null
   };
+
   if (cond === "range") {
-    rule.thresholdMin = parseFloat(document.getElementById("addRuleThresholdMin").value);
-    rule.thresholdMax = parseFloat(document.getElementById("addRuleThresholdMax").value);
-    if (isNaN(rule.thresholdMin) || isNaN(rule.thresholdMax)) { showToast("Isi rentang nilai!", "warning"); return; }
+    const min = parseFloat(document.getElementById("addRuleThresholdMin").value);
+    const max = parseFloat(document.getElementById("addRuleThresholdMax").value);
+    if (isNaN(min) || isNaN(max)) { showToast("Gunakan nilai angka untuk rentang!", "warning"); return; }
+    rule.thresholdMin = min;
+    rule.thresholdMax = max;
   } else if (cond !== "detected" && cond !== "absent" && cond !== "time_only") {
-    rule.threshold = parseFloat(document.getElementById("addRuleThreshold").value);
-    if (isNaN(rule.threshold)) { showToast("Isi nilai threshold!", "warning"); return; }
+    const val = parseFloat(document.getElementById("addRuleThreshold").value);
+    if (isNaN(val)) { showToast("Isi nilai ambang batas!", "warning"); return; }
+    rule.threshold = val;
   }
+
   if (cond === "time_only" && (!startTime || !endTime)) {
-    showToast("Isi jam operasional!", "warning"); return;
+    showToast("Jam operasional wajib diisi!", "warning"); return;
   }
+
   addAutomationRule(_addRuleSensorId, rule);
-  closeAddRuleModal();
 }

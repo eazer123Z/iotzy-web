@@ -50,7 +50,7 @@
             <option value="light" <?= ($settings['theme'] ?? 'dark') === 'light' ? 'selected' : '' ?>>☀️ Light Mode</option>
           </select>
         </div>
-        <button class="btn-primary" onclick="saveProfile()"><i class="fas fa-save"></i> Simpan Profil</button>
+        <button id="btnSaveProfile" class="btn-primary" onclick="saveProfile()"><i class="fas fa-save"></i> Simpan Profil</button>
       </div>
 
       <!-- MQTT Panel -->
@@ -99,7 +99,7 @@
           </label>
         </div>
         <div style="display:flex;gap:10px">
-          <button class="btn-primary" onclick="saveMQTTSettings()"><i class="fas fa-save"></i> Simpan MQTT</button>
+          <button id="btnSaveMQTT" class="btn-primary" onclick="saveMQTTSettings()"><i class="fas fa-save"></i> Simpan MQTT</button>
           <button class="btn-secondary" onclick="connectMQTT()"><i class="fas fa-wifi"></i> Test Koneksi</button>
         </div>
       </div>
@@ -112,7 +112,7 @@
           <input type="text" id="settTelegramChatId" value="<?= htmlspecialchars($settings['telegram_chat_id'] ?? '') ?>" placeholder="Masukkan Chat ID Anda">
         </div>
         <div style="display:flex;gap:10px">
-          <button class="btn-primary" onclick="saveTelegramSettings()"><i class="fas fa-save"></i> Simpan</button>
+          <button id="btnSaveTelegram" class="btn-primary" onclick="saveTelegramSettings()"><i class="fas fa-save"></i> Simpan</button>
           <button class="btn-secondary" onclick="testTelegram()"><i class="fas fa-paper-plane"></i> Tes Kirim</button>
         </div>
       </div>
@@ -132,7 +132,7 @@
           <label>Konfirmasi Password Baru</label>
           <input type="password" id="settConfirmPassword" placeholder="Ulangi password baru">
         </div>
-        <button class="btn-primary" onclick="changePasswordFromSettings()"><i class="fas fa-key"></i> Ganti Password</button>
+        <button id="btnSaveSecurity" class="btn-primary" onclick="changePasswordFromSettings()"><i class="fas fa-key"></i> Ganti Password</button>
       </div>
 
       <!-- Automation Panel -->
@@ -224,7 +224,7 @@
           </div>
         </div>
 
-        <button class="btn-primary" onclick="saveAutomationSettings()" style="margin-top:10px"><i class="fas fa-save"></i> Simpan Otomasi</button>
+        <button id="btnSaveAuto" class="btn-primary" onclick="saveAutomationSettings()" style="margin-top:10px"><i class="fas fa-save"></i> Simpan Otomasi</button>
       </div>
 
       <!-- CV Panel -->
@@ -279,7 +279,7 @@
           </div>
         </div>
 
-        <button class="btn-primary" onclick="saveCVSettings()"><i class="fas fa-save"></i> Simpan AI Setting</button>
+        <button id="btnSaveCV" class="btn-primary" onclick="saveCVSettings()"><i class="fas fa-save"></i> Simpan AI Setting</button>
       </div>
 
       <!-- About Panel -->
