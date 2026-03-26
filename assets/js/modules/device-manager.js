@@ -91,6 +91,7 @@ function updateDeviceUI(deviceId) {
     if (pill) {
       pill.className = `qc-pill ${isOn ? 'on' : 'off'}`;
       pill.textContent = isLock ? (isOn ? 'OPEN' : 'LOCK') : (isOn ? 'ON' : 'OFF');
+      pill.setAttribute("onclick", `toggleDeviceState('${id}', ${!isOn})`);
     }
 
     const qt = qc.querySelector("input[type=checkbox]");
@@ -129,6 +130,12 @@ function toggleDeviceState(deviceId, newState) {
   // Logging lokal
   addLog(STATE.devices[id]?.name, newState ? "Dinyalakan" : "Dimatikan", "Manual", "info");
   updateDashboardStats();
+
+  // Built-in Automation Trigger (Smart Lock)
+  const dtype = getDeviceType(STATE.devices[id]?.icon);
+  if ((dtype === 'lock' || dtype === 'door') && typeof automationEngine !== 'undefined') {
+    automationEngine._evaluateBuiltInRules('lock', { id, state: newState });
+  }
 }
 
 /**
@@ -180,6 +187,12 @@ function applyDeviceState(deviceId, newState, reason = "Automation") {
   
   addLog(STATE.devices[id]?.name, `${newState ? "ON" : "OFF"} (${reason})`, "Automation", newState ? "success" : "info");
   updateDashboardStats();
+
+  // Built-in Automation Trigger (Smart Lock)
+  const dtype = getDeviceType(STATE.devices[id]?.icon);
+  if ((dtype === 'lock' || dtype === 'door') && typeof automationEngine !== 'undefined') {
+    automationEngine._evaluateBuiltInRules('lock', { id, state: newState });
+  }
 }
 
 /* ==================== CONTROL SETTERS (Manual) ==================== */

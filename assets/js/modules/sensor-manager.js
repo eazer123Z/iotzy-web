@@ -73,8 +73,8 @@ function renderSensorCard(sensorId) {
   const topHTML = `
     <div class="sensor-card-top">
       <div class="sensor-card-info">
-        <div class="sensor-big-icon" style="background:${cfg.color ? `color-mix(in srgb, ${cfg.color} 14%, transparent)` : 'var(--surface-3)'}">
-          <i class="fas ${sensor.icon || cfg.icon || "fa-microchip"}" style="color:${cfg.color || "var(--ink-3)"}"></i>
+        <div class="sensor-big-icon" style="background:${cfg.color ? `color-mix(in srgb, ${cfg.color} 14%, transparent)` : 'var(--surface-hover)'}">
+          <i class="fas ${sensor.icon || cfg.icon || "fa-microchip"}" style="color:${cfg.color || "var(--text-secondary)"}"></i>
         </div>
         <div>
           <div class="sensor-name">${escHtml(sensor.name)}</div>
@@ -93,16 +93,16 @@ function renderSensorCard(sensorId) {
   if (sensor.type === "presence") {
     // Tipe Presence: Hanya titik deteksi
     const isD = !!val;
-    bodyHTML = `<div class="presence-status"><div class="presence-dot${isD ? " detected" : ""}" id="presence-dot-${sensorId}"></div><div class="presence-text" id="presence-txt-${sensorId}">${isD ? "Terdeteksi" : "Tidak Terdeteksi"}</div></div><div class="sensor-meta"><span style="font-size:10.5px;color:var(--ink-5)">PIR / Ultrasonic</span><span class="sensor-meta-val" id="time-${sensorId}">—</span></div>`;
+    bodyHTML = `<div class="presence-status"><div class="presence-dot${isD ? " detected" : ""}" id="presence-dot-${sensorId}"></div><div class="presence-text" id="presence-txt-${sensorId}">${isD ? "Terdeteksi" : "Tidak Terdeteksi"}</div></div><div class="sensor-meta"><span style="font-size:10.5px;color:var(--text-muted)">PIR / Ultrasonic</span><span class="sensor-meta-val" id="time-${sensorId}">—</span></div>`;
   } else if (sensor.type === "motion") {
     // Tipe Motion: Icon animasi
     const isM = !!val;
-    bodyHTML = `<div class="motion-indicator${isM ? " active" : ""}" id="motion-ind-${sensorId}"><i class="fas fa-person-running motion-icon" style="color:${isM ? "var(--purple)" : "var(--ink-5)"}"></i><div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:${isM ? "var(--purple)" : "var(--ink-3)"}" id="motion-txt-${sensorId}">${isM ? "Gerakan Terdeteksi" : "Tidak Ada Gerakan"}</div><div style="font-size:10px;color:var(--ink-5)" id="time-${sensorId}">—</div></div></div>`;
+    bodyHTML = `<div class="motion-indicator${isM ? " active" : ""}" id="motion-ind-${sensorId}"><i class="fas fa-person-running motion-icon" style="color:${isM ? "var(--purple)" : "var(--text-muted)"}"></i><div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:${isM ? "var(--purple)" : "var(--text-secondary)"}" id="motion-txt-${sensorId}">${isM ? "Gerakan Terdeteksi" : "Tidak Ada Gerakan"}</div><div style="font-size:10px;color:var(--text-muted)" id="time-${sensorId}">—</div></div></div>`;
   } else if (sensor.type === "humidity") {
     // Tipe Humidity: Circular Gauge SVG
     const pct    = hasVal ? Math.min(100, val) : 0;
     const valStr = hasVal ? val.toFixed(1) : "";
-    bodyHTML = `<div style="display:flex;align-items:center;gap:12px"><div style="flex:1"><div class="sensor-value-big" id="val-${sensorId}">${valStr}<span style="font-size:13px;font-weight:500">${sensor.unit || "%"}</span></div><div style="font-size:10.5px;color:var(--ink-5);margin-top:2px" id="hum-desc-${sensorId}">${hasVal ? (val < 40 ? "Terlalu Kering" : val > 70 ? "Terlalu Lembab" : "Normal") : ""}</div></div><div style="width:80px;height:80px;flex-shrink:0"><svg viewBox="0 0 80 80" class="gauge-svg" id="gauge-svg-${sensorId}"><circle cx="40" cy="40" r="30" fill="none" stroke="var(--border)" stroke-width="7"/><circle cx="40" cy="40" r="30" fill="none" stroke="#3b82f6" stroke-width="7" stroke-dasharray="${(pct / 100) * 188.4} 188.4" stroke-dashoffset="47.1" stroke-linecap="round" transform="rotate(-90 40 40)" id="gauge-circle-${sensorId}"/><text x="40" y="44" text-anchor="middle" font-size="14" font-weight="800" fill="var(--ink)" font-family="var(--mono)">${hasVal ? Math.round(val) : ""}</text></svg></div></div><div class="sensor-meta"><span class="sensor-meta-val" id="time-${sensorId}">—</span></div><canvas class="sparkline-canvas" id="spark-${sensorId}"></canvas>`;
+    bodyHTML = `<div style="display:flex;align-items:center;gap:12px"><div style="flex:1"><div class="sensor-value-big" id="val-${sensorId}">${valStr}<span style="font-size:13px;font-weight:500">${sensor.unit || "%"}</span></div><div style="font-size:10.5px;color:var(--text-muted);margin-top:2px" id="hum-desc-${sensorId}">${hasVal ? (val < 40 ? "Terlalu Kering" : val > 70 ? "Terlalu Lembab" : "Normal") : ""}</div></div><div style="width:80px;height:80px;flex-shrink:0"><svg viewBox="0 0 80 80" class="gauge-svg" id="gauge-svg-${sensorId}"><circle cx="40" cy="40" r="30" fill="none" stroke="var(--border)" stroke-width="7"/><circle cx="40" cy="40" r="30" fill="none" stroke="#3b82f6" stroke-width="7" stroke-dasharray="${(pct / 100) * 188.4} 188.4" stroke-dashoffset="47.1" stroke-linecap="round" transform="rotate(-90 40 40)" id="gauge-circle-${sensorId}"/><text x="40" y="44" text-anchor="middle" font-size="14" font-weight="800" fill="var(--text)" font-family="var(--font-mono)" id="gauge-txt-${sensorId}">${hasVal ? Math.round(val) : ""}</text></svg></div></div><div class="sensor-meta"><span class="sensor-meta-val" id="time-${sensorId}">—</span></div><canvas class="sparkline-canvas" id="spark-${sensorId}"></canvas>`;
   } else {
     // Tipe General: Progress Bar mendatar + Sparkline
     let pct = 0;
@@ -162,6 +162,8 @@ function updateSensorValueUI(sensorId) {
       const pct = Math.min(100, val); 
       gc.setAttribute("stroke-dasharray", `${(pct / 100) * 188.4} 188.4`); 
     }
+    const gt = document.getElementById(`gauge-txt-${sensorId}`);
+    if (gt) gt.textContent = Math.round(val);
     const desc = document.getElementById(`hum-desc-${sensorId}`);
     if (desc) desc.textContent = val < 40 ? "Terlalu Kering" : val > 70 ? "Terlalu Lembab" : "Normal";
   } else if (sensor.type === "air_quality") {

@@ -143,6 +143,11 @@ function onLightAnalysisUpdate(condition, brightness) {
   if (g("cvBrightnessBar"))   g("cvBrightnessBar").style.width   = pct + "%";
   const condMap = { dark: "Gelap", normal: "Normal", bright: "Terang" };
   if (g("cvLightCondition")) g("cvLightCondition").textContent   = condMap[condition] || condition;
+
+  // Trigger automation engine for light rules
+  if (typeof automationEngine !== "undefined" && automationEngine.onLightCondition) {
+      automationEngine.onLightCondition(condition, brightness);
+  }
 }
 
 async function loadCVLibraries() {

@@ -1,7 +1,7 @@
 <div id="sensors" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
-      <h3><i class="fas fa-gauge-high"></i> Monitoring Sensor</h3>
+      <h3><i class="fas fa-signal"></i> Monitoring Sensor</h3>
       <p>Data sensor lingkungan dan threshold real-time.</p>
     </div>
     <div class="v-actions">

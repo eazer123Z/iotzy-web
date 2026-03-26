@@ -190,11 +190,25 @@ async function apiPost(action, data = {}) {
       return null;
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    
+    // Pastikan respon adalah JSON sebelum diparsing
+    const contentType = res.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      const text = await res.text();
+      console.error("Respon bukan JSON:", text.substring(0, 200));
+      return { success: false, error: "Server tidak mengirimkan JSON yang valid." };
+    }
+
+    try {
+      return await res.json();
+    } catch (parseError) {
+      console.error("JSON Parse Error:", parseError);
+      return { success: false, error: "Gagal memproses data server (JSON Error)." };
+    }
   } catch (e) {
     console.error("API error:", action, e);
     if (e.name !== 'AbortError') showToast(`API error: ${action}`, "error");
-    return null;
+    return { success: false, error: e.message };
   }
 }
 

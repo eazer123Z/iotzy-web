@@ -20,6 +20,12 @@
       <button class="settings-tab" data-panel="securityPanel" onclick="switchSettingsTab(this)">
         <i class="fas fa-lock"></i> Keamanan
       </button>
+      <button class="settings-tab" data-panel="automationPanel" onclick="switchSettingsTab(this)">
+        <i class="fas fa-robot"></i> Otomasi
+      </button>
+      <button class="settings-tab" data-panel="cvPanel" onclick="switchSettingsTab(this)">
+        <i class="fas fa-eye"></i> Computer Vision
+      </button>
       <button class="settings-tab" data-panel="aboutPanel" onclick="switchSettingsTab(this)">
         <i class="fas fa-info-circle"></i> Tentang
       </button>
@@ -127,6 +133,153 @@
           <input type="password" id="settConfirmPassword" placeholder="Ulangi password baru">
         </div>
         <button class="btn-primary" onclick="changePasswordFromSettings()"><i class="fas fa-key"></i> Ganti Password</button>
+      </div>
+
+      <!-- Automation Panel -->
+      <div id="automationPanel" class="settings-panel">
+        <h4><i class="fas fa-robot"></i> Otomasi Bawaan</h4>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:20px">Atur ambang batas untuk fitur otomasi cerdas IoTzy.</p>
+        
+        <!-- Smart Lamp -->
+        <div class="sett-section">
+          <div class="sett-header">
+            <div class="sett-icon lp"><i class="fas fa-lightbulb"></i></div>
+            <div class="sett-meta">
+              <h5>Smart Lamp (Cahaya)</h5>
+              <span>Nyalakan lampu otomatis berdasarkan tingkat kegelapan.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="settAutoLamp" <?= !empty($settings['automation_lamp']) ? 'checked' : '' ?>>
+            </label>
+          </div>
+          <div class="sett-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Ambang Batas Nyala (Gelap)</label>
+                <div class="range-with-val">
+                  <input type="range" id="settLampOnThr" min="0" max="1" step="0.05" value="<?= $settings['lamp_on_threshold'] ?? 0.3 ?>">
+                  <span><?= round(($settings['lamp_on_threshold'] ?? 0.3) * 100) ?>%</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Ambang Batas Mati (Terang)</label>
+                <div class="range-with-val">
+                  <input type="range" id="settLampOffThr" min="0" max="1" step="0.05" value="<?= $settings['lamp_off_threshold'] ?? 0.7 ?>">
+                  <span><?= round(($settings['lamp_off_threshold'] ?? 0.7) * 100) ?>%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Smart Fan -->
+        <div class="sett-section">
+          <div class="sett-header">
+            <div class="sett-icon fn"><i class="fas fa-wind"></i></div>
+            <div class="sett-meta">
+              <h5>Smart Fan (Suhu)</h5>
+              <span>Atur kecepatan kipas otomatis berdasarkan suhu ruangan.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="settAutoFan" <?= !empty($settings['automation_fan']) ? 'checked' : '' ?>>
+            </label>
+          </div>
+          <div class="sett-body">
+             <div class="form-row">
+                <div class="form-group">
+                  <label>Suhu Tinggi (Fan Max)</label>
+                  <div class="range-with-val">
+                    <input type="range" id="settFanHigh" min="15" max="40" step="1" value="<?= $settings['fan_temp_high'] ?? 30 ?>">
+                    <span><?= $settings['fan_temp_high'] ?? 30 ?>°C</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Suhu Normal (Fan Off)</label>
+                  <div class="range-with-val">
+                    <input type="range" id="settFanNormal" min="15" max="40" step="1" value="<?= $settings['fan_temp_normal'] ?? 25 ?>">
+                    <span><?= $settings['fan_temp_normal'] ?? 25 ?>°C</span>
+                  </div>
+                </div>
+             </div>
+          </div>
+        </div>
+
+        <!-- Smart Lock -->
+        <div class="sett-section">
+          <div class="sett-header">
+            <div class="sett-icon lk"><i class="fas fa-lock"></i></div>
+            <div class="sett-meta">
+              <h5>Smart Lock (Auto-Lock)</h5>
+              <span>Kunci kembali pintu otomatis setelah dibuka beberapa saat.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="settAutoLock" <?= !empty($settings['automation_lock']) ? 'checked' : '' ?>>
+            </label>
+          </div>
+          <div class="sett-body">
+            <div class="form-group">
+              <label>Tunda Penguncian (Ms)</label>
+              <input type="number" id="settLockDelay" value="<?= $settings['lock_delay'] ?? 5000 ?>" placeholder="Contoh: 5000 (5 detik)">
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-primary" onclick="saveAutomationSettings()" style="margin-top:10px"><i class="fas fa-save"></i> Simpan Otomasi</button>
+      </div>
+
+      <!-- CV Panel -->
+      <div id="cvPanel" class="settings-panel">
+        <h4><i class="fas fa-eye"></i> Computer Vision AI</h4>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:20px">Konfigurasi sensitivitas deteksi objek dan analisis cahaya AI.</p>
+        
+        <div class="sett-section">
+          <div class="sett-header">
+            <div class="sett-icon lp" style="background:var(--primary)"><i class="fas fa-bullseye"></i></div>
+            <div class="sett-meta">
+              <h5>AI Confidence Level</h5>
+              <span>Minimal tingkat kepercayaan AI untuk mengenali objek.</span>
+            </div>
+          </div>
+          <div class="sett-body">
+            <div class="form-group">
+              <label>Min. Confidence (%)</label>
+              <div class="range-with-val">
+                <input type="range" id="settCvConfidence" min="0.1" max="0.95" step="0.05" value="<?= $settings['cv_min_confidence'] ?? 0.5 ?>">
+                <span><?= round(($settings['cv_min_confidence'] ?? 0.5) * 100) ?>%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sett-section">
+          <div class="sett-header">
+            <div class="sett-icon lp" style="background:var(--secondary)"><i class="fas fa-adjust"></i></div>
+            <div class="sett-meta">
+              <h5>Ambang Batas Analisis Cahaya</h5>
+              <span>Level cahaya untuk kategori Gelap vs Terang.</span>
+            </div>
+          </div>
+          <div class="sett-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Dark Threshold (Gelap)</label>
+                <div class="range-with-val">
+                  <input type="range" id="settCvDark" min="0" max="1" step="0.05" value="<?= $settings['cv_dark_threshold'] ?? 0.3 ?>">
+                  <span><?= round(($settings['cv_dark_threshold'] ?? 0.3) * 100) ?>%</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Bright Threshold (Terang)</label>
+                <div class="range-with-val">
+                  <input type="range" id="settCvBright" min="0" max="1" step="0.05" value="<?= $settings['cv_bright_threshold'] ?? 0.7 ?>">
+                  <span><?= round(($settings['cv_bright_threshold'] ?? 0.7) * 100) ?>%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-primary" onclick="saveCVSettings()"><i class="fas fa-save"></i> Simpan AI Setting</button>
       </div>
 
       <!-- About Panel -->

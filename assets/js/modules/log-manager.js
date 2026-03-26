@@ -11,6 +11,8 @@ async function loadLogs() {
       ts:       new Date(r.created_at).getTime(),
     }));
     if (typeof updateLogDisplay === 'function') updateLogDisplay();
+    if (typeof updateDashboardActivityFeed === 'function') updateDashboardActivityFeed();
+    if (typeof updateLogStats === 'function') updateLogStats();
   }
 }
 
@@ -26,8 +28,10 @@ async function addLog(device, activity, trigger, type = "info") {
     ts: now.getTime(),
   };
   STATE.logs.unshift(log);
-  if (STATE.logs.length > CONFIG.app.maxLogs) STATE.logs.length = CONFIG.app.maxLogs;
+  if (STATE.logs.length > (CONFIG.app.maxLogs || 500)) STATE.logs.length = (CONFIG.app.maxLogs || 500);
   if (typeof updateLogDisplay === 'function') updateLogDisplay();
+  if (typeof updateDashboardActivityFeed === 'function') updateDashboardActivityFeed();
+  if (typeof updateLogStats === 'function') updateLogStats();
   apiPost("add_log", { device: device || "System", activity, trigger, type }).catch(() => {});
 }
 
@@ -95,3 +99,102 @@ function updateLogDisplay() {
 document.addEventListener('DOMContentLoaded', () => {
   initLogTabs();
 });
+
+// Mengekstrak 5 log teratas untuk ditampilkan di Dashboard Utama
+function updateDashboardActivityFeed() {
+  const feed = document.getElementById("activityFeedContainer");
+  if (!feed) return;
+  
+  if (!STATE.logs || STATE.logs.length === 0) {
+    feed.innerHTML = '<p class="muted" style="text-align:center;font-size:.85rem">Belum ada aktivitas tercatat.</p>';
+    return;
+  }
+  
+  const recentLogs = STATE.logs.slice(0, 5);
+  let html = '';
+  
+  const iconMap = {
+    'Manual': 'fa-hand-pointer',
+    'Automation': 'fa-robot',
+    'Sensor': 'fa-temperature-half',
+    'AI Assistant': 'fa-comment-dots',
+    'System': 'fa-microchip'
+  };
+  
+  const colorMap = {
+    'Manual': 'var(--accent)',
+    'Automation': 'var(--purple)',
+    'Sensor': 'var(--info)',
+    'AI Assistant': 'var(--success)',
+    'System': 'var(--text-muted)'
+  };
+  
+  recentLogs.forEach(log => {
+    const icon = iconMap[log.trigger] || 'fa-bolt';
+    const color = colorMap[log.trigger] || 'var(--text-secondary)';
+    
+    html += `
+      <div class="activity-item" style="display:flex; gap:12px; margin-bottom:12px; align-items:flex-start">
+        <div class="activity-icon" style="background:var(--surface-hover); width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:${color}">
+          <i class="fas ${icon}"></i>
+        </div>
+        <div class="activity-content" style="flex:1">
+          <div style="font-size:0.85rem; font-weight:600; color:var(--text); margin-bottom:2px">
+            ${escHtml(log.device)} — ${escHtml(log.activity)}
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-muted)">
+            <span>${log.waktu}</span> • <span style="font-weight:500; color:${color}">${log.trigger}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  
+  if (STATE.logs.length > 5) {
+    html += `<button class="ov-link" style="width:100%; text-align:center; margin-top:10px" onclick="switchPage('analytics')">Lihat Semua Aktivitas <i class="fas fa-arrow-right"></i></button>`;
+  }
+  
+  feed.innerHTML = html;
+}
+
+function clearAllLogs() {
+  if (!confirm("Hapus semua riwayat aktivitas?")) return;
+  apiPost("clear_logs").then(res => {
+    if (res?.success) {
+      STATE.logs = [];
+      updateLogDisplay();
+      updateDashboardActivityFeed();
+      showToast("Seluruh log telah dihapus.", "success");
+    }
+  });
+}
+
+function exportLog() {
+  if (STATE.logs.length === 0) { showToast("Tidak ada data untuk diekspor", "warning"); return; }
+  let csv = "Waktu,Perangkat,Aktivitas,Trigger,Tipe\n";
+  STATE.logs.forEach(l => {
+    csv += `${l.waktu},"${l.device}","${l.activity}","${l.trigger}","${l.type}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('hidden', '');
+  a.setAttribute('href', url);
+  a.setAttribute('download', `IoTzy_Logs_${new Date().toISOString().slice(0,10)}.csv`);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function updateLogStats() {
+  const g = (id) => document.getElementById(id);
+  if (!g("logStatTotal")) return;
+  
+  const total = STATE.logs.length;
+  const success = STATE.logs.filter(l => l.type === 'success' || l.type === 'info').length;
+  const warning = STATE.logs.filter(l => l.type === 'warning' || l.type === 'error').length;
+  
+  g("logStatTotal").textContent   = total;
+  g("logStatSuccess").textContent = success;
+  g("logStatWarning").textContent = warning;
+}

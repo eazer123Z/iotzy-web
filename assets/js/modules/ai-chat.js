@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(timeoutId);
             loadingBubble.remove();
 
-            if (data && data.success) {
+            if (data && data.success === true) {
                 // Ambil response_text dari dalam data.data (sesuai struktur PHP)
                 const botText = data.data?.response_text
                              || data.response_text
@@ -279,15 +279,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function appendMessage(text, sender) {
         if (!text || String(text).trim() === '') return null;
 
-        // Security hardening:
-        // Render chat sebagai plain-text (escape HTML) agar tidak ada XSS dari user ataupun AI.
+        // Security: Whitelist tag HTML aman (b, i, u, code, br) 
+        // Melindungi dari XSS sambil tetap mengizinkan formatting dasar.
         const esc = (s) => String(s)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
-        const html = esc(text).replace(/\n/g, '<br>');
+
+        let html = esc(text)
+            .replace(/&lt;br\s*\/?&gt;/gi, '<br>')
+            .replace(/&lt;b&gt;(.*?)&lt;\/b&gt;/gi, '<b>$1</b>')
+            .replace(/&lt;strong&gt;(.*?)&lt;\/strong&gt;/gi, '<strong>$1</strong>')
+            .replace(/&lt;i&gt;(.*?)&lt;\/i&gt;/gi, '<i>$1</i>')
+            .replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/gi, '<em>$1</em>')
+            .replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/gi, '<u>$1</u>')
+            .replace(/&lt;code&gt;(.*?)&lt;\/code&gt;/gi, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
 
         const bubble       = document.createElement('div');
         bubble.className   = `chat-bubble ${sender}`;

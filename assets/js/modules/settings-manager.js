@@ -39,6 +39,49 @@ async function saveMQTTSettings() {
   else showToast(result?.error || "Gagal menyimpan MQTT", "error");
 }
 
+async function saveAutomationSettings() {
+  const data = {
+    automation_lamp:    document.getElementById("settAutoLamp")?.checked ? 1 : 0,
+    automation_fan:     document.getElementById("settAutoFan")?.checked ? 1 : 0,
+    automation_lock:    document.getElementById("settAutoLock")?.checked ? 1 : 0,
+    lamp_on_threshold:  parseFloat(document.getElementById("settLampOnThr")?.value) || 0.3,
+    lamp_off_threshold: parseFloat(document.getElementById("settLampOffThr")?.value) || 0.7,
+    fan_temp_high:      parseFloat(document.getElementById("settFanHigh")?.value) || 30,
+    fan_temp_normal:    parseFloat(document.getElementById("settFanNormal")?.value) || 25,
+    lock_delay:         parseInt(document.getElementById("settLockDelay")?.value) || 5000,
+  };
+
+  const result = await apiPost("save_settings", data);
+  if (result?.success) {
+    showToast("Pengaturan Otomasi disimpan!", "success");
+    // Sync to global PHP_SETTINGS for immediate effect
+    if (typeof PHP_SETTINGS !== 'undefined') {
+       Object.assign(PHP_SETTINGS, data);
+    }
+  } else {
+    showToast(result?.error || "Gagal menyimpan otomasi", "error");
+  }
+}
+
+async function saveCVSettings() {
+  const data = {
+    cv_min_confidence:  parseFloat(document.getElementById("settCvConfidence")?.value) || 0.5,
+    cv_dark_threshold:  parseFloat(document.getElementById("settCvDark")?.value) || 0.3,
+    cv_bright_threshold: parseFloat(document.getElementById("settCvBright")?.value) || 0.7,
+  };
+
+  const result = await apiPost("save_settings", data);
+  if (result?.success) {
+    showToast("Pengaturan AI disimpan!", "success");
+    // Sync to global PHP_SETTINGS
+    if (typeof PHP_SETTINGS !== 'undefined') {
+       Object.assign(PHP_SETTINGS, data);
+    }
+  } else {
+    showToast(result?.error || "Gagal menyimpan AI setting", "error");
+  }
+}
+
 async function testTelegram() {
   const btn = event?.currentTarget;
   if (btn) {
@@ -99,3 +142,23 @@ async function loadMQTTTemplates() {
     }
   }
 }
+
+// Slider Value Real-time Display
+document.addEventListener('input', (e) => {
+  if (e.target.type === 'range' && e.target.id.startsWith('sett')) {
+    const val = e.target.value;
+    const span = e.target.nextElementSibling;
+    if (span && span.tagName === 'SPAN') {
+      if (e.target.id.includes('Lamp') || e.target.id.includes('Cv')) {
+        span.textContent = Math.round(val * 100) + '%';
+      } else if (e.target.id.includes('Fan')) {
+        span.textContent = val + '°C';
+      }
+    }
+  }
+});
+
+// Auto-run templates load
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('settings')) loadMQTTTemplates();
+});

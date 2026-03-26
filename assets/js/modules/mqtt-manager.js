@@ -270,8 +270,13 @@ function processSensorValue(sensorId, val) {
 
   // Trigger evaluasi aturan otomasi di Automation Engine
   document.getElementById(`sensor-card-${sensorId}`)?.classList.add("has-data");
-  if (typeof automationEngine !== "undefined" && automationEngine.isActive)
+  if (typeof automationEngine !== "undefined" && automationEngine.isActive) {
     automationEngine.evaluateSensorRules(sensorId, val);
+    
+    // Built-in Automation Triggers
+    if (sensor?.type === 'temperature') automationEngine._evaluateBuiltInRules('fan', val);
+    if (sensor?.type === 'brightness' || sensor?.type === 'light') automationEngine._evaluateBuiltInRules('lamp', val);
+  }
 
   // Sync data ke database
   apiPost("update_sensor_value", { id: sensorId, value: val }).catch(() => {});

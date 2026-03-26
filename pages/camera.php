@@ -1,7 +1,7 @@
 <div id="camera" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
-      <h3><i class="fas fa-video"></i> Computer Vision</h3>
+      <h3><i class="fas fa-eye"></i> Computer Vision</h3>
       <p>Deteksi objek & analisis pencahayaan real-time berbasis Computer Vision.</p>
     </div>
   </div>

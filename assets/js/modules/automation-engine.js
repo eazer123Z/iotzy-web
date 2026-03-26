@@ -180,6 +180,64 @@ const automationEngine = (() => {
             const lbl = { dark: 'Gelap', normal: 'Normal', bright: 'Terang' }[condition] || condition;
             addLog('CV Otomasi', `Kondisi cahaya: ${lbl}`, 'CV', 'info');
         }
+
+        // Built-in Smart Lamp Automation
+        _evaluateBuiltInRules('lamp', condition);
+    }
+
+    /**
+     * _evaluateBuiltInRules: Mengeksekusi otomasi "Hardcoded" dari User Settings (Smart Lamp/Fan/Lock)
+     */
+    function _evaluateBuiltInRules(type, payload) {
+        if (!_isActive || !window.PHP_SETTINGS) return;
+        const s = window.PHP_SETTINGS;
+
+        if (type === 'lamp' && s.automation_lamp) {
+            const brightness = payload === 'dark' || payload === 'bright' || payload === 'normal' 
+                             ? (payload === 'dark' ? 0.2 : 0.8) : parseFloat(payload);
+            const onThr  = parseFloat(s.lamp_on_threshold  || 0.3);
+            const offThr = parseFloat(s.lamp_off_threshold || 0.7);
+
+            // Cari semua lampu
+            Object.entries(window.STATE?.devices || {}).forEach(([id, dev]) => {
+                if (dev.icon === 'fa-lightbulb' || dev.type === 'light' || dev.name.toLowerCase().includes('lampu')) {
+                    if (brightness <= onThr) _execute(id, 'on', 'Smart Lamp (Gelap)');
+                    else if (brightness >= offThr) _execute(id, 'off', 'Smart Lamp (Terang)');
+                }
+            });
+        }
+
+        if (type === 'fan' && s.automation_fan) {
+            const temp = parseFloat(payload);
+            const highThr   = parseFloat(s.fan_temp_high   || 30);
+            const normalThr = parseFloat(s.fan_temp_normal || 25);
+
+            Object.entries(window.STATE?.devices || {}).forEach(([id, dev]) => {
+                if (dev.icon === 'fa-wind' || dev.name.toLowerCase().includes('kipas')) {
+                    if (temp >= highThr) _execute(id, 'speed_high', 'Smart Fan (Panas)');
+                    else if (temp <= normalThr) _execute(id, 'off', 'Smart Fan (Dingin)');
+                    else _execute(id, 'speed_mid', 'Smart Fan (Normal)');
+                }
+            });
+        }
+
+        if (type === 'lock' && s.automation_lock) {
+            const deviceId = String(payload.id);
+            const state    = payload.state; // true = unlocked/on, false = locked/off
+            
+            if (state === true) { // Jika baru saja dibuka (ON)
+                const delay = parseInt(s.lock_delay || 5000);
+                const devName = window.STATE?.devices?.[deviceId]?.name || 'Pintu';
+                
+                // Set timeout untuk kunci kembali
+                setTimeout(() => {
+                    _execute(deviceId, 'off', 'Auto-Lock (Berjangka)');
+                    if (typeof addLog === 'function') {
+                        addLog(devName, 'Pintu dikunci otomatis (Keamanan)', 'System', 'info');
+                    }
+                }, delay);
+            }
+        }
     }
 
     /**
@@ -245,37 +303,42 @@ const automationEngine = (() => {
         const now      = new Date();
         const hhmm     = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
         
+        // 1. Evaluasi 'automation_rules' (Time-only rules)
         Object.keys(rulesMap).forEach(key => {
             const rules = rulesMap[key];
             rules.forEach(rule => {
                 if (!rule.enabled) return;
                 
-                // 1. Kondisi "Time Only": Pemicu utama adalah Jam Mulai atau Jam Selesai
                 if (rule.condition === 'time_only') {
-                    // Cek Trigger Jam Mulai (Execute Action)
                     if (rule.startTime && rule.startTime.substring(0, 5) === hhmm) {
                         const dedupKey = `time_rule_${rule.dbId}_start_${hhmm}_${now.toDateString()}`;
                         if (_isDeduped(dedupKey)) return;
-                        
                         _execute(rule.deviceId, rule.action, `Jadwal Mulai`, rule.delay || 0);
-                        if (typeof addLog === 'function') {
-                            const dev = window.STATE?.devices?.[rule.deviceId]?.name || rule.deviceId;
-                            addLog(dev, `Jadwal Operasional (Mulai: ${hhmm}) dijalankan`, 'Schedule', 'info');
-                        }
                     } 
-                    // Cek Trigger Jam Selesai (Auto-Off Action)
-                    // Jika jam selesai tercapai, sistem otomatis mematikan perangkat untuk efisiensi
                     else if (rule.endTime && rule.endTime.substring(0, 5) === hhmm) {
                         const dedupKey = `time_rule_${rule.dbId}_end_${hhmm}_${now.toDateString()}`;
                         if (_isDeduped(dedupKey)) return;
-
                         _execute(rule.deviceId, 'off', `Jadwal Selesai`, rule.delay || 0);
-                        if (typeof addLog === 'function') {
-                            const dev = window.STATE?.devices?.[rule.deviceId]?.name || rule.deviceId;
-                            addLog(dev, `Jadwal Operasional (Selesai: ${hhmm}) — Perangkat dimatikan`, 'Schedule', 'info');
-                        }
                     }
                 }
+            });
+        });
+
+        // 2. Evaluasi tabel 'Schedules' (Jadwal Terpisah)
+        const schedules = window.STATE?.schedules || [];
+        const dayNames  = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const todayName = dayNames[now.getDay()];
+
+        schedules.forEach(sch => {
+            if (!sch.enabled) return;
+            if (sch.time !== hhmm) return;
+            if (sch.days && sch.days.length > 0 && !sch.days.includes(todayName)) return;
+
+            const dedupKey = `sch_db_${sch.id}_${hhmm}_${now.toDateString()}`;
+            if (_isDeduped(dedupKey)) return;
+
+            (sch.devices || []).forEach(devId => {
+                _execute(devId, sch.action, `Jadwal: ${sch.label || 'Rutin'}`, 0);
             });
         });
     }
@@ -345,6 +408,17 @@ const automationEngine = (() => {
         async initialize() {
             _isActive = true;
             await _loadCVRules();
+            
+            // Sync Schedules into STATE if not already there
+            if (typeof apiPost === 'function') {
+                apiPost('get_schedules').then(data => {
+                    if (Array.isArray(data)) {
+                        if (!window.STATE) window.STATE = {};
+                        window.STATE.schedules = data;
+                    }
+                }).catch(() => {});
+            }
+
             _schedTimer = setInterval(_checkTimeRules, 30000);
             _checkTimeRules();
         },

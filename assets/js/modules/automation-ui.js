@@ -190,25 +190,29 @@ function renderAutomationView() {
 }
 
 function buildRuleRowHTML(sensorId, rule, sensor = null, meta = null) {
-  const device   = STATE.devices[String(rule.deviceId)];
-  const devName  = device ? escHtml(device.name) : `<span style="color:var(--red)">Perangkat dihapus</span>`;
+  const device    = STATE.devices[String(rule.deviceId)];
+  const devName   = device ? escHtml(device.name) : `<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Perangkat Terhapus</span>`;
   const condLabel = getConditionLabel(rule, sensor, meta);
+  
   let actionBadge = "";
   switch (rule.action) {
-    case "on":         actionBadge = `<span class="rule-badge-on">ON</span>`;           break;
-    case "off":        actionBadge = `<span class="rule-badge-off">OFF</span>`;          break;
-    case "speed_high": actionBadge = `<span class="rule-badge-speed">💨 75%</span>`;    break;
-    case "speed_mid":  actionBadge = `<span class="rule-badge-speed">🌬️ 50%</span>`;   break;
-    case "speed_low":  actionBadge = `<span class="rule-badge-speed">🌬️ 25%</span>`;   break;
-    default:           actionBadge = `<span class="rule-badge-on">${rule.action}</span>`;
+    case "on":         actionBadge = `<span class="rule-badge-on">NYALAKAN</span>`;          break;
+    case "off":        actionBadge = `<span class="rule-badge-off">MATIKAN</span>`;          break;
+    case "speed_high": actionBadge = `<span class="rule-badge-speed">💨 MAX (75%)</span>`;   break;
+    case "speed_mid":  actionBadge = `<span class="rule-badge-speed">🌬️ MEDIUM (50%)</span>`; break;
+    case "speed_low":  actionBadge = `<span class="rule-badge-speed">🌬️ LOW (25%)</span>`;  break;
+    default:           actionBadge = `<span class="rule-badge-on">${rule.action.toUpperCase()}</span>`;
   }
+
   const timeLabel = (rule.startTime && rule.endTime) 
-    ? `<div class="rule-time-window"><i class="fas fa-clock"></i> ${rule.startTime.substring(0,5)}–${rule.endTime.substring(0,5)}</div>` 
+    ? `<div class="rule-time-window"><i class="fas fa-clock"></i> ${rule.startTime.substring(0,5)} – ${rule.endTime.substring(0,5)}</div>` 
     : "";
-  const devIcon = device ? `<i class="fas ${device.icon || "fa-plug"}" style="font-size:10px;color:var(--ink-3)"></i>` : "";
+  
+  const devIcon = device ? `<i class="fas ${device.icon || "fa-plug"}" style="font-size:10px;opacity:0.6"></i>` : "";
   const fromTpl = rule.fromTemplate
-    ? `<div style="font-size:9.5px;color:var(--ink-5);margin-top:2px"><i class="fas fa-magic" style="font-size:9px"></i> ${escHtml(rule.fromTemplate)}</div>`
+    ? `<div class="rule-tpl-badge"><i class="fas fa-magic"></i> Template: ${escHtml(rule.fromTemplate)}</div>`
     : "";
+  
   const sid = sensorId ? String(sensorId) : ('device_' + rule.deviceId);
   return `<div class="rule-row" id="rule-row-${rule.ruleId}">
     <label class="toggle-wrapper" style="flex-shrink:0">
