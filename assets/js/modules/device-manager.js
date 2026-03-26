@@ -498,77 +498,91 @@ function getDevice3DSVG(dtype) {
 const QC_3D = { scenes: {} };
 
 /**
- * Membuat grup ikon 3D berdasarkan tipe perangkat.
+ * Membuat grup ikon 3D premium berdasarkan tipe perangkat.
  */
 function create3DIcon(dtype, hexColor) {
   const group = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(hexColor),
-    emissive: new THREE.Color(hexColor),
-    emissiveIntensity: 0.5,
-    roughness: 0.2,
-    metalness: 0.8
+  const color = new THREE.Color(hexColor);
+  
+  // Material Dasar Premium (Plastik/Logam Mengkilap)
+  const baseMat = new THREE.MeshStandardMaterial({
+    color: color,
+    metalness: 0.8,
+    roughness: 0.15,
+    emissive: color,
+    emissiveIntensity: 0.2, // Redup saat idle
+  });
+
+  // Material Glow (Pendar)
+  const glowMat = new THREE.MeshStandardMaterial({
+    color: color,
+    metalness: 0.5,
+    roughness: 0.1,
+    emissive: color,
+    emissiveIntensity: 0.8,
   });
 
   if (dtype === "light") {
-    // Stem
-    const stemGeo = new THREE.CylinderGeometry(0.1, 0.15, 0.3);
-    const stem = new THREE.Mesh(stemGeo, material);
-    stem.position.y = -0.3;
-    group.add(stem);
-    // Bulb
-    const bulbGeo = new THREE.SphereGeometry(0.4, 20, 20);
-    const bulb = new THREE.Mesh(bulbGeo, material);
-    bulb.position.y = 0.2;
+    // Elegant Bulb Base
+    const baseGeo = new THREE.CylinderGeometry(0.15, 0.2, 0.25, 24);
+    const base = new THREE.Mesh(baseGeo, baseMat);
+    base.position.y = -0.3;
+    group.add(base);
+
+    // Smooth Bulb Globe
+    const bulbGeo = new THREE.SphereGeometry(0.42, 32, 24);
+    const bulb = new THREE.Mesh(bulbGeo, glowMat);
+    bulb.position.y = 0.22;
     group.add(bulb);
   } else if (dtype === "fan" || dtype === "ac") {
-    // Hub
-    const hubGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.2, 16);
-    const hub = new THREE.Mesh(hubGeo, material);
-    hub.rotation.x = Math.PI / 2;
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.15, 24), baseMat);
+    hub.rotation.x = Math.PI/2;
     group.add(hub);
-    // Blades
+    
+    // Aerodynamic Blades
+    const engine = new THREE.Group();
     for (let i = 0; i < 4; i++) {
-      const bladeGeo = new THREE.BoxGeometry(0.7, 0.15, 0.03);
-      const blade = new THREE.Mesh(bladeGeo, material);
-      blade.position.x = 0.45;
-      const pivot = new THREE.Group();
-      pivot.rotation.z = (i * Math.PI) / 2;
-      pivot.add(blade);
-      group.add(pivot);
+        const bladeGeo = new THREE.BoxGeometry(0.75, 0.18, 0.04);
+        const blade = new THREE.Mesh(bladeGeo, glowMat);
+        blade.position.x = 0.45;
+        const pivot = new THREE.Group();
+        pivot.rotation.z = (i * Math.PI) / 2;
+        pivot.add(blade);
+        engine.add(pivot);
     }
+    group.add(engine);
+    group.userData.engine = engine;
   } else if (dtype === "lock" || dtype === "door") {
-    // Body
-    const bodyGeo = new THREE.BoxGeometry(0.6, 0.5, 0.2);
-    const body = new THREE.Mesh(bodyGeo, material);
-    body.position.y = -0.15;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 0.22, 1, 1, 1), baseMat);
+    body.position.y = -0.1;
     group.add(body);
-    // Shackle
-    const shackleGeo = new THREE.TorusGeometry(0.25, 0.08, 12, 24, Math.PI);
-    const shackle = new THREE.Mesh(shackleGeo, material);
-    shackle.position.y = 0.1;
+    
+    // Smooth Shackle
+    const shackleGeo = new THREE.TorusGeometry(0.25, 0.07, 12, 32, Math.PI);
+    const shackle = new THREE.Mesh(shackleGeo, glowMat);
+    shackle.position.y = 0.15;
     group.add(shackle);
   } else if (dtype === "tv" || dtype === "speaker") {
-    const screenGeo = new THREE.BoxGeometry(0.8, 0.5, 0.1);
-    const screen = new THREE.Mesh(screenGeo, material);
+    const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.52, 0.08), baseMat);
+    group.add(bezel);
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.45), glowMat);
+    screen.position.z = 0.05;
     group.add(screen);
-    const standGeo = new THREE.CylinderGeometry(0.05, 0.1, 0.2);
-    const stand = new THREE.Mesh(standGeo, material);
-    stand.position.y = -0.35;
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.12, 0.18, 16), baseMat);
+    stand.position.y = -0.38;
     group.add(stand);
   } else {
-    // Default: Drop shape for pump
-    const dropGeo = new THREE.IcosahedronGeometry(0.5, 2);
-    const drop = new THREE.Mesh(dropGeo, material);
-    drop.scale.set(1, 1.4, 1);
-    group.add(drop);
+    // Smart Pump / General
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45, 4), glowMat);
+    core.scale.set(1, 1.3, 1);
+    group.add(core);
   }
 
   return group;
 }
 
 /**
- * Inisialisasi visual Three.js untuk tombol perangkat.
+ * Inisialisasi visual Three.js Premium.
  */
 function initDevice3D(canvasId, hexColor, deviceId) {
   const canvas = document.getElementById(canvasId);
@@ -576,42 +590,72 @@ function initDevice3D(canvasId, hexColor, deviceId) {
 
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
   renderer.setSize(90, 90);
-  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-  camera.position.z = 2.8;
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera.position.z = 3.2;
 
   const dtype = getDeviceType(STATE.devices[deviceId]?.icon);
   const iconGroup = create3DIcon(dtype, hexColor);
   scene.add(iconGroup);
 
-  // Lighting
-  const am = new THREE.AmbientLight(0xffffff, 0.8);
-  scene.add(am);
-  const dl = new THREE.DirectionalLight(0xffffff, 1.2);
-  dl.position.set(1, 2, 3);
-  scene.add(dl);
+  // Advanced Lighting System
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const p1 = new THREE.PointLight(0xffffff, 1.5, 10);
+  p1.position.set(2, 3, 4);
+  scene.add(p1);
+  const p2 = new THREE.PointLight(hexColor, 2, 5);
+  p2.position.set(-2, -1, 1);
+  scene.add(p2);
 
-  QC_3D.scenes[canvasId] = { iconGroup, renderer, scene, camera, active: !!STATE.deviceStates[deviceId] };
+  QC_3D.scenes[canvasId] = { 
+    iconGroup, renderer, scene, camera, 
+    active: !!STATE.deviceStates[deviceId],
+    lastState: !!STATE.deviceStates[deviceId]
+  };
 
-  function loop() {
+  // GSAP Levitation Animation
+  gsap.to(iconGroup.position, {
+    y: 0.1,
+    duration: 2 + Math.random(),
+    repeat: -1,
+    yoyo: true,
+    ease: "sine.inOut"
+  });
+
+  function loop(time) {
     if (!document.getElementById(canvasId)) return;
     requestAnimationFrame(loop);
     
     const sc = QC_3D.scenes[canvasId];
+    if (sc.active !== sc.lastState) {
+        // Trigger transisi smooth saat state berubah
+        iconGroup.traverse(m => {
+            if (m.material) {
+                gsap.to(m.material, { 
+                    emissiveIntensity: sc.active ? 1.2 : 0.2, 
+                    duration: 0.6, 
+                    ease: "power2.out" 
+                });
+            }
+        });
+        sc.lastState = sc.active;
+    }
+
     if (sc.active) {
-      iconGroup.rotation.y += 0.02;
-      if (dtype === "fan" || dtype === "ac") iconGroup.rotation.z += 0.1; 
-      iconGroup.position.y = Math.sin(Date.now() * 0.003) * 0.05;
+      iconGroup.rotation.y += 0.012;
+      if (groupHasEngine(iconGroup)) iconGroup.userData.engine.rotation.z += 0.18;
     } else {
-      iconGroup.rotation.y *= 0.94;
-      iconGroup.rotation.z *= 0.94;
-      iconGroup.position.y *= 0.94;
+      iconGroup.rotation.y *= 0.96;
+      if (groupHasEngine(iconGroup)) iconGroup.userData.engine.rotation.z *= 0.94;
     }
     renderer.render(scene, camera);
   }
-  loop();
+  
+  function groupHasEngine(g) { return g && g.userData && g.userData.engine; }
+  
+  loop(0);
 }
 
 /**

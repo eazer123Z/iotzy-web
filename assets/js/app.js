@@ -358,8 +358,8 @@ async function syncAutomationFromServer() {
   if (typeof renderAutomationView === 'function') renderAutomationView();
 }
 
-async function syncAllFromServer() {
-  if (syncAllFromServer._inFlight) return;
+async function syncAllFromServer(forceSync = false) {
+  if (syncAllFromServer._inFlight && !forceSync) return;
   syncAllFromServer._inFlight = true;
   try {
     const res = await apiPost("get_dashboard_data", {});

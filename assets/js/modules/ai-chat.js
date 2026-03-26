@@ -196,8 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                // Refresh data perangkat setelah delay kecil agar MQTT punya waktu broadcast
-                setTimeout(refreshDeviceData, 500);
+                // Refresh data perangkat segera agar MQTT punya waktu broadcast
+                setTimeout(refreshDeviceData, 100);
+
+                // Paksa sinkronisasi full segera untuk menangkap perangkat/rule baru
+                if (typeof syncAllFromServer === 'function') syncAllFromServer(true);
 
             } else {
                 // Error dari server tapi HTTP OK
@@ -318,7 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {
        ════════════════════════════════════════════════════ */
     function handleUIAction(action) {
         if (action === 'refresh') {
-            setTimeout(() => window.location.reload(), 800);
+            // Ganti reload dengan sinkronisasi pintar
+            if (typeof refreshDeviceData === 'function') refreshDeviceData();
+            if (typeof syncAllFromServer === 'function') syncAllFromServer(true);
             return;
         }
         if (action.startsWith('navigate_')) {
