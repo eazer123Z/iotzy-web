@@ -248,36 +248,78 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
 .toggle-switch::after{content:'';position:absolute;width:22px;height:22px;background:#fff;border-radius:50%;top:2px;left:2px;transition:var(--transition);box-shadow:0 1px 3px rgba(0,0,0,0.3)}
 .toggle-switch.on::after{left:24px}
 
-/* ── 14. SENSOR CARDS ─────────────────────────────────── */
-.sensors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-.sensor-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center;transition:var(--transition);display:flex;flex-direction:column;align-items:center;gap:12px}
-.sensor-card:hover{border-color:var(--border-hover);box-shadow:var(--shadow-sm)}
-.sensor-gauge{width:100px;height:50px;position:relative;overflow:hidden}
-.sensor-gauge-ring{width:100px;height:100px;border-radius:50%;border:8px solid var(--border);border-bottom-color:var(--accent);border-left-color:var(--accent);transform:rotate(-45deg);position:absolute;top:0;left:0;transition:var(--transition)}
-.sensor-value{font-size:1.8rem;font-weight:800;color:var(--heading);line-height:1}
-.sensor-unit{font-size:.8rem;color:var(--text-muted);font-weight:500}
-.sensor-name{font-weight:600;color:var(--text);font-size:.9rem}
-.sensor-icon{width:36px;height:36px;border-radius:10px;background:var(--accent-bg);color:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:.95rem}
-.sensor-meta{font-size:.72rem;color:var(--text-muted)}
-.sensor-actions{display:flex;gap:6px;margin-top:4px}
+/* ── 14. SENSOR CARDS (V2) ────────────────────────────── */
+.sensors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.sensor-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:var(--transition);display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden}
+.sensor-card:hover{border-color:var(--border-hover)}
+.sensor-card::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at top right, var(--accent-glow), transparent 60%);opacity:0;transition:var(--transition);pointer-events:none}
+.sensor-card:hover::before{opacity:1}
+.sensor-card-top{display:flex;align-items:flex-start;justify-content:space-between}
+.sensor-card-info{display:flex;align-items:center;gap:12px}
+.sensor-big-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
+.sensor-name{font-weight:700;color:var(--heading);font-size:.95rem;line-height:1.2;margin-bottom:2px}
+.sensor-type-label{font-size:.75rem;color:var(--text-muted);font-weight:500;text-transform:capitalize}
+.sensor-card-actions{display:flex;gap:4px}
+.sensor-value-big{font-size:2rem;font-weight:800;color:var(--heading);line-height:1;font-family:var(--font-mono);display:flex;align-items:baseline;gap:4px}
+.sensor-meta-val{font-size:.72rem;font-family:var(--font-mono);color:var(--text-muted)}
+.sensor-status-row{display:flex;align-items:baseline;justify-content:space-between;margin-top:4px}
+.progress-track{width:100%;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:4px;position:relative}
+.progress-fill{height:100%;border-radius:4px;transition:width 0.4s cubic-bezier(0.4,0,0.2,1);position:relative}
+.progress-fill::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent);transform:translateX(-100%);animation:shimmer 2s infinite}
+.temp-bar{background:linear-gradient(90deg,#3b82f6,#22c55e,#f59e0b,#ef4444)}
+.humidity-bar{background:linear-gradient(90deg,#93c5fd,#3b82f6,#1d4ed8)}
+.air-bar{background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444,#7c3aed)}
+.smoke-bar,.gas-bar{background:linear-gradient(90deg,var(--success),var(--warning),var(--danger))}
+.brightness-bar{background:linear-gradient(90deg,var(--surface-hover),#fde047,#f59e0b)}
+.default-bar{background:var(--info)}
+.progress-labels{display:flex;justify-content:space-between;font-size:.65rem;color:var(--text-muted);margin-top:4px;font-family:var(--font-mono)}
+.sparkline-canvas{width:100%;height:44px;margin-top:-6px;display:block}
+.presence-status{display:flex;align-items:center;gap:10px;margin:10px 0}
+.presence-dot{width:14px;height:14px;border-radius:50%;background:var(--border);transition:var(--transition);box-shadow:inset 0 2px 4px rgba(0,0,0,0.1)}
+.presence-dot.detected{background:var(--success);box-shadow:0 0 12px var(--success), inset 0 2px 4px rgba(255,255,255,0.3)}
+.presence-text{font-size:1.1rem;font-weight:700;color:var(--text-muted);transition:color .3s}
+.presence-dot.detected + .presence-text{color:var(--success)}
+.motion-indicator{display:flex;align-items:center;gap:14px;padding:12px;background:var(--bg);border-radius:var(--radius-sm);border:1px dashed var(--border);transition:var(--transition)}
+.motion-indicator.active{border-color:var(--purple);background:rgba(168,85,247,0.08)}
+.motion-icon{font-size:1.8rem;transition:transform .3s}
+.motion-indicator.active .motion-icon{transform:scale(1.1);animation:wiggle .5s ease infinite alternate}
+@keyframes shimmer{100%{transform:translateX(100%)}}
+@keyframes wiggle{0%{transform:rotate(-15deg)}100%{transform:rotate(15deg)}}
 
-/* ── 15. AUTOMATION RULES ─────────────────────────────── */
-.automation-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
-.rule-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:var(--transition)}
-.rule-card:hover{border-color:var(--border-hover)}
-.rule-card.disabled{opacity:.5}
-.rule-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.rule-name{font-weight:700;color:var(--heading);font-size:.95rem}
-.rule-type-badge{font-size:.65rem;font-weight:700;padding:3px 10px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px}
-.rule-type-badge.sensor{background:var(--info-bg);color:var(--info)}
-.rule-type-badge.schedule{background:var(--warning-bg);color:var(--warning)}
-.rule-type-badge.cv{background:var(--accent-bg);color:var(--accent-light)}
-.rule-body{display:flex;flex-direction:column;gap:8px;font-size:.82rem;color:var(--text-secondary)}
-.rule-condition{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg);border-radius:var(--radius-sm)}
-.rule-condition .label{font-weight:700;color:var(--info);font-size:.7rem;text-transform:uppercase}
-.rule-action{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg);border-radius:var(--radius-sm)}
-.rule-action .label{font-weight:700;color:var(--success);font-size:.7rem;text-transform:uppercase}
-.rule-footer{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+/* ── 15. AUTOMATION RULES (V2) ────────────────────────── */
+.automation-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.auto-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:var(--transition);display:flex;flex-direction:column}
+.auto-card:hover{border-color:var(--border-hover)}
+.device-auto-card{border-top:3px solid var(--border)}
+.auto-card-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg)}
+.auto-card-head-l{display:flex;align-items:center;gap:12px}
+.auto-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.auto-card-title{font-weight:700;font-size:1rem;color:var(--heading);line-height:1.2}
+.auto-card-sub{font-size:.72rem;color:var(--text-secondary);display:flex;align-items:center;gap:6px;margin-top:4px}
+.auto-val-badge{padding:2px 6px;border-radius:4px;background:var(--surface-hover);font-family:var(--font-mono);font-size:.7rem;color:var(--heading);font-weight:600;border:1px solid var(--border)}
+.auto-card-body{padding:20px;display:flex;flex-direction:column;gap:16px;flex:1}
+.auto-templates-label,.auto-section-label{font-size:.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;border-bottom:1px dashed var(--border);padding-bottom:6px}
+.template-chips{display:flex;flex-wrap:wrap;gap:8px}
+.template-chip{padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:20px;font-size:.75rem;font-weight:600;color:var(--text-secondary);transition:var(--transition);display:inline-flex;align-items:center;gap:6px}
+.template-chip:hover{background:var(--accent-bg);color:var(--accent-light);border-color:rgba(99,102,241,0.3);transform:translateY(-1px)}
+.rules-stack{display:flex;flex-direction:column;gap:10px}
+.rules-empty{font-size:.8rem;color:var(--text-muted);text-align:center;padding:16px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm);border:1px dashed var(--border)}
+.rule-row{display:flex;align-items:center;gap:12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;transition:var(--transition)}
+.rule-row:hover{background:var(--surface-hover);border-color:var(--border-hover)}
+.rule-badge-on{background:var(--success-bg);color:var(--success);padding:2px 6px;border-radius:4px;font-weight:700;font-size:.65rem}
+.rule-badge-off{background:var(--danger-bg);color:var(--danger);padding:2px 6px;border-radius:4px;font-weight:700;font-size:.65rem}
+.rule-badge-speed{background:var(--info-bg);color:var(--info);padding:2px 6px;border-radius:4px;font-weight:700;font-size:.65rem}
+.rule-time-window{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;background:var(--warning-bg);color:var(--warning);padding:2px 6px;border-radius:4px;font-weight:600;font-family:var(--font-mono);margin-top:4px}
+.btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:8px;background:transparent;border:1px dashed var(--border);color:var(--text-secondary);border-radius:var(--radius-sm);font-weight:600;font-size:.8rem;transition:var(--transition)}
+.btn-ghost:hover{background:var(--surface-hover);color:var(--heading);border-style:solid;border-color:var(--border-hover)}
+.btn-ghost.full{width:100%}
+/* Toggle iOS Style Checkbox Auto Rule */
+.toggle-wrapper{display:inline-block;position:relative;width:36px;height:20px}
+.toggle-input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;background:var(--border);border-radius:10px;transition:var(--transition);cursor:pointer}
+.toggle-track::before{content:'';position:absolute;width:16px;height:16px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:var(--transition);box-shadow:0 1px 3px rgba(0,0,0,0.3)}
+.toggle-input:checked + .toggle-track{background:var(--success)}
+.toggle-input:checked + .toggle-track::before{transform:translateX(16px)}
 
 /* ── 16. CAMERA / CV PANEL ────────────────────────────── */
 .camera-layout{display:grid;grid-template-columns:1fr 300px;gap:20px}

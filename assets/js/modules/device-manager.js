@@ -315,6 +315,54 @@ function buildDeviceExtraHTML(id, device) {
 /* ==================== RENDER DEVICES ==================== */
 
 /**
+ * Membangun HTML Card lengkap untuk sebuah perangkat
+ */
+function buildDeviceCardHTML(deviceId) {
+  const id     = String(deviceId);
+  const device = STATE.devices[id];
+  if (!device) return "";
+  const isOn   = !!STATE.deviceStates[id];
+  const dtype  = getDeviceType(device.icon);
+  const isLock = !!(dtype === "lock" || dtype === "door");
+  
+  const statusHtml = isLock ? (isOn ? "Terbuka" : "Terkunci") : (isOn ? "Aktif" : "Mati");
+  const durHtml    = isLock ? (isOn ? "Dibuka" : "Terkunci")  : (isOn ? "Baru nyala" : "Mati");
+
+  return `
+    <div class="device-card ${isOn ? "on" : ""}" id="card-${id}">
+      <div class="dc-header">
+        <div class="dc-icon-wrap" id="icon-${id}"><i class="fas ${escHtml(device.icon)}"></i></div>
+        <div class="dc-actions">
+          <button class="icon-btn-sm" title="Pengaturan MQTT" onclick="openTopicSettings('${id}')"><i class="fas fa-ellipsis-vertical"></i></button>
+          <button class="icon-btn-sm danger" title="Hapus Perangkat" onclick="removeDevice('${id}')"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+      <div class="dc-info" id="row-${id}">
+        <div class="dc-name">${escHtml(device.name)}</div>
+        <div class="dc-meta">
+          <span class="status-dot ${isOn ? "on" : ""}" id="dot-${id}"></span>
+          <span class="status-text ${isOn ? "on" : ""}" id="lbl-${id}">${statusHtml}</span>
+          <span class="status-dur" id="dur-${id}">${durHtml}</span>
+        </div>
+      </div>
+      <div class="dc-controls">
+        ${isLock ? `
+          <button id="lock-btn-${id}" onclick="toggleLock('${id}')" class="lock-btn ${isOn ? "unlock" : "lock"}">
+            ${isOn ? '<i class="fas fa-lock-open"></i> BUKA KUNCI' : '<i class="fas fa-lock"></i> TERKUNCI'}
+          </button>
+        ` : `
+          <label class="toggle-switch">
+            <input type="checkbox" id="device-toggle-${id}" ${isOn ? "checked" : ""} onchange="toggleDeviceState('${id}',this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        `}
+      </div>
+      ${buildDeviceExtraHTML(id, device)}
+    </div>
+  `;
+}
+
+/**
  * Merender daftar semua perangkat ke Grid Utama.
  */
 function renderDevices() {
