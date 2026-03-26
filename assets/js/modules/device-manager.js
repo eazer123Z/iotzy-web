@@ -15,16 +15,16 @@
 function getDeviceType(icon) {
   if (!icon) return "switch";
   const i = icon.toLowerCase();
-  if (i.includes("light") || i.includes("bulb") || i.includes("lamp")) return "light";
-  if (i.includes("fan") || i.includes("wind")) return "fan";
-  if (i.includes("snowflake") || i.includes("ac") || i.includes("thermometer")) return "ac";
-  if (i.includes("tv") || i.includes("display") || i.includes("desktop")) return "tv";
-  if (i.includes("lock") || i.includes("shield") || i.includes("key")) return "lock";
+  if (i.includes("light") || i.includes("bulb") || i.includes("lamp") || i.includes("sun")) return "light";
+  if (i.includes("fan") || i.includes("wind") || i.includes("propeller") || i.includes("blade")) return "fan";
+  if (i.includes("snowflake") || i.includes("ac") || i.includes("thermometer") || i.includes("temp")) return "ac";
+  if (i.includes("tv") || i.includes("display") || i.includes("desktop") || i.includes("screen")) return "tv";
+  if (i.includes("lock") || i.includes("shield") || i.includes("key") || i.includes("guard")) return "lock";
   if (i.includes("door")) return "door";
-  if (i.includes("video") || i.includes("camera") || i.includes("eye")) return "cctv";
-  if (i.includes("volume") || i.includes("speaker") || i.includes("bell")) return "speaker";
-  if (i.includes("plug") || i.includes("bolt")) return "switch";
-  if (i.includes("droplet") || i.includes("water") || i.includes("pump")) return "pump";
+  if (i.includes("video") || i.includes("camera") || i.includes("eye") || i.includes("record")) return "cctv";
+  if (i.includes("volume") || i.includes("speaker") || i.includes("bell") || i.includes("audio")) return "speaker";
+  if (i.includes("plug") || i.includes("bolt") || i.includes("power") || i.includes("switch")) return "switch";
+  if (i.includes("droplet") || i.includes("water") || i.includes("pump") || i.includes("faucet")) return "pump";
   return "switch";
 }
 
@@ -58,24 +58,40 @@ function updateDeviceUI(deviceId) {
 
   const g = (s) => document.getElementById(s);
   
-  // 1. Update Card di Grid Utama
-  g(`card-${id}`)?.classList.toggle("on", isOn);
-  g(`icon-${id}`)?.classList.toggle("on", isOn);
-
-  const togBtn = g(`device-toggle-btn-${id}`);
-  if (togBtn) Object.assign(togBtn.classList, { toggle: (cls, force) => { if (force) togBtn.classList.add(cls); else togBtn.classList.remove(cls); } }).toggle("on", isOn);
+  // 1. Update Card di Grid Utama & Quick Control
+  const card = g(`card-${id}`) || g(`qc-${id}`);
+  if (card) {
+      card.classList.toggle("on", isOn);
+      card.classList.toggle("active", isOn);
+      
+      const pill = card.querySelector(".device-status-pill");
+      if (pill) {
+          pill.classList.toggle("on", isOn);
+          pill.textContent = isOn ? 'ONLINE' : 'OFFLINE';
+      }
+      
+      const icon = card.querySelector(".power-icon");
+      if (icon) icon.style.opacity = isOn ? 0 : 0.4;
+  }
 
   const dur = g(`dur-${id}`);
   if (dur) {
-    dur.textContent = isLock ? (isOn ? "Terbuka" : "Terkunci Aman") : (isOn ? "Sedang Menyala" : "Mati / Standby");
+    dur.textContent = isLock ? (isOn ? "Terbuka" : "Terkunci Aman") : (isOn ? "Sistem Aktif" : "Standby/Idle");
     dur.classList.toggle("on", isOn);
   }
 
   // 2. Update Komponen Tambahan (Fan Speed, AC Temp, dsb)
-  g(`speed-row-${id}`)?.style.setProperty('display', isOn && dtype === 'fan' ? 'flex' : 'none');
-  g(`ac-ctrl-${id}`)?.style.setProperty('display', isOn && dtype === 'ac' ? 'flex' : 'none');
-  g(`brightness-row-${id}`)?.style.setProperty('display', isOn && dtype === 'light' ? 'flex' : 'none');
-  g(`volume-row-${id}`)?.style.setProperty('display', isOn && dtype === 'speaker' ? 'flex' : 'none');
+  const rows = [`speed-row-${id}`, `speed-row-qc-${id}`, `ac-ctrl-${id}`, `brightness-row-${id}`, `volume-row-${id}`];
+  rows.forEach(rid => {
+      const el = g(rid);
+      if (el) {
+          const isNeeded = (rid.includes('speed') && dtype === 'fan') || 
+                           (rid.includes('ac') && dtype === 'ac') ||
+                           (rid.includes('brightness') && dtype === 'light') ||
+                           (rid.includes('volume') && dtype === 'speaker');
+          el.style.display = (isOn && isNeeded) ? 'flex' : 'none';
+      }
+  });
 
   // 3. Update Lock Button jika itu tipe kunci
   if (isLock) {
@@ -428,15 +444,59 @@ function renderDevices() {
   if (empty) empty.classList.toggle('hidden', keys.length > 0);
   
   keys.forEach((id) => {
-    const wrap = document.createElement('div');
-    wrap.innerHTML = buildDeviceCardHTML(String(id)).trim();
-    const node = wrap.firstElementChild;
-    if (node) {
-        grid.appendChild(node);
-        const dtype = getDeviceType(STATE.devices[id]?.icon);
-        const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
-        setTimeout(() => initDevice3D(`main-canv-${id}`, accent, id), 50);
-    }
+    const device = STATE.devices[id];
+    const isOn = !!STATE.deviceStates[id];
+    const dtype = getDeviceType(device.icon);
+    const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
+
+    const card = document.createElement('div');
+    card.className = `device-card device-${dtype} ${isOn ? 'active on' : ''}`;
+    card.id = `card-${id}`;
+    
+    card.onclick = () => {
+        const next = !STATE.deviceStates[id];
+        if (next) spawnQCParticles(`main-parts-${id}`, accent, true);
+        if (QC_3D.scenes[`main-canv-${id}`]) QC_3D.scenes[`main-canv-${id}`].active = next;
+        toggleDeviceState(id, next);
+    };
+
+    card.innerHTML = `
+      <div class="card-glow" style="--card-accent: ${accent}"></div>
+      <div class="card-controls-top">
+        <button class="card-action-btn" onclick="event.stopPropagation(); openEditDeviceModal('${id}')"><i class="fas fa-cog"></i></button>
+        <button class="card-action-btn trash" onclick="event.stopPropagation(); deleteDevice('${id}')"><i class="fas fa-trash"></i></button>
+      </div>
+      <div class="btn-wrap">
+        <div class="btn-pulse" style="background: ${accent}"></div>
+        <canvas class="btn-canvas" id="main-canv-${id}"></canvas>
+        <div class="btn-surface">
+             <div class="power-icon" style="opacity: ${isOn ? 0 : 0.4}">${getDevice3DSVG(dtype)}</div>
+        </div>
+        <div class="particles" id="main-parts-${id}"></div>
+      </div>
+      <div class="device-info">
+        <div class="device-name">${escHtml(device.name)}</div>
+        <div class="device-usage" id="dur-${id}">${isOn ? 'Aktif' : 'Standby'}</div>
+      </div>
+      
+      <div class="device-controls-area">
+          <div id="speed-row-${id}" class="control-row" style="display: ${isOn && dtype === 'fan' ? 'flex' : 'none'}">
+            <i class="fas fa-wind" style="font-size:10px;opacity:0.5"></i>
+            <input type="range" class="nebula-slider" min="1" max="3" value="${STATE.deviceExtras[id]?.fanSpeed || 2}" 
+                   oninput="event.stopPropagation(); setFanSpeed('${id}', this.value)">
+            <span class="ctrl-val">${(STATE.deviceExtras[id]?.fanSpeed || 2) * 25 + 25}%</span>
+          </div>
+          <div id="brightness-row-${id}" class="control-row" style="display: ${isOn && dtype === 'light' ? 'flex' : 'none'}">
+            <i class="fas fa-sun" style="font-size:10px;opacity:0.5"></i>
+            <input type="range" class="nebula-slider" min="10" max="100" value="80" oninput="event.stopPropagation()">
+          </div>
+      </div>
+
+      <div class="device-status-pill ${isOn ? 'on' : ''}">${isOn ? 'ONLINE' : 'OFFLINE'}</div>
+    `;
+    
+    grid.appendChild(card);
+    setTimeout(() => initDevice3D(`main-canv-${id}`, accent, id), 10);
   });
 }
 
@@ -507,19 +567,19 @@ function create3DIcon(dtype, hexColor) {
   // Material Dasar Premium (Plastik/Logam Mengkilap)
   const baseMat = new THREE.MeshStandardMaterial({
     color: color,
-    metalness: 0.8,
-    roughness: 0.15,
+    metalness: 0.9,
+    roughness: 0.05,
     emissive: color,
-    emissiveIntensity: 0.2, // Redup saat idle
+    emissiveIntensity: 0.3, // Lebih terang saat idle
   });
 
   // Material Glow (Pendar)
   const glowMat = new THREE.MeshStandardMaterial({
     color: color,
-    metalness: 0.5,
+    metalness: 0.6,
     roughness: 0.1,
     emissive: color,
-    emissiveIntensity: 0.8,
+    emissiveIntensity: 1.2,
   });
 
   if (dtype === "light") {
@@ -571,10 +631,16 @@ function create3DIcon(dtype, hexColor) {
     const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.12, 0.18, 16), baseMat);
     stand.position.y = -0.38;
     group.add(stand);
+  } else if (dtype === "pump") {
+    // Elegant Droplet for Smart Pump
+    const coreGeo = new THREE.IcosahedronGeometry(0.4, 3);
+    const core = new THREE.Mesh(coreGeo, glowMat);
+    core.scale.set(0.8, 1.4, 0.8);
+    group.add(core);
   } else {
-    // Smart Pump / General
-    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.45, 4), glowMat);
-    core.scale.set(1, 1.3, 1);
+    // Energy Core for General Switch
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), glowMat);
+    core.rotation.set(Math.PI/4, Math.PI/4, 0);
     group.add(core);
   }
 
@@ -601,11 +667,11 @@ function initDevice3D(canvasId, hexColor, deviceId) {
   scene.add(iconGroup);
 
   // Advanced Lighting System
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-  const p1 = new THREE.PointLight(0xffffff, 1.5, 10);
+  scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+  const p1 = new THREE.PointLight(0xffffff, 3.5, 10);
   p1.position.set(2, 3, 4);
   scene.add(p1);
-  const p2 = new THREE.PointLight(hexColor, 2, 5);
+  const p2 = new THREE.PointLight(hexColor, 3, 5);
   p2.position.set(-2, -1, 1);
   scene.add(p2);
 
@@ -732,17 +798,34 @@ function renderQuickControls() {
     };
 
     card.innerHTML = `
+      <div class="card-glow" style="--card-accent: ${accent}"></div>
+      <div class="card-controls-top">
+        <button class="card-action-btn" onclick="event.stopPropagation(); openEditDeviceModal('${id}')"><i class="fas fa-cog"></i></button>
+        <button class="card-action-btn trash" onclick="event.stopPropagation(); deleteDevice('${id}')"><i class="fas fa-trash"></i></button>
+      </div>
       <div class="btn-wrap">
-        <div class="btn-pulse"></div>
-        <div class="btn-ring"></div>
+        <div class="btn-pulse" style="background: ${accent}"></div>
         <canvas class="btn-canvas" id="canv-${id}"></canvas>
         <div class="btn-surface">
-          <div class="power-icon">${getDevice3DSVG(dtype)}</div>
+             <div class="power-icon" style="opacity: ${isOn ? 0 : 0.4}">${getDevice3DSVG(dtype)}</div>
         </div>
         <div class="particles" id="parts-${id}"></div>
       </div>
-      <div class="device-name">${escHtml(device.name)}</div>
-      <div class="device-status ${isOn ? 'on' : ''}">${isOn ? 'ON' : 'OFF'}</div>
+      <div class="device-info">
+        <div class="device-name">${escHtml(device.name)}</div>
+        <div class="device-usage" id="dur-${id}">${isOn ? 'Aktif' : 'Standby'}</div>
+      </div>
+
+      <div class="device-controls-area">
+          <div id="speed-row-qc-${id}" class="control-row" style="display: ${isOn && dtype === 'fan' ? 'flex' : 'none'}">
+            <i class="fas fa-wind" style="font-size:10px;opacity:0.5"></i>
+            <input type="range" class="nebula-slider" min="1" max="3" value="${STATE.deviceExtras[id]?.fanSpeed || 2}" 
+                   oninput="event.stopPropagation(); setFanSpeed('${id}', this.value)">
+            <span class="ctrl-val">${(STATE.deviceExtras[id]?.fanSpeed || 2) * 25 + 25}%</span>
+          </div>
+      </div>
+
+      <div class="device-status-pill ${isOn ? 'on' : ''}">${isOn ? 'ONLINE' : 'OFFLINE'}</div>
     `;
     
     container.appendChild(card);

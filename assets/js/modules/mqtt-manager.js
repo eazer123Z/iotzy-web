@@ -151,10 +151,10 @@ function updateMQTTStatus(connected) {
   const g = (id) => document.getElementById(id);
   
   // Update indikator di Topbar dan Sidebar
-  g("mqttStatusDot")?.classList.toggle("connected", connected);
+  g("mqttStatusDot")?.classList.toggle("online", connected);
   if (g("mqttStatusText")) g("mqttStatusText").textContent = connected ? "Connected" : "Disconnected";
   
-  g("sidebarMqttDot")?.classList.toggle("connected", connected);
+  g("sidebarMqttDot")?.classList.toggle("online", connected);
   if (g("sidebarMqttText")) g("sidebarMqttText").textContent = connected ? "Online" : "Offline";
   
   // Update visual di halaman settings jika sedang terbuka
