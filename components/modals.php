@@ -55,8 +55,7 @@
           </select>
         </div>
       </div>
-      <div class="form-group"><label>Subscribe Topic</label><input type="text" id="deviceTopicSub"></div>
-      <div class="form-group"><label>Publish Topic</label><input type="text" id="deviceTopicPub"></div>
+      <div class="form-group"><label>Topic MQTT</label><input type="text" id="deviceTopic" placeholder="iotzy/device/xxx"></div>
     </div>
     <div class="modal-footer">
       <button onclick="closeTopicSettings()" class="btn-secondary">Batal</button>
@@ -84,7 +83,7 @@
           <option value="fa-plug">🔌 Plug</option>
         </select>
       </div>
-      <div class="form-group"><label>Topic MQTT</label><input type="text" id="newDeviceTopicPub" placeholder="iotzy/device/xxx"></div>
+      <div class="form-group"><label>Topic MQTT</label><input type="text" id="newDeviceTopic" placeholder="iotzy/device/xxx"></div>
     </div>
     <div class="modal-footer">
       <button onclick="closeAddDeviceModal()" class="btn-secondary">Batal</button>

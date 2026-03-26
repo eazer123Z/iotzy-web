@@ -47,28 +47,20 @@ function updateDeviceUI(deviceId) {
 
   const isOn   = !!STATE.deviceStates[id];
   const dtype  = getDeviceType(device.icon);
-  const isLock = (dtype === 'lock' || dtype === 'door');
+  const isLock = (dtype === 'lock' || dtype === 'door' || device.icon.includes('lock') || device.icon.includes('door'));
 
   const g = (s) => document.getElementById(s);
   
   // 1. Update Card di Grid Utama
   g(`card-${id}`)?.classList.toggle("on", isOn);
-  g(`dot-${id}`)?.classList.toggle("on", isOn);
   g(`icon-${id}`)?.classList.toggle("on", isOn);
-  g(`row-${id}`)?.classList.toggle("on", isOn);
 
-  const tog = g(`device-toggle-${id}`);
-  if (tog) tog.checked = isOn;
-
-  const lbl = g(`lbl-${id}`);
-  if (lbl) { 
-    lbl.textContent = isLock ? (isOn ? "Terbuka" : "Terkunci") : (isOn ? "Aktif" : "Mati"); 
-    lbl.className = "status-text" + (isOn ? " on" : ""); 
-  }
+  const togBtn = g(`device-toggle-btn-${id}`);
+  if (togBtn) Object.assign(togBtn.classList, { toggle: (cls, force) => { if (force) togBtn.classList.add(cls); else togBtn.classList.remove(cls); } }).toggle("on", isOn);
 
   const dur = g(`dur-${id}`);
   if (dur) {
-    dur.textContent = isLock ? (isOn ? "Dibuka" : "Terkunci") : (isOn ? "Baru nyala" : "Mati");
+    dur.textContent = isLock ? (isOn ? "Terbuka" : "Terkunci Aman") : (isOn ? "Sedang Menyala" : "Mati / Standby");
     dur.classList.toggle("on", isOn);
   }
 
@@ -82,8 +74,9 @@ function updateDeviceUI(deviceId) {
   if (isLock) {
     const lb = g(`lock-btn-${id}`);
     if (lb) {
-      lb.className = `lock-btn ${isOn ? "unlock" : "lock"}`;
-      lb.innerHTML = isOn ? `<i class="fas fa-lock-open"></i> BUKA KUNCI` : `<i class="fas fa-lock"></i> TERKUNCI`;
+      lb.style.color = isOn ? 'var(--warning)' : 'var(--success)';
+      lb.innerHTML = isOn ? `<i class="fas fa-lock-open"></i> Buka` : `<i class="fas fa-lock"></i> Kunci`;
+      lb.setAttribute("onclick", `toggleDeviceState('${id}', ${!isOn})`);
     }
   }
 
@@ -124,8 +117,14 @@ function toggleDeviceState(deviceId, newState) {
   const t = STATE.deviceTopics[id];
   if (t?.pub) publishMQTT(t.pub, buildDevicePayload(id, newState));
 
-  // Update Database Backend
-  apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: "Manual" }).catch(() => {});
+  // Optimistic UI Lock
+  STATE.deviceUpdating = STATE.deviceUpdating || {};
+  STATE.deviceUpdating[id] = true;
+
+  // Update Database Backend (Tidak blocking)
+  apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: "Manual" })
+    .catch(() => {})
+    .finally(() => { setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000); });
   
   // Logging lokal
   addLog(STATE.devices[id]?.name, newState ? "Dinyalakan" : "Dimatikan", "Manual", "info");
@@ -166,10 +165,19 @@ function applyDeviceState(deviceId, newState, reason = "Automation") {
   const t = STATE.deviceTopics[id];
   if (t?.pub) publishMQTT(t.pub, buildDevicePayload(id, newState));
 
+  // Optimistic UI Lock
+  STATE.deviceUpdating = STATE.deviceUpdating || {};
+  STATE.deviceUpdating[id] = true;
+
   // Update Database Backend (Skip jika sudah diupdate server AI)
   if (reason !== "AI Assistant (Sync)") {
-    apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: reason }).catch(() => {});
+    apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: reason })
+      .catch(() => {})
+      .finally(() => { setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000); });
+  } else {
+    setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000);
   }
+  
   addLog(STATE.devices[id]?.name, `${newState ? "ON" : "OFF"} (${reason})`, "Automation", newState ? "success" : "info");
   updateDashboardStats();
 }
@@ -518,8 +526,7 @@ function openTopicSettings(deviceId) {
   if (g("topicDeviceName")) g("topicDeviceName").textContent = device.name;
   if (g("editDeviceName"))  g("editDeviceName").value  = device.name    || "";
   if (g("editDeviceIcon"))  g("editDeviceIcon").value  = device.icon    || "fa-plug";
-  if (g("deviceTopicSub"))  g("deviceTopicSub").value  = topics.sub     || device.topic_sub || "";
-  if (g("deviceTopicPub"))  g("deviceTopicPub").value  = topics.pub     || device.topic_pub || "";
+  if (g("deviceTopic"))  g("deviceTopic").value  = topics.sub || topics.pub || device.topic_sub || device.topic_pub || "";
 
   const modal = document.getElementById("topicModal");
   if (modal) { 
@@ -540,19 +547,18 @@ async function saveDeviceSettings() {
   const id   = String(modal.dataset.deviceId);
   const name = document.getElementById("editDeviceName")?.value.trim();
   const icon = document.getElementById("editDeviceIcon")?.value;
-  const sub  = document.getElementById("deviceTopicSub")?.value.trim();
-  const pub  = document.getElementById("deviceTopicPub")?.value.trim();
+  const top  = document.getElementById("deviceTopic")?.value.trim();
 
   if (!name) { showToast("Nama perangkat harus diisi!", "warning"); return; }
 
-  const result = await apiPost("update_device", { id, name, icon, topic_sub: sub, topic_pub: pub });
+  const result = await apiPost("update_device", { id, name, icon, topic_sub: top, topic_pub: top });
   if (result?.success) {
-    STATE.devices[id]      = { ...STATE.devices[id], name, icon, topic_sub: sub, topic_pub: pub };
-    STATE.deviceTopics[id] = { sub, pub };
+    STATE.devices[id]      = { ...STATE.devices[id], name, icon, topic_sub: top, topic_pub: top };
+    STATE.deviceTopics[id] = { sub: top, pub: top };
     
     // Resubscribe jika topik berubah
-    if (STATE.mqtt.connected && sub) { 
-      try { STATE.mqtt.client.subscribe(sub); } catch (_) {} 
+    if (STATE.mqtt.connected && top) { 
+      try { STATE.mqtt.client.subscribe(top); } catch (_) {} 
     }
 
     renderDevices(); 
@@ -565,7 +571,7 @@ async function saveDeviceSettings() {
 }
 
 function openAddDeviceModal() {
-  ["newDeviceName", "newDeviceTopicSub", "newDeviceTopicPub"].forEach((id) => {
+  ["newDeviceName", "newDeviceTopic"].forEach((id) => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
   document.getElementById("addDeviceModal")?.classList.add("active");
@@ -581,20 +587,19 @@ async function saveNewDevice() {
   if (!name) { showToast("Nama perangkat harus diisi!", "warning"); return; }
 
   const icon = document.getElementById("newDeviceIcon")?.value  || "fa-plug";
-  const sub  = document.getElementById("newDeviceTopicSub")?.value.trim();
-  const pub  = document.getElementById("newDeviceTopicPub")?.value.trim();
+  const top  = document.getElementById("newDeviceTopic")?.value.trim();
 
-  const result = await apiPost("add_device", { name, icon, topic_sub: sub, topic_pub: pub });
+  const result = await apiPost("add_device", { name, icon, topic_sub: top, topic_pub: top });
   if (result?.success) {
     const id = String(result.id);
     
     // Tambahkan ke State Lokal
-    STATE.devices[id]      = { id, name, icon, type: "switch", device_key: result.device_key, topic_sub: sub, topic_pub: pub };
-    STATE.deviceTopics[id] = { sub: sub || "", pub: pub || "" };
+    STATE.devices[id]      = { id, name, icon, type: "switch", device_key: result.device_key, topic_sub: top, topic_pub: top };
+    STATE.deviceTopics[id] = { sub: top || "", pub: top || "" };
     STATE.deviceStates[id] = false;
     STATE.deviceExtras[id] = { fanSpeed: 50, acMode: "cool", acTemp: 24, brightness: 100, volume: 60 };
 
-    if (STATE.mqtt.connected && sub) { try { STATE.mqtt.client.subscribe(sub); } catch (_) {} }
+    if (STATE.mqtt.connected && top) { try { STATE.mqtt.client.subscribe(top); } catch (_) {} }
 
     renderDevices(); 
     renderQuickControls();

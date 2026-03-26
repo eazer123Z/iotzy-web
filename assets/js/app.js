@@ -376,6 +376,7 @@ async function syncAllFromServer() {
         const oldState = STATE.deviceStates[id];
         const newState = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
         if (oldState !== newState) {
+          if (STATE.deviceUpdating && STATE.deviceUpdating[id]) return; // Cegah Race-Condition UI Berkedip
           STATE.deviceStates[id] = newState;
           if (typeof updateDeviceUI === 'function') updateDeviceUI(id);
         }
