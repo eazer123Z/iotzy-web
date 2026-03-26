@@ -463,8 +463,8 @@ function renderDevices() {
     card.innerHTML = `
       <div class="card-glow" style="--card-accent: ${accent}"></div>
       <div class="card-controls-top">
-        <button class="card-action-btn" onclick="event.stopPropagation(); openEditDeviceModal('${id}')"><i class="fas fa-cog"></i></button>
-        <button class="card-action-btn trash" onclick="event.stopPropagation(); deleteDevice('${id}')"><i class="fas fa-trash"></i></button>
+        <button class="card-action-btn" onclick="event.stopPropagation(); openTopicSettings('${id}')"><i class="fas fa-cog"></i></button>
+        <button class="card-action-btn trash" onclick="event.stopPropagation(); removeDevice('${id}')"><i class="fas fa-trash"></i></button>
       </div>
       <div class="btn-wrap">
         <div class="btn-pulse" style="background: ${accent}"></div>
@@ -589,8 +589,8 @@ function create3DIcon(dtype, hexColor) {
     base.position.y = -0.3;
     group.add(base);
 
-    // Smooth Bulb Globe
-    const bulbGeo = new THREE.SphereGeometry(0.42, 32, 24);
+    // Tech Bulb (Low-poly Elegant)
+    const bulbGeo = new THREE.IcosahedronGeometry(0.42, 1);
     const bulb = new THREE.Mesh(bulbGeo, glowMat);
     bulb.position.y = 0.22;
     group.add(bulb);
@@ -632,14 +632,14 @@ function create3DIcon(dtype, hexColor) {
     stand.position.y = -0.38;
     group.add(stand);
   } else if (dtype === "pump") {
-    // Elegant Droplet for Smart Pump
-    const coreGeo = new THREE.IcosahedronGeometry(0.4, 3);
+    // Sharp Crystal for Smart Pump
+    const coreGeo = new THREE.OctahedronGeometry(0.45, 0);
     const core = new THREE.Mesh(coreGeo, glowMat);
-    core.scale.set(0.8, 1.4, 0.8);
+    core.scale.set(0.7, 1.5, 0.7);
     group.add(core);
   } else {
-    // Energy Core for General Switch
-    const core = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), glowMat);
+    // Tech Diamond for General Switch
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 0), glowMat);
     core.rotation.set(Math.PI/4, Math.PI/4, 0);
     group.add(core);
   }
@@ -800,8 +800,8 @@ function renderQuickControls() {
     card.innerHTML = `
       <div class="card-glow" style="--card-accent: ${accent}"></div>
       <div class="card-controls-top">
-        <button class="card-action-btn" onclick="event.stopPropagation(); openEditDeviceModal('${id}')"><i class="fas fa-cog"></i></button>
-        <button class="card-action-btn trash" onclick="event.stopPropagation(); deleteDevice('${id}')"><i class="fas fa-trash"></i></button>
+        <button class="card-action-btn" onclick="event.stopPropagation(); openTopicSettings('${id}')"><i class="fas fa-cog"></i></button>
+        <button class="card-action-btn trash" onclick="event.stopPropagation(); removeDevice('${id}')"><i class="fas fa-trash"></i></button>
       </div>
       <div class="btn-wrap">
         <div class="btn-pulse" style="background: ${accent}"></div>
