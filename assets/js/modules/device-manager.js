@@ -48,89 +48,46 @@ function getDeviceTypeName(icon) {
  * Memperbarui UI satu perangkat tertentu di semua komponen (Grid, Quick Control, Modal).
  */
 function updateDeviceUI(deviceId) {
-  const id    = String(deviceId);
+  const id = String(deviceId);
   const device = STATE.devices[id];
   if (!device) return;
 
-  const isOn   = !!STATE.deviceStates[id];
-  const dtype  = getDeviceType(device.icon);
-  const isLock = (dtype === 'lock' || dtype === 'door' || device.icon.includes('lock') || device.icon.includes('door'));
+  const isOn = !!STATE.deviceStates[id];
+  const dtype = getDeviceType(device.icon);
+  const isLock = (dtype === 'lock' || dtype === 'door');
 
   const g = (s) => document.getElementById(s);
   
-  // 1. Update Card di Grid Utama & Quick Control
-  const card = g(`card-${id}`) || g(`qc-${id}`);
-  if (card) {
-      card.classList.toggle("on", isOn);
-      card.classList.toggle("active", isOn);
-      
-      const pill = card.querySelector(".device-status-pill");
-      if (pill) {
-          pill.classList.toggle("on", isOn);
-          pill.textContent = isOn ? 'ONLINE' : 'OFFLINE';
-      }
-      
-      const icon = card.querySelector(".power-icon");
-      if (icon) icon.style.opacity = isOn ? 0 : 0.4;
-  }
+  // 1. Update Every Possible Card Instance (Main Grid, Quick Control, etc.)
+  document.querySelectorAll(`[id^="card-${id}"], [id^="qc-${id}"]`).forEach(card => {
+    card.classList.toggle("on", isOn);
+    card.classList.toggle("active", isOn);
+    
+    const pill = card.querySelector(".device-status-pill");
+    if (pill) {
+      pill.classList.toggle("on", isOn);
+      pill.textContent = isLock ? (isOn ? 'OPEN' : 'LOCK') : (isOn ? (card.id.startsWith('qc-') ? 'ON' : 'ONLINE') : (card.id.startsWith('qc-') ? 'OFF' : 'OFFLINE'));
+    }
 
-  const dur = g(`dur-${id}`);
-  if (dur) {
-    dur.textContent = isLock ? (isOn ? "Terbuka" : "Terkunci Aman") : (isOn ? "Sistem Aktif" : "Standby/Idle");
-    dur.classList.toggle("on", isOn);
-  }
+    const dur = card.querySelector(".device-usage, .device-status");
+    if (dur) {
+        if (isLock) dur.textContent = isOn ? "Terbuka" : "Terkunci";
+        else dur.textContent = isOn ? "Aktif" : (dur.classList.contains('device-usage') ? "Standby" : "OFF");
+    }
 
-  // 2. Update Komponen Tambahan (Fan Speed, AC Temp, dsb)
-  const rows = [`speed-row-${id}`, `speed-row-qc-${id}`, `ac-ctrl-${id}`, `brightness-row-${id}`, `volume-row-${id}`];
-  rows.forEach(rid => {
-      const el = g(rid);
-      if (el) {
-          const isNeeded = (rid.includes('speed') && dtype === 'fan') || 
-                           (rid.includes('ac') && dtype === 'ac') ||
-                           (rid.includes('brightness') && dtype === 'light') ||
-                           (rid.includes('volume') && dtype === 'speaker');
-          el.style.display = (isOn && isNeeded) ? 'flex' : 'none';
-      }
+    const icon = card.querySelector(".power-icon");
+    if (icon) icon.style.opacity = isOn ? 0 : 0.4;
+    
+    // Update Extra Controls visibility within this card
+    card.querySelectorAll('.control-row, .fan-speed-row, .ac-controls, .brightness-row, .volume-row').forEach(row => {
+        row.style.display = isOn ? 'flex' : 'none';
+    });
   });
 
-  // 3. Update Lock Button jika itu tipe kunci
-  if (isLock) {
-    const lb = g(`lock-btn-${id}`);
-    if (lb) {
-      lb.style.color = isOn ? 'var(--warning)' : 'var(--success)';
-      lb.innerHTML = isOn ? `<i class="fas fa-lock-open"></i> Buka` : `<i class="fas fa-lock"></i> Kunci`;
-      lb.setAttribute("onclick", `toggleDeviceState('${id}', ${!isOn})`);
-    }
-  }
-
-  // 4. Update Card di Quick Control (Floating View)
-  const qc = g(`qc-${id}`);
-  if (qc) {
-    qc.classList.toggle("on", isOn);
-    const qs = qc.querySelector(".qc-status");
-    if (qs) qs.textContent = isLock ? (isOn ? "Terbuka" : "Terkunci") : (isOn ? "Aktif" : "Mati");
-    
-    const pill = qc.querySelector('.qc-pill');
-    if (pill) {
-      pill.className = `qc-pill ${isOn ? 'on' : 'off'}`;
-      pill.textContent = isLock ? (isOn ? 'OPEN' : 'LOCK') : (isOn ? 'ON' : 'OFF');
-      pill.setAttribute("onclick", `toggleDeviceState('${id}', ${!isOn})`);
-    }
-
-    const qt = qc.querySelector("input[type=checkbox]");
-    if (qt) qt.checked = isOn;
-
-    // 5. Update 3D State (Advanced)
-    qc.classList.toggle("active", isOn);
-    
-    // Check both Quick Control and Main Grid canvases
-    [`canv-${id}`, `main-canv-${id}`].forEach(cid => {
-        if (QC_3D.scenes[cid]) QC_3D.scenes[cid].active = isOn;
-    });
-
-    const statEl = qc.querySelector(".qc-device-status");
-    if (statEl) statEl.textContent = isOn ? "AKTIF" : "MATI";
-  }
+  // 2. Update 3D State
+  [`canv-${id}`, `main-canv-${id}`].forEach(cid => {
+      if (QC_3D.scenes[cid]) QC_3D.scenes[cid].active = isOn;
+  });
 }
 
 /**
@@ -369,52 +326,69 @@ function buildDeviceExtraHTML(id, device) {
 
 /* ==================== RENDER DEVICES ==================== */
 
-function buildDeviceCardHTML(deviceId) {
-  const id     = String(deviceId);
+/**
+ * Membangun HTML untuk Card Perangkat secara terpusat.
+ */
+function buildDeviceCardHTML(deviceId, context = 'grid') {
+  const id = String(deviceId);
   const device = STATE.devices[id];
   if (!device) return "";
-  const isOn   = !!STATE.deviceStates[id];
-  const dtype  = getDeviceType(device.icon);
-  const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
   
-  const statusHtml = isOn ? "ON" : "OFF";
+  const isOn = !!STATE.deviceStates[id];
+  const dtype = getDeviceType(device.icon);
+  const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
+  const isQC = context === 'quick';
+  const prefix = isQC ? 'qc-' : 'card-';
+  const canvId = isQC ? `canv-${id}` : `main-canv-${id}`;
+  const partsId = isQC ? `parts-${id}` : `main-parts-${id}`;
 
   return `
-    <div class="device-card device-${dtype} ${isOn ? "on active" : ""}" id="card-${id}" onclick="handleDeviceCardClick('${id}')">
-      <div class="device-top">
+    <div class="device-card device-${dtype} ${isOn ? 'active on' : ''}" id="${prefix}${id}" onclick="handleDeviceCardClick('${id}', '${context}')">
+      <div class="card-glow" style="--card-accent: ${accent}"></div>
+      <div class="card-controls-top">
         <div class="device-actions">
-          <button onclick="event.stopPropagation(); openTopicSettings('${id}')" title="Settings"><i class="fas fa-cog"></i></button>
-          <button class="del" onclick="event.stopPropagation(); removeDevice('${id}')" title="Hapus"><i class="fas fa-trash"></i></button>
+          <button class="card-action-btn" onclick="event.stopPropagation(); openTopicSettings('${id}')" title="Settings"><i class="fas fa-cog"></i></button>
+          <button class="card-action-btn trash" onclick="event.stopPropagation(); removeDevice('${id}')" title="Hapus"><i class="fas fa-trash"></i></button>
         </div>
       </div>
       
       <div class="btn-wrap">
-        <div class="btn-pulse"></div>
-        <div class="btn-ring"></div>
-        <canvas class="btn-canvas" id="main-canv-${id}"></canvas>
+        <div class="btn-pulse" style="background: ${accent}"></div>
+        <canvas class="btn-canvas" id="${canvId}"></canvas>
         <div class="btn-surface">
-          <div class="power-icon">${getDevice3DSVG(dtype)}</div>
+          <div class="power-icon" style="opacity: ${isOn ? 0 : 0.4}">${getDevice3DSVG(dtype)}</div>
         </div>
-        <div class="particles" id="main-parts-${id}"></div>
+        <div class="particles" id="${partsId}"></div>
       </div>
 
-      <div class="device-name">${escHtml(device.name)}</div>
-      <div class="device-status ${isOn ? "on" : ""}" id="dur-${id}">${statusHtml}</div>
+      <div class="device-info">
+        <div class="device-name">${escHtml(device.name)}</div>
+        <div class="device-usage" id="dur-${id}">${isOn ? 'Aktif' : 'Standby'}</div>
+      </div>
       
-      ${buildDeviceExtraHTML(id, device)}
+      <div class="device-controls-area">
+        ${buildDeviceExtraHTML(id, device)}
+      </div>
+
+      <div class="device-status-pill ${isOn ? 'on' : ''}">
+        ${isOn ? (isQC ? 'ON' : 'ONLINE') : (isQC ? 'OFF' : 'OFFLINE')}
+      </div>
     </div>
   `;
 }
 
 /**
- * Handler khusus klik card di grid utama untuk memicu animasi 3D.
+ * Handler klik card (Grid Utama & Quick Control).
  */
-function handleDeviceCardClick(id) {
+function handleDeviceCardClick(id, context = 'grid') {
     const next = !STATE.deviceStates[id];
-    const card = document.getElementById(`card-${id}`);
+    const prefix = context === 'quick' ? 'qc-' : 'card-';
+    const card = document.getElementById(`${prefix}${id}`);
     const surface = card?.querySelector('.btn-surface');
     const dtype = getDeviceType(STATE.devices[id]?.icon);
     const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
+    const partsId = context === 'quick' ? `parts-${id}` : `main-parts-${id}`;
+    const canvId = context === 'quick' ? `canv-${id}` : `main-canv-${id}`;
 
     if (surface) {
         gsap.timeline()
@@ -423,12 +397,11 @@ function handleDeviceCardClick(id) {
             .to(surface, { scale: 1, duration: 0.2, ease: 'power2.out' }, '-=0.15');
     }
 
-    if (next) spawnQCParticles(`main-parts-${id}`, accent, true);
-    if (QC_3D.scenes[`main-canv-${id}`]) QC_3D.scenes[`main-canv-${id}`].active = next;
+    if (next) spawnQCParticles(partsId, accent, true);
+    if (QC_3D.scenes[canvId]) QC_3D.scenes[canvId].active = next;
     
     toggleDeviceState(id, next);
 }
-
 
 /**
  * Merender daftar semua perangkat ke Grid Utama.
@@ -440,65 +413,16 @@ function renderDevices() {
 
   const keys = Object.keys(STATE.devices || {});
   grid.innerHTML = '';
-  
   if (empty) empty.classList.toggle('hidden', keys.length > 0);
   
   keys.forEach((id) => {
-    const device = STATE.devices[id];
-    const isOn = !!STATE.deviceStates[id];
-    const dtype = getDeviceType(device.icon);
+    grid.insertAdjacentHTML('beforeend', buildDeviceCardHTML(id, 'grid'));
+    const dtype = getDeviceType(STATE.devices[id].icon);
     const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
-
-    const card = document.createElement('div');
-    card.className = `device-card device-${dtype} ${isOn ? 'active on' : ''}`;
-    card.id = `card-${id}`;
-    
-    card.onclick = () => {
-        const next = !STATE.deviceStates[id];
-        if (next) spawnQCParticles(`main-parts-${id}`, accent, true);
-        if (QC_3D.scenes[`main-canv-${id}`]) QC_3D.scenes[`main-canv-${id}`].active = next;
-        toggleDeviceState(id, next);
-    };
-
-    card.innerHTML = `
-      <div class="card-glow" style="--card-accent: ${accent}"></div>
-      <div class="card-controls-top">
-        <button class="card-action-btn" onclick="event.stopPropagation(); openTopicSettings('${id}')"><i class="fas fa-cog"></i></button>
-        <button class="card-action-btn trash" onclick="event.stopPropagation(); removeDevice('${id}')"><i class="fas fa-trash"></i></button>
-      </div>
-      <div class="btn-wrap">
-        <div class="btn-pulse" style="background: ${accent}"></div>
-        <canvas class="btn-canvas" id="main-canv-${id}"></canvas>
-        <div class="btn-surface">
-             <div class="power-icon" style="opacity: ${isOn ? 0 : 0.4}">${getDevice3DSVG(dtype)}</div>
-        </div>
-        <div class="particles" id="main-parts-${id}"></div>
-      </div>
-      <div class="device-info">
-        <div class="device-name">${escHtml(device.name)}</div>
-        <div class="device-usage" id="dur-${id}">${isOn ? 'Aktif' : 'Standby'}</div>
-      </div>
-      
-      <div class="device-controls-area">
-          <div id="speed-row-${id}" class="control-row" style="display: ${isOn && dtype === 'fan' ? 'flex' : 'none'}">
-            <i class="fas fa-wind" style="font-size:10px;opacity:0.5"></i>
-            <input type="range" class="nebula-slider" min="1" max="3" value="${STATE.deviceExtras[id]?.fanSpeed || 2}" 
-                   oninput="event.stopPropagation(); setFanSpeed('${id}', this.value)">
-            <span class="ctrl-val">${(STATE.deviceExtras[id]?.fanSpeed || 2) * 25 + 25}%</span>
-          </div>
-          <div id="brightness-row-${id}" class="control-row" style="display: ${isOn && dtype === 'light' ? 'flex' : 'none'}">
-            <i class="fas fa-sun" style="font-size:10px;opacity:0.5"></i>
-            <input type="range" class="nebula-slider" min="10" max="100" value="80" oninput="event.stopPropagation()">
-          </div>
-      </div>
-
-      <div class="device-status-pill ${isOn ? 'on' : ''}">${isOn ? 'ONLINE' : 'OFFLINE'}</div>
-    `;
-    
-    grid.appendChild(card);
     setTimeout(() => initDevice3D(`main-canv-${id}`, accent, id), 10);
   });
 }
+
 
 function filterDevices(q) {
   const lq = q.toLowerCase();
@@ -772,66 +696,13 @@ function renderQuickControls() {
   }
 
   selected.forEach((id) => {
-    const device = STATE.devices[id];
-    const isOn = !!STATE.deviceStates[id];
-    const dtype = getDeviceType(device.icon);
+    container.insertAdjacentHTML('beforeend', buildDeviceCardHTML(id, 'quick'));
+    const dtype = getDeviceType(STATE.devices[id].icon);
     const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
-    
-    const card = document.createElement('div');
-    card.className = `device-card device-${dtype} ${isOn ? 'active on' : ''}`;
-    card.id = `qc-${id}`;
-    card.dataset.id = id;
-    
-    card.onclick = () => {
-        const next = !STATE.deviceStates[id];
-        const surface = card.querySelector('.btn-surface');
-        
-        gsap.timeline()
-            .to(surface, { scale: 0.88, duration: 0.1, ease: 'power2.in' })
-            .to(surface, { scale: next ? 1.06 : 1, duration: 0.4, ease: 'elastic.out(1, 0.4)' })
-            .to(surface, { scale: 1, duration: 0.2, ease: 'power2.out' }, '-=0.15');
-
-        if (next) spawnQCParticles(`parts-${id}`, accent, true);
-        if (QC_3D.scenes[`canv-${id}`]) QC_3D.scenes[`canv-${id}`].active = next;
-        
-        toggleDeviceState(id, next);
-    };
-
-    card.innerHTML = `
-      <div class="card-glow" style="--card-accent: ${accent}"></div>
-      <div class="card-controls-top">
-        <button class="card-action-btn" onclick="event.stopPropagation(); openTopicSettings('${id}')"><i class="fas fa-cog"></i></button>
-        <button class="card-action-btn trash" onclick="event.stopPropagation(); removeDevice('${id}')"><i class="fas fa-trash"></i></button>
-      </div>
-      <div class="btn-wrap">
-        <div class="btn-pulse" style="background: ${accent}"></div>
-        <canvas class="btn-canvas" id="canv-${id}"></canvas>
-        <div class="btn-surface">
-             <div class="power-icon" style="opacity: ${isOn ? 0 : 0.4}">${getDevice3DSVG(dtype)}</div>
-        </div>
-        <div class="particles" id="parts-${id}"></div>
-      </div>
-      <div class="device-info">
-        <div class="device-name">${escHtml(device.name)}</div>
-        <div class="device-usage" id="dur-${id}">${isOn ? 'Aktif' : 'Standby'}</div>
-      </div>
-
-      <div class="device-controls-area">
-          <div id="speed-row-qc-${id}" class="control-row" style="display: ${isOn && dtype === 'fan' ? 'flex' : 'none'}">
-            <i class="fas fa-wind" style="font-size:10px;opacity:0.5"></i>
-            <input type="range" class="nebula-slider" min="1" max="3" value="${STATE.deviceExtras[id]?.fanSpeed || 2}" 
-                   oninput="event.stopPropagation(); setFanSpeed('${id}', this.value)">
-            <span class="ctrl-val">${(STATE.deviceExtras[id]?.fanSpeed || 2) * 25 + 25}%</span>
-          </div>
-      </div>
-
-      <div class="device-status-pill ${isOn ? 'on' : ''}">${isOn ? 'ONLINE' : 'OFFLINE'}</div>
-    `;
-    
-    container.appendChild(card);
     setTimeout(() => initDevice3D(`canv-${id}`, accent, id), 10);
   });
 }
+
 
 /**
  * Memilih perangkat yang akan tampil di Quick Control Modal.
