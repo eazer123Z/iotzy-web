@@ -76,7 +76,7 @@ function openCameraSelector() {
   const modal = document.getElementById('cameraSelectorModal');
   const list = document.getElementById('cameraDevicesList');
   if (!modal || !list) return;
-  modal.classList.add('show');
+  modal.classList.add('active');
   list.innerHTML = "<div class='modal-item'>Mencari Kamera...</div>";
   listCameraDevices().then((devs) => {
     list.innerHTML = '';

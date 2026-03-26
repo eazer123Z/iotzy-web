@@ -314,48 +314,42 @@ function buildDeviceExtraHTML(id, device) {
 
 /* ==================== RENDER DEVICES ==================== */
 
-/**
- * Membangun HTML Card lengkap untuk sebuah perangkat
- */
 function buildDeviceCardHTML(deviceId) {
   const id     = String(deviceId);
   const device = STATE.devices[id];
   if (!device) return "";
   const isOn   = !!STATE.deviceStates[id];
   const dtype  = getDeviceType(device.icon);
-  const isLock = !!(dtype === "lock" || dtype === "door");
+  const isLock = !!(dtype === "lock" || dtype === "door" || device.icon.includes('lock') || device.icon.includes('door'));
   
-  const statusHtml = isLock ? (isOn ? "Terbuka" : "Terkunci") : (isOn ? "Aktif" : "Mati");
-  const durHtml    = isLock ? (isOn ? "Dibuka" : "Terkunci")  : (isOn ? "Baru nyala" : "Mati");
+  const durHtml = isLock ? (isOn ? "Terbuka" : "Terkunci Aman")  : (isOn ? "Sedang Menyala" : "Mati / Standby");
 
   return `
     <div class="device-card ${isOn ? "on" : ""}" id="card-${id}">
-      <div class="dc-header">
-        <div class="dc-icon-wrap" id="icon-${id}"><i class="fas ${escHtml(device.icon)}"></i></div>
-        <div class="dc-actions">
-          <button class="icon-btn-sm" title="Pengaturan MQTT" onclick="openTopicSettings('${id}')"><i class="fas fa-ellipsis-vertical"></i></button>
-          <button class="icon-btn-sm danger" title="Hapus Perangkat" onclick="removeDevice('${id}')"><i class="fas fa-trash"></i></button>
+      <div class="device-top">
+        <div class="device-icon" id="icon-${id}"><i class="fas ${escHtml(device.icon)}"></i></div>
+        <div class="device-actions">
+          <button class="btn-ghost btn-sm" title="Pengaturan MQTT" onclick="openTopicSettings('${id}')" style="padding:4px 8px"><i class="fas fa-ellipsis-vertical"></i></button>
+          <button class="btn-ghost btn-sm del" title="Hapus Perangkat" onclick="removeDevice('${id}')" style="padding:4px 8px"><i class="fas fa-trash"></i></button>
         </div>
       </div>
-      <div class="dc-info" id="row-${id}">
-        <div class="dc-name">${escHtml(device.name)}</div>
-        <div class="dc-meta">
-          <span class="status-dot ${isOn ? "on" : ""}" id="dot-${id}"></span>
-          <span class="status-text ${isOn ? "on" : ""}" id="lbl-${id}">${statusHtml}</span>
-          <span class="status-dur" id="dur-${id}">${durHtml}</span>
-        </div>
+      
+      <div style="flex:1">
+        <div class="device-name" id="name-${id}">${escHtml(device.name)}</div>
+        <div class="device-type" id="type-${id}">${dtype}</div>
       </div>
-      <div class="dc-controls">
-        ${isLock ? `
-          <button id="lock-btn-${id}" onclick="toggleLock('${id}')" class="lock-btn ${isOn ? "unlock" : "lock"}">
-            ${isOn ? '<i class="fas fa-lock-open"></i> BUKA KUNCI' : '<i class="fas fa-lock"></i> TERKUNCI'}
-          </button>
-        ` : `
-          <label class="toggle-switch">
-            <input type="checkbox" id="device-toggle-${id}" ${isOn ? "checked" : ""} onchange="toggleDeviceState('${id}',this.checked)">
-            <span class="toggle-slider"></span>
-          </label>
-        `}
+      
+      <div class="device-bottom">
+        <div class="device-duration ${isOn ? "on" : ""}" id="dur-${id}">${durHtml}</div>
+        <div class="device-controls">
+          ${isLock ? `
+            <button id="lock-btn-${id}" onclick="toggleDeviceState('${id}', ${!isOn})" class="btn-ghost btn-sm" style="color: ${isOn?'var(--warning)':'var(--success)'}; border-color: currentColor">
+              ${isOn ? '<i class="fas fa-lock-open"></i> Buka' : '<i class="fas fa-lock"></i> Kunci'}
+            </button>
+          ` : `
+            <div class="toggle-switch ${isOn ? 'on' : ''}" id="device-toggle-btn-${id}" onclick="const n=!this.classList.contains('on'); this.classList.toggle('on',n); toggleDeviceState('${id}', n)"></div>
+          `}
+        </div>
       </div>
       ${buildDeviceExtraHTML(id, device)}
     </div>
@@ -494,11 +488,11 @@ function renderQuickControlPicker() {
 
 function openQuickControlSettings() {
   renderQuickControlPicker();
-  document.getElementById('quickControlModal')?.classList.add('show');
+  document.getElementById('quickControlModal')?.classList.add('active');
 }
 
 function closeQuickControlSettings() {
-  document.getElementById('quickControlModal')?.classList.remove('show');
+  document.getElementById('quickControlModal')?.classList.remove('active');
 }
 
 async function saveQuickControlSettings() {
