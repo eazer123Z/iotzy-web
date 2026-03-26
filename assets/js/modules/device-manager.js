@@ -96,6 +96,15 @@ function updateDeviceUI(deviceId) {
 
     const qt = qc.querySelector("input[type=checkbox]");
     if (qt) qt.checked = isOn;
+
+    // 5. Update 3D State (Advanced)
+    qc.classList.toggle("active", isOn);
+    const canvasId = `canv-${id}`;
+    if (QC_3D.scenes[canvasId]) {
+      QC_3D.scenes[canvasId].active = isOn;
+    }
+    const statEl = qc.querySelector(".qc-device-status");
+    if (statEl) statEl.textContent = isOn ? "AKTIF" : "MATI";
   }
 }
 
@@ -406,10 +415,134 @@ function filterDevices(q) {
   });
 }
 
+/* ==================== 3D UI HELPERS (Advanced) ==================== */
+
+/**
+ * Mendapatkan SVG kustom untuk tombol 3D berdasarkan tipe perangkat.
+ */
+function getDevice3DSVG(dtype) {
+  if (dtype === "light") {
+    return `<svg viewBox="0 0 40 40" fill="none">
+      <circle class="qc-icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
+      <path class="qc-icon-stem" d="M16 21 Q18 17 20 15 Q22 17 24 21" stroke-width="1.5" stroke-linecap="round" />
+      <line class="qc-icon-stem" x1="17" y1="23" x2="23" y2="23" stroke-width="1.5" stroke-linecap="round" />
+      <line class="qc-icon-stem" x1="19" y1="25" x2="21" y2="25" stroke-width="1.5" stroke-linecap="round" />
+    </svg>`;
+  }
+  if (dtype === "fan" || dtype === "ac") {
+    return `<svg viewBox="0 0 40 40" fill="none">
+      <circle class="qc-icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
+      <g class="qc-fan-blades">
+        <path class="qc-icon-stem" d="M20 20 C20 16, 23 14, 23 17" stroke-width="1.5" stroke-linecap="round" />
+        <path class="qc-icon-stem" d="M20 20 C24 20, 26 23, 23 23" stroke-width="1.5" stroke-linecap="round" />
+        <path class="qc-icon-stem" d="M20 20 C20 24, 17 26, 17 23" stroke-width="1.5" stroke-linecap="round" />
+        <path class="qc-icon-stem" d="M20 20 C16 20, 14 17, 17 17" stroke-width="1.5" stroke-linecap="round" />
+      </g>
+      <circle class="qc-icon-stem" cx="20" cy="20" r="1.5" fill="currentColor" stroke="none" />
+    </svg>`;
+  }
+  if (dtype === "lock" || dtype === "door") {
+    return `<svg viewBox="0 0 40 40" fill="none">
+        <circle class="qc-icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
+        <path class="qc-icon-stem" d="M15 22 V27 H25 V22 M16 22 V18 C16 15 18 13 20 13 C22 13 24 15 24 18 V22" stroke-width="1.5" stroke-linecap="round" />
+        <circle class="qc-icon-stem" cx="20" cy="24.5" r="1.2" fill="currentColor" stroke="none" />
+    </svg>`;
+  }
+  if (dtype === "tv") {
+    return `<svg viewBox="0 0 40 40" fill="none">
+        <circle class="qc-icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
+        <rect class="qc-icon-stem" x="14" y="15" width="12" height="9" rx="1" stroke-width="1.5" />
+        <path class="qc-icon-stem" d="M18 24 L17 26 M22 24 L23 26" stroke-width="1.5" stroke-linecap="round" />
+    </svg>`;
+  }
+  return `<svg viewBox="0 0 40 40" fill="none">
+    <circle class="qc-icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
+    <path class="qc-icon-stem qc-pump-drops" d="M20 13 C20 13 15 19 15 22.5 C15 25.5 17.2 28 20 28 C22.8 28 25 25.5 25 22.5 C25 19 20 13 20 13Z" stroke-width="1.5" stroke-linecap="round" />
+    <path class="qc-icon-stem" d="M18.5 23 Q18.5 25.5 20.5 25.5" stroke-width="1" stroke-linecap="round" opacity="0.5" />
+  </svg>`;
+}
+
+const QC_3D = { scenes: {} };
+
+/**
+ * Inisialisasi visual Three.js untuk tombol perangkat.
+ */
+function initDevice3D(canvasId, hexColor, deviceId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(86, 86);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.position.z = 2.8;
+
+  const geo = new THREE.IcosahedronGeometry(0.85, 1);
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(hexColor),
+    roughness: 0.2,
+    metalness: 0.8,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.6
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  scene.add(mesh);
+
+  const pl = new THREE.PointLight(new THREE.Color(hexColor), 2, 10);
+  pl.position.set(2, 2, 2);
+  scene.add(pl);
+  scene.add(new THREE.AmbientLight(0x444466, 0.5));
+
+  QC_3D.scenes[canvasId] = { mesh, renderer, scene, camera, active: !!STATE.deviceStates[deviceId] };
+
+  function loop() {
+    if (!document.getElementById(canvasId)) return; // Cleanup if element is removed
+    requestAnimationFrame(loop);
+    if (QC_3D.scenes[canvasId].active) {
+      mesh.rotation.x += 0.008;
+      mesh.rotation.y += 0.012;
+    } else {
+      mesh.rotation.x *= 0.95;
+      mesh.rotation.y *= 0.95;
+    }
+    renderer.render(scene, camera);
+  }
+  loop();
+}
+
+/**
+ * Efek partikel saat aktivasi tombol.
+ */
+function spawnQCParticles(containerId, color, isOn) {
+    const cont = document.getElementById(containerId);
+    if (!cont || !isOn) return;
+    cont.innerHTML = '';
+    for (let i = 0; i < 8; i++) {
+        const p = document.createElement('div');
+        p.className = 'qc-particle';
+        p.style.background = color;
+        cont.appendChild(p);
+        const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.5;
+        const dist = 30 + Math.random() * 20;
+        gsap.fromTo(p, { x: 0, y: 0, opacity: 1, scale: 1 }, {
+            x: Math.cos(angle) * dist,
+            y: Math.sin(angle) * dist,
+            opacity: 0,
+            scale: 0.2,
+            duration: 0.5 + Math.random() * 0.3,
+            ease: 'power2.out',
+            onComplete: () => p.remove()
+        });
+    }
+}
+
 /* ==================== QUICK CONTROLS ==================== */
 
 /**
- * Merender 4 Quick Control Card terpilih ke Baris Dashboard.
+ * Merender Quick Control Card 3D Premium ke Dashboard.
  */
 function renderQuickControls() {
   const container = document.getElementById('quickControlsContainer');
@@ -419,10 +552,10 @@ function renderQuickControls() {
   const selected = (STATE.quickControlDevices || []).map(String).filter((id) => STATE.devices[id]);
   
   if (!selected.length) {
-    container.innerHTML = `<div style="text-align:center;padding:32px 16px;color:var(--ink-4)">
+    container.innerHTML = `<div class="muted">
       <i class="fas fa-hand-pointer" style="font-size:22px;margin-bottom:10px;display:block;opacity:.25"></i>
-      <p style="font-size:12px;margin-bottom:10px">Belum ada perangkat dipilih</p>
-      <button onclick="openQuickControlSettings()" style="font-size:11px;color:var(--a);background:none;border:none;cursor:pointer;font-family:inherit">Pilih perangkat →</button>
+      <p style="font-size:12px;margin-bottom:10px">Belum ada favorit pilihan</p>
+      <button onclick="openQuickControlSettings()" class="ov-link" style="justify-content:center">Pilih perangkat →</button>
     </div>`;
     return;
   }
@@ -431,27 +564,46 @@ function renderQuickControls() {
     const device = STATE.devices[id];
     const isOn = !!STATE.deviceStates[id];
     const dtype = getDeviceType(device.icon);
-    const isLock = dtype === 'lock' || dtype === 'door';
+    const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
+    
+    const card = document.createElement('div');
+    card.className = `qc-device-card qc-device-${dtype === 'light' ? 'led' : dtype === 'fan' ? 'fan' : 'pump'}${isOn ? ' active' : ''}`;
+    card.id = `qc-${id}`;
+    card.dataset.id = id;
+    
+    // Toggle Logic dengan Animasi
+    card.onclick = () => {
+        const next = !STATE.deviceStates[id];
+        const surface = card.querySelector('.qc-btn-surface');
+        
+        gsap.timeline()
+            .to(surface, { scale: 0.88, duration: 0.1, ease: 'power2.in' })
+            .to(surface, { scale: next ? 1.06 : 1, duration: 0.4, ease: 'elastic.out(1, 0.4)' })
+            .to(surface, { scale: 1, duration: 0.2, ease: 'power2.out' }, '-=0.15');
 
-    const item = document.createElement('div');
-    item.className = `qc-item${isOn ? ' on' : ''}`;
-    item.id = `qc-${id}`;
-    
-    // Lock punya aksi khusus (toggle manual), lainnya toggle state standar
-    item.onclick = () => isLock ? toggleLock(id) : toggleDeviceState(id, !STATE.deviceStates[id]);
-    
-    item.innerHTML = `
-      <div class="qc-info">
-        <div class="qc-icon"><i class="fas ${device.icon || 'fa-plug'}"></i></div>
-        <div>
-          <div class="qc-name">${escHtml(device.name)}</div>
-          <div class="qc-status">${isLock ? (isOn ? 'Terbuka' : 'Terkunci') : (isOn ? 'Aktif' : 'Mati')}</div>
+        if (next) spawnQCParticles(`parts-${id}`, accent, true);
+        if (QC_3D.scenes[`canv-${id}`]) QC_3D.scenes[`canv-${id}`].active = next;
+        
+        toggleDeviceState(id, next);
+    };
+
+    card.innerHTML = `
+      <div class="qc-btn-wrap">
+        <div class="qc-btn-ring"></div>
+        <canvas class="qc-btn-canvas" id="canv-${id}"></canvas>
+        <div class="qc-btn-surface">
+          <div class="qc-power-icon">${getDevice3DSVG(dtype)}</div>
         </div>
+        <div class="qc-particles" id="parts-${id}"></div>
       </div>
-      <div class="qc-pill ${isOn ? 'on' : 'off'}">
-        ${isLock ? (isOn ? 'OPEN' : 'LOCK') : (isOn ? 'ON' : 'OFF')}
-      </div>`;
-    container.appendChild(item);
+      <div class="qc-device-name">${escHtml(device.name)}</div>
+      <div class="qc-device-status">${isOn ? 'AKTIF' : 'MATI'}</div>
+    `;
+    
+    container.appendChild(card);
+    
+    // Init Three.js setelah render
+    setTimeout(() => initDevice3D(`canv-${id}`, accent, id), 10);
   });
 }
 

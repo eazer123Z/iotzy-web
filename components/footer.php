@@ -45,6 +45,8 @@
   const PHP_CV_STATE = <?= json_encode($cvState ?? []) ?>;
 </script>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <!-- Core Orchestrator -->

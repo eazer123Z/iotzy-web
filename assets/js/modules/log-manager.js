@@ -134,16 +134,15 @@ function updateDashboardActivityFeed() {
     const color = colorMap[log.trigger] || 'var(--text-secondary)';
     
     html += `
-      <div class="activity-item" style="display:flex; gap:12px; margin-bottom:12px; align-items:flex-start">
-        <div class="activity-icon" style="background:var(--surface-hover); width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:${color}">
+      <div class="activity-item">
+        <div class="activity-icon" style="color:${color}">
           <i class="fas ${icon}"></i>
         </div>
-        <div class="activity-content" style="flex:1">
-          <div style="font-size:0.85rem; font-weight:600; color:var(--text); margin-bottom:2px">
-            ${escHtml(log.device)} — ${escHtml(log.activity)}
-          </div>
-          <div style="font-size:0.75rem; color:var(--text-muted)">
-            <span>${log.waktu}</span> • <span style="font-weight:500; color:${color}">${log.trigger}</span>
+        <div class="activity-content">
+          <div class="activity-title">${escHtml(log.device)} — ${escHtml(log.activity)}</div>
+          <div class="activity-meta">
+            <span class="activity-time">${log.waktu}</span> • 
+            <span class="activity-trigger" style="color:${color}">${log.trigger}</span>
           </div>
         </div>
       </div>
