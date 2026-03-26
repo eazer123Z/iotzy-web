@@ -13,12 +13,19 @@
  * Mendapatkan kategori tipe perangkat berdasarkan icon.
  */
 function getDeviceType(icon) {
-  const map = {
-    "fa-lightbulb": "light", "fa-wind": "fan",      "fa-snowflake": "ac",
-    "fa-tv":        "tv",    "fa-lock": "lock",      "fa-door-open": "door",
-    "fa-video":     "cctv",  "fa-volume-up": "speaker", "fa-plug": "switch",
-  };
-  return map[icon] || "switch";
+  if (!icon) return "switch";
+  const i = icon.toLowerCase();
+  if (i.includes("light") || i.includes("bulb") || i.includes("lamp")) return "light";
+  if (i.includes("fan") || i.includes("wind")) return "fan";
+  if (i.includes("snowflake") || i.includes("ac") || i.includes("thermometer")) return "ac";
+  if (i.includes("tv") || i.includes("display") || i.includes("desktop")) return "tv";
+  if (i.includes("lock") || i.includes("shield") || i.includes("key")) return "lock";
+  if (i.includes("door")) return "door";
+  if (i.includes("video") || i.includes("camera") || i.includes("eye")) return "cctv";
+  if (i.includes("volume") || i.includes("speaker") || i.includes("bell")) return "speaker";
+  if (i.includes("plug") || i.includes("bolt")) return "switch";
+  if (i.includes("droplet") || i.includes("water") || i.includes("pump")) return "pump";
+  return "switch";
 }
 
 /**
@@ -99,10 +106,12 @@ function updateDeviceUI(deviceId) {
 
     // 5. Update 3D State (Advanced)
     qc.classList.toggle("active", isOn);
-    const canvasId = `canv-${id}`;
-    if (QC_3D.scenes[canvasId]) {
-      QC_3D.scenes[canvasId].active = isOn;
-    }
+    
+    // Check both Quick Control and Main Grid canvases
+    [`canv-${id}`, `main-canv-${id}`].forEach(cid => {
+        if (QC_3D.scenes[cid]) QC_3D.scenes[cid].active = isOn;
+    });
+
     const statEl = qc.querySelector(".qc-device-status");
     if (statEl) statEl.textContent = isOn ? "AKTIF" : "MATI";
   }
@@ -350,41 +359,60 @@ function buildDeviceCardHTML(deviceId) {
   if (!device) return "";
   const isOn   = !!STATE.deviceStates[id];
   const dtype  = getDeviceType(device.icon);
-  const isLock = !!(dtype === "lock" || dtype === "door" || device.icon.includes('lock') || device.icon.includes('door'));
+  const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
   
-  const durHtml = isLock ? (isOn ? "Terbuka" : "Terkunci Aman")  : (isOn ? "Sedang Menyala" : "Mati / Standby");
+  const statusHtml = isOn ? "SEDANG AKTIF" : "MATI / STANDBY";
 
   return `
-    <div class="device-card ${isOn ? "on" : ""}" id="card-${id}">
+    <div class="device-card ${isOn ? "on active" : ""}" id="card-${id}" onclick="handleDeviceCardClick('${id}')">
       <div class="device-top">
-        <div class="device-icon" id="icon-${id}"><i class="fas ${escHtml(device.icon)}"></i></div>
         <div class="device-actions">
-          <button class="btn-ghost btn-sm" title="Pengaturan MQTT" onclick="openTopicSettings('${id}')" style="padding:4px 8px"><i class="fas fa-ellipsis-vertical"></i></button>
-          <button class="btn-ghost btn-sm del" title="Hapus Perangkat" onclick="removeDevice('${id}')" style="padding:4px 8px"><i class="fas fa-trash"></i></button>
+          <button onclick="event.stopPropagation(); openTopicSettings('${id}')" title="Settings"><i class="fas fa-cog"></i></button>
+          <button class="del" onclick="event.stopPropagation(); removeDevice('${id}')" title="Hapus"><i class="fas fa-trash"></i></button>
         </div>
       </div>
       
-      <div style="flex:1">
-        <div class="device-name" id="name-${id}">${escHtml(device.name)}</div>
-        <div class="device-type" id="type-${id}">${dtype}</div>
-      </div>
-      
-      <div class="device-bottom">
-        <div class="device-duration ${isOn ? "on" : ""}" id="dur-${id}">${durHtml}</div>
-        <div class="device-controls">
-          ${isLock ? `
-            <button id="lock-btn-${id}" onclick="toggleDeviceState('${id}', ${!isOn})" class="btn-ghost btn-sm" style="color: ${isOn?'var(--warning)':'var(--success)'}; border-color: currentColor">
-              ${isOn ? '<i class="fas fa-lock-open"></i> Buka' : '<i class="fas fa-lock"></i> Kunci'}
-            </button>
-          ` : `
-            <div class="toggle-switch ${isOn ? 'on' : ''}" id="device-toggle-btn-${id}" onclick="const n=!this.classList.contains('on'); this.classList.toggle('on',n); toggleDeviceState('${id}', n)"></div>
-          `}
+      <div class="qc-btn-wrap">
+        <div class="qc-btn-ring"></div>
+        <canvas class="qc-btn-canvas" id="main-canv-${id}"></canvas>
+        <div class="qc-btn-surface">
+          <div class="qc-power-icon">${getDevice3DSVG(dtype)}</div>
         </div>
+        <div class="qc-particles" id="main-parts-${id}"></div>
       </div>
+
+      <div class="device-name">${escHtml(device.name)}</div>
+      <div class="device-type">${dtype}</div>
+      <div class="device-duration ${isOn ? "on" : ""}" id="dur-${id}">${statusHtml}</div>
+      
       ${buildDeviceExtraHTML(id, device)}
     </div>
   `;
 }
+
+/**
+ * Handler khusus klik card di grid utama untuk memicu animasi 3D.
+ */
+function handleDeviceCardClick(id) {
+    const next = !STATE.deviceStates[id];
+    const card = document.getElementById(`card-${id}`);
+    const surface = card?.querySelector('.qc-btn-surface');
+    const dtype = getDeviceType(STATE.devices[id]?.icon);
+    const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
+
+    if (surface) {
+        gsap.timeline()
+            .to(surface, { scale: 0.88, duration: 0.1, ease: 'power2.in' })
+            .to(surface, { scale: next ? 1.06 : 1, duration: 0.4, ease: 'elastic.out(1, 0.4)' })
+            .to(surface, { scale: 1, duration: 0.2, ease: 'power2.out' }, '-=0.15');
+    }
+
+    if (next) spawnQCParticles(`main-parts-${id}`, accent, true);
+    if (QC_3D.scenes[`main-canv-${id}`]) QC_3D.scenes[`main-canv-${id}`].active = next;
+    
+    toggleDeviceState(id, next);
+}
+
 
 /**
  * Merender daftar semua perangkat ke Grid Utama.
@@ -403,7 +431,12 @@ function renderDevices() {
     const wrap = document.createElement('div');
     wrap.innerHTML = buildDeviceCardHTML(String(id)).trim();
     const node = wrap.firstElementChild;
-    if (node) grid.appendChild(node);
+    if (node) {
+        grid.appendChild(node);
+        const dtype = getDeviceType(STATE.devices[id]?.icon);
+        const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
+        setTimeout(() => initDevice3D(`main-canv-${id}`, accent, id), 50);
+    }
   });
 }
 
