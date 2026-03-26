@@ -46,20 +46,12 @@ require_once $baseDir . '/config/database.php';
 require_once $baseDir . '/config/telegram.php';
 require_once $baseDir . '/core/helpers.php';
 
-
+// Session Handler — Vercel menggunakan PersistentSession (DB-backed)
 $isVercel = getenv('VERCEL') === "1" || isset($_SERVER['VERCEL']) || isset($_ENV['VERCEL']);
-$isDocker = file_exists('/.dockerenv');
 
 if ($isVercel) {
     require_once $baseDir . '/core/PersistentSession.php';
     if (session_status() !== PHP_SESSION_ACTIVE) {
         session_set_save_handler(new PersistentSessionHandler(), true);
-    }
-}
-
-if (!$isVercel) {
-    if (DIRECTORY_SEPARATOR === '/') {
-        if (!is_dir('/tmp')) @mkdir('/tmp', 0777, true);
-        @session_save_path('/tmp');
     }
 }

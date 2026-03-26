@@ -12,7 +12,6 @@
         <span class="nav-icon"><i class="fas fa-house"></i></span>
         <span class="nav-label">Overview</span>
       </a>
-
       <a href="javascript:void(0)" onclick="switchPage('devices',this)" class="nav-item" data-page="devices">
         <span class="nav-icon"><i class="fas fa-microchip"></i></span>
         <span class="nav-label">Perangkat</span>
@@ -24,21 +23,21 @@
         <span class="nav-badge" id="navSensorCount"><?= count($sensors) ?></span>
       </a>
 
-      <div class="nav-group-label" style="margin-top:18px">Otomasi</div>
+      <div class="nav-group-label" style="margin-top:18px">Automasi</div>
       <a href="javascript:void(0)" onclick="switchPage('automation',this)" class="nav-item" data-page="automation">
-        <span class="nav-icon"><i class="fas fa-sliders"></i></span>
-        <span class="nav-label">Aturan Otomasi</span>
+        <span class="nav-icon"><i class="fas fa-robot"></i></span>
+        <span class="nav-label">Rules Engine</span>
       </a>
       <a href="javascript:void(0)" onclick="switchPage('camera',this)" class="nav-item" data-page="camera">
         <span class="nav-icon"><i class="fas fa-eye"></i></span>
-        <span class="nav-label">Kamera &amp; CV</span>
+        <span class="nav-label">Vision AI</span>
         <span class="nav-dot" id="cvNavDot"></span>
       </a>
 
       <div class="nav-group-label" style="margin-top:18px">Sistem</div>
       <a href="javascript:void(0)" onclick="switchPage('analytics',this)" class="nav-item" data-page="analytics">
-        <span class="nav-icon"><i class="fas fa-list-ul"></i></span>
-        <span class="nav-label">Log Aktivitas</span>
+        <span class="nav-icon"><i class="fas fa-chart-bar"></i></span>
+        <span class="nav-label">Log & Analytic</span>
       </a>
       <a href="javascript:void(0)" onclick="switchPage('settings',this)" class="nav-item" data-page="settings">
         <span class="nav-icon"><i class="fas fa-gear"></i></span>
@@ -59,8 +58,7 @@
           <span class="mqtt-dot" id="sidebarMqttDot"></span>
           <span id="sidebarMqttText">Offline</span>
         </div>
-        <button onclick="connectMQTT()" class="icon-btn" title="Hubungkan MQTT"
-          style="border:1px solid var(--sb-border);background:rgba(255,255,255,.04);color:var(--sb-text)">
+        <button onclick="connectMQTT()" class="icon-btn" title="Hubungkan MQTT">
           <i class="fas fa-wifi"></i>
         </button>
       </div>

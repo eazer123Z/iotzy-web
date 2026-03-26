@@ -1,8 +1,8 @@
-<div id="automation" class="view app-section">
+<div id="automation" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
-      <h3><i class="fas fa-robot"></i> Automation Engine</h3>
-      <p>Otomatisasi cerdas berdasarkan sensor dan kondisi lingkungan.</p>
+      <h3><i class="fas fa-robot"></i> Rules Engine</h3>
+      <p>Otomatisasi cerdas berdasarkan sensor, jadwal, dan kondisi lingkungan.</p>
     </div>
     <div class="v-actions">
       <button class="btn-primary" onclick="openAddRuleModal()">
@@ -10,7 +10,6 @@
       </button>
     </div>
   </div>
-  <!-- ID harus 'automationGrid' agar sesuai dengan automation-ui.js renderAutomationView() -->
   <div id="automationGrid" class="automation-grid"></div>
   <div id="emptyAutomation" class="empty-state hidden">
     <i class="fas fa-sliders"></i>

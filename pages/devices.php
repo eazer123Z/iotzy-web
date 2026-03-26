@@ -1,4 +1,4 @@
-<div id="devices" class="view app-section">
+<div id="devices" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
       <h3><i class="fas fa-microchip"></i> Monitoring Perangkat</h3>

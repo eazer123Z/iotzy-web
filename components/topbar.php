@@ -20,6 +20,9 @@
           <span id="clock" class="clock-time">00:00:00</span>
           <span id="date" class="clock-date">—</span>
         </div>
+        <div class="user-avatar" style="width:32px;height:32px;font-size:.75rem;border-radius:8px" title="<?= htmlspecialchars($user['username']) ?>">
+          <?= htmlspecialchars(strtoupper(substr($user['username'], 0, 1))) ?>
+        </div>
       </div>
     </header>
 

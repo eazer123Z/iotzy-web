@@ -1,15 +1,12 @@
 /**
- * public/assets/js/modules/navigation.js
+ * assets/js/modules/navigation.js
  * ───
- * Navigasi & Utilitas UI IoTzy.
- * Mengelola perpindahan halaman antar-modul (SPA), sinkronisasi waktu sistem (Jam/Uptime),
- * serta kontrol akses perangkat keras kamera untuk Computer Vision.
+ * Navigasi & Utilitas UI IoTzy V2.
+ * Mengelola perpindahan halaman SPA dengan animasi transisi,
+ * jam digital, uptime counter, dan kontrol sidebar mobile.
  */
 
-
-/**
- * Inisialisasi Jam digital real-time di Topbar.
- */
+/* ── Jam Digital Realtime ── */
 function initClock() {
   const tick = () => {
     const now = new Date();
@@ -24,37 +21,28 @@ function initClock() {
   setInterval(tick, 1000);
 }
 
-/**
- * Inisialisasi counter waktu aktif (Uptime) sesi web dan durasi nyala tiap perangkat.
- */
+/* ── Uptime Counter ── */
 function initUptimeCounter() {
   setInterval(() => {
     const e  = Math.floor((Date.now() - STATE.sessionStart) / 1000);
     const h  = Math.floor(e / 3600);
     const m  = Math.floor((e % 3600) / 60);
     const s  = e % 60;
-    
-    // Update label uptime di dashboard
     const el = document.getElementById("statUptimeVal");
     if (el) {
       if (h > 0)      el.textContent = `${h}j ${m}m`;
       else if (m > 0) el.textContent = `${m}m ${s}d`;
       else            el.textContent = `${s}d`;
     }
-    
-    // Update durasi per perangkat yang sedang menyala
     updateAllDurations();
   }, 1000);
 }
 
-/**
- * Memperbarui label durasi nyala (e.g. "2j 30m nyala") pada setiap kartu perangkat.
- */
+/* ── Device Duration Labels ── */
 function updateAllDurations() {
   Object.keys(STATE.devices).forEach((id) => {
     const el = document.getElementById(`dur-${id}`);
     if (!el) return;
-    
     if (STATE.deviceStates[id] && STATE.deviceOnAt[id]) {
       const sec = Math.floor((Date.now() - STATE.deviceOnAt[id]) / 1000);
       const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
@@ -67,35 +55,52 @@ function updateAllDurations() {
   });
 }
 
-/**
- * Mapping ID halaman ke Judul Header.
- */
+/* ── Page Titles Mapping ── */
 const PAGE_TITLES = {
   dashboard:  "Overview",
   devices:    "Perangkat",
   sensors:    "Sensor",
-  automation: "Aturan Otomasi",
-  camera:     "Kamera & CV",
-  custom:     "Layout Kustom",
-  analytics:  "Log Aktivitas",
+  automation: "Rules Engine",
+  camera:     "Vision AI",
+  analytics:  "Log & Analytics",
   settings:   "Pengaturan",
-  livetzy:    "LiveTzy Monitor"
 };
 
-/**
- * Berpindah antar 'View' tanpa reload halaman (Single Page Application logic).
- */
+/* ── Variabel state halaman aktif ── */
+let _currentPage = 'dashboard';
+
+/* ── SPA Page Switch dengan Animasi ── */
 function switchPage(page, el) {
+  // Guard: jika sudah di halaman yang sama, skip
+  if (page === _currentPage && document.getElementById(page) && !document.getElementById(page).classList.contains('hidden')) {
+    return;
+  }
+
   // Sembunyikan semua view
-  document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
+  document.querySelectorAll(".view").forEach((v) => {
+    v.classList.add("hidden");
+    v.classList.remove("entering");
+  });
   
-  // Tampilkan view target — coba id="page" dulu lalu fallback ke id="view-page"
+  // Tampilkan view target dengan animasi
   const targetView = document.getElementById(page) || document.getElementById(`view-${page}`);
-  if (targetView) targetView.classList.remove("hidden");
+  if (targetView) {
+    targetView.classList.remove("hidden");
+    targetView.classList.add("entering");
+    setTimeout(() => targetView.classList.remove("entering"), 300);
+  }
   
+  _currentPage = page;
+
   // Update state navigasi di sidebar
   document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"));
-  if (el) el.classList.add("active");
+  if (el) {
+    el.classList.add("active");
+  } else {
+    // Jika el tidak disediakan (misal dari bottom-nav), cari sendiri
+    const navEl = document.querySelector(`.nav-item[data-page="${page}"]`);
+    if (navEl) navEl.classList.add("active");
+  }
   
   // Update judul di Topbar
   const pt = document.getElementById("pageTitle");
@@ -109,18 +114,11 @@ function switchPage(page, el) {
   // Jalankan inisialisasi modul spesifik halaman
   if (page === "automation") renderAutomationView();
   
-  if (page === "custom") {
-    if (typeof renderCustomView === "function") renderCustomView();
-    if (typeof syncCustomCameraMirror === "function") syncCustomCameraMirror();
-  }
-  
   if (page === "camera") {
-    // Beri sedikit delay untuk memastikan DOM sudah siap
     setTimeout(() => {
       const c    = document.getElementById("cvOverlayCanvas");
       const cont = document.getElementById("cameraFocusContainer");
       if (c && cont) { c.width = cont.clientWidth; c.height = cont.clientHeight; }
-      
       if (typeof cvUI !== "undefined") {
         if (typeof cvUI.initialize === "function") cvUI.initialize();
         if (typeof cvUI.renderAutomationSettings === "function") cvUI.renderAutomationSettings();
@@ -135,21 +133,36 @@ function switchPage(page, el) {
   document.getElementById("overlay")?.classList.remove("show");
 }
 
-/**
- * Handle navigasi khusus untuk Bottom Navbar (Mobile).
- */
+/* ── Mobile Bottom Nav Handler ── */
 function switchPageMobile(page, btn) {
   const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
   switchPage(page, navItem);
 }
 
-/**
- * Toggle Sidebar menu pada perangkat mobile.
- */
+/* ── Toggle Sidebar Mobile ── */
 function toggleSidebar() {
   document.getElementById("sidebar")?.classList.toggle("open");
   document.getElementById("overlay")?.classList.toggle("show");
 }
 
+/* ── Settings Tab Switching ── */
+function switchSettingsTab(btn) {
+  // Deactivate semua tab
+  document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.settings-panel').forEach(p => {
+    p.classList.remove('active');
+  });
+  
+  // Activate tab yang diklik
+  btn.classList.add('active');
+  const panelId = btn.dataset.panel;
+  const panel = document.getElementById(panelId);
+  if (panel) panel.classList.add('active');
+}
 
-
+/* ── Apply Theme from Settings Dropdown ── */
+function applyThemeFromSettings(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  updateThemeIcon(theme);
+  apiPost("save_settings", { theme: theme }).catch(e => console.warn("Gagal sinkron tema:", e));
+}

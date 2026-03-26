@@ -1,8 +1,8 @@
-<div id="sensors" class="view app-section">
+<div id="sensors" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
       <h3><i class="fas fa-gauge-high"></i> Monitoring Sensor</h3>
-      <p>Data metrik dan kondisi lingkungan secara real-time.</p>
+      <p>Data sensor lingkungan dan threshold real-time.</p>
     </div>
     <div class="v-actions">
       <div class="search-box">
@@ -16,8 +16,8 @@
   </div>
   <div id="sensorsGrid" class="sensors-grid"></div>
   <div id="emptySensors" class="empty-state hidden">
-    <i class="fas fa-microchip"></i>
-    <p>Belum ada sensor terdeteksi</p>
+    <i class="fas fa-signal"></i>
+    <p>Belum ada sensor terdaftar</p>
     <button class="btn-primary" onclick="openAddSensorModal()">Tambah Sensor</button>
   </div>
 </div>

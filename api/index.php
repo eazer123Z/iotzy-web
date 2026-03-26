@@ -79,27 +79,13 @@ if (!$action) {
 ?>
     <?php include __DIR__ . '/../components/topbar.php'; ?>
       
-      <div id="dashboard" class="view">
-        <?php include __DIR__ . '/../pages/dashboard.php'; ?>
-      </div>
-      <div id="devices" class="view hidden">
-        <?php include __DIR__ . '/../pages/devices.php'; ?>
-      </div>
-      <div id="sensors" class="view hidden">
-        <?php include __DIR__ . '/../pages/sensors.php'; ?>
-      </div>
-      <div id="automation" class="view hidden">
-        <?php include __DIR__ . '/../pages/automation.php'; ?>
-      </div>
-      <div id="camera" class="view hidden">
-        <?php include __DIR__ . '/../pages/camera.php'; ?>
-      </div>
-      <div id="analytics" class="view hidden">
-        <?php include __DIR__ . '/../pages/analytics.php'; ?>
-      </div>
-      <div id="settings" class="view hidden">
-        <?php include __DIR__ . '/../pages/settings.php'; ?>
-      </div>
+      <?php include __DIR__ . '/../pages/dashboard.php'; ?>
+      <?php include __DIR__ . '/../pages/devices.php'; ?>
+      <?php include __DIR__ . '/../pages/sensors.php'; ?>
+      <?php include __DIR__ . '/../pages/automation.php'; ?>
+      <?php include __DIR__ . '/../pages/camera.php'; ?>
+      <?php include __DIR__ . '/../pages/analytics.php'; ?>
+      <?php include __DIR__ . '/../pages/settings.php'; ?>
 
     </div> <!-- close page-wrapper (opened in topbar.php) -->
     </main> <!-- close main-content (opened in topbar.php) -->

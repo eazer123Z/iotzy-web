@@ -1,11 +1,12 @@
 <?php ?>
 <!DOCTYPE html>
-<html lang="id" data-theme="dark">
+<html lang="id" data-theme="<?= htmlspecialchars($settings['theme'] ?? 'dark') ?>">
 <head>
 <meta charset="UTF-8">
 <title>IoTzy — Smart Home Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="IoTzy Smart Home Dashboard">
+<meta name="description" content="IoTzy Smart Home Dashboard — Monitor & kontrol perangkat IoT Anda secara real-time">
+<meta name="theme-color" content="#080912">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
 <link rel="preconnect" href="https://fonts.googleapis.com">

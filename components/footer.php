@@ -5,8 +5,7 @@
 
 <!-- AI Chat Floating Action Button & Modal -->
 <div class="ai-chat-btn" id="aiChatBtn" title="Tanya AI untuk Automasi" 
-     onclick="this.classList.toggle('active'); document.getElementById('aiChatModal').classList.toggle('active');"
-     style="z-index: 9999 !important; pointer-events: all !important; cursor: pointer !important; position: fixed !important;">
+     onclick="this.classList.toggle('active'); document.getElementById('aiChatModal').classList.toggle('active');">
     <i class="fas fa-robot"></i>
 </div>
 
@@ -48,10 +47,10 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- Core Orchestrator (harus pertama karena mendefinisikan STATE, CONFIG, dll) -->
+<!-- Core Orchestrator -->
 <script src="<?= ASSET_URL ?>/js/app.js?v=<?= APP_VERSION ?>"></script>
 
-<!-- Modul-modul Fungsional (urutan penting: navigation sebelum yang lain) -->
+<!-- Modul Fungsional -->
 <script src="<?= ASSET_URL ?>/js/modules/navigation.js?v=<?= APP_VERSION ?>"></script>
 <script src="<?= ASSET_URL ?>/js/modules/overview-manager.js?v=<?= APP_VERSION ?>"></script>
 <script src="<?= ASSET_URL ?>/js/modules/mqtt-manager.js?v=<?= APP_VERSION ?>"></script>

@@ -1,78 +1,73 @@
-<div id="camera" class="view app-section">
+<div id="camera" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
       <h3><i class="fas fa-video"></i> AI Vision Center</h3>
-      <p>Monitoring cerdas dan deteksi objek real-time dengan Visual Intelligence.</p>
+      <p>Deteksi objek & analisis pencahayaan real-time berbasis Computer Vision.</p>
     </div>
     <div class="v-actions">
-      <span id="cvLiveBadge" class="cv-live-badge hidden">LIVE</span>
-      <button class="btn-primary" id="cvPowerBtn" onclick="toggleCameraFocus()">
-        <i class="fas fa-power-off"></i> <span id="cvPowerText">Aktifkan Vision</span>
-      </button>
+      <select id="cameraSelect" class="ov-select" onchange="switchCamera(this.value)">
+        <option value="">Pilih Kamera</option>
+      </select>
     </div>
   </div>
 
-  <div class="cv-layout">
-    <div class="cv-left-col">
-      <div class="cv-cam-card">
-        <div class="cv-cam-body" id="cameraFocusContainer">
-          <video id="cameraFocus" autoplay playsinline muted class="camera-video-focus hidden"></video>
-          <div id="cvCamPlaceholder" class="cv-cam-placeholder">
-            <div class="cv-placeholder-icon"><i class="fas fa-video-slash"></i></div>
-            <div class="cv-placeholder-txt">Visual Intelligence Offline</div>
-            <button class="btn-primary" onclick="toggleCameraFocus()" style="margin-top:10px">Aktifkan Vision</button>
-          </div>
-          <div id="cvLoadingStatus" class="cv-loading-overlay hidden">
-            <i class="fas fa-spinner fa-spin"></i> Memuat AI Model...
-          </div>
-        </div>
-        <div class="cv-cam-footer">
-          <div class="cv-stat-item">
-            <span class="cv-stat-label">Human Count</span>
-            <span class="cv-stat-val" id="cvHumanCount">0</span>
-          </div>
-          <div class="cv-stat-item">
-            <span class="cv-stat-label">Confidence</span>
-            <span class="cv-stat-val" id="cvConfidence">0%</span>
-          </div>
-          <div class="cv-stat-item">
-            <span class="cv-stat-label">Brightness</span>
-            <span class="cv-stat-val" id="cvBrightness">0%</span>
-          </div>
-          <div class="cv-stat-item">
-            <span class="cv-stat-label">Condition</span>
-            <span class="cv-stat-val" id="cvLightCondition">N/A</span>
-          </div>
-        </div>
+  <div class="camera-layout">
+    <div class="camera-panel">
+      <div class="camera-feed" id="cameraFocusContainer">
+        <video id="cameraFeed" autoplay playsinline muted style="display:none"></video>
+        <canvas id="cvOverlayCanvas" style="display:none"></canvas>
+        <i class="fas fa-video-slash" style="font-size:2rem;opacity:.3"></i>
+        <span style="font-size:.85rem">Kamera belum aktif</span>
       </div>
-
-      <div class="cv-info-grid">
-        <div class="cv-info-card glass">
-          <div class="cv-info-head"><i class="fas fa-microchip"></i> System Status</div>
-          <div class="cv-info-body">
-            <div class="status-row"><span>Engine TF.js</span><span class="status-val ok" id="cvSystemStatus">Siap</span></div>
-            <div class="status-row"><span>Presence</span><span class="status-val muted" id="cvPresenceStatus">Tidak Terdeteksi</span></div>
-          </div>
-        </div>
-        <div class="cv-info-card glass">
-          <div class="cv-info-head"><i class="fas fa-sun"></i> Light Analysis</div>
-          <div class="cv-info-body">
-            <div class="cv-light-bar-bg"><div class="cv-light-bar-fill" id="cvBrightnessBar" style="width:0%"></div></div>
-            <div class="status-row"><span>Luminosity</span><span class="status-val" id="cvBrightnessLabel">0%</span></div>
-          </div>
-        </div>
+      <div class="camera-controls">
+        <button id="btnStartCam" class="btn-primary btn-sm" onclick="startCamera()">
+          <i class="fas fa-play"></i> Mulai Kamera
+        </button>
+        <button id="btnStopCam" class="btn-secondary btn-sm" onclick="stopCamera()" style="display:none">
+          <i class="fas fa-stop"></i> Stop Kamera
+        </button>
+        <button id="btnStartCV" class="btn-secondary btn-sm" onclick="startDetection()" style="display:none">
+          <i class="fas fa-brain"></i> Mulai Deteksi AI
+        </button>
+        <button id="btnStopCV" class="btn-danger btn-sm" onclick="stopDetection()" style="display:none">
+          <i class="fas fa-stop"></i> Stop Deteksi
+        </button>
       </div>
     </div>
 
-    <div class="cv-right-col">
-      <div class="card glass">
+    <div class="cv-stats-panel">
+      <div class="cv-stat-card">
+        <div class="cv-stat-icon" style="color:var(--accent)"><i class="fas fa-users"></i></div>
+        <div class="cv-stat-value" id="cvPersonCount">0</div>
+        <div class="cv-stat-label">Orang Terdeteksi</div>
+      </div>
+      <div class="cv-stat-card">
+        <div class="cv-stat-icon" style="color:var(--warning)"><i class="fas fa-sun"></i></div>
+        <div class="cv-stat-value" id="cvBrightness">0%</div>
+        <div class="cv-stat-label">Kecerahan</div>
+      </div>
+      <div class="cv-stat-card">
+        <div class="cv-stat-icon" style="color:var(--info)"><i class="fas fa-lightbulb"></i></div>
+        <div class="cv-stat-value" id="cvLightCondition">—</div>
+        <div class="cv-stat-label">Kondisi Cahaya</div>
+      </div>
+      <div class="cv-stat-card">
+        <div class="cv-stat-icon" style="color:var(--success)"><i class="fas fa-microchip"></i></div>
+        <div class="cv-stat-value" id="cvModelStatus">Idle</div>
+        <div class="cv-stat-label">Status Model AI</div>
+      </div>
+      <div class="cv-stat-card">
+        <div class="cv-stat-icon" style="color:var(--text-muted)"><i class="fas fa-gauge"></i></div>
+        <div class="cv-stat-value" id="cvFPS">0</div>
+        <div class="cv-stat-label">FPS</div>
+      </div>
+
+      <div class="card" style="margin-top:4px">
         <div class="card-header">
-          <span class="card-title"><i class="fas fa-wand-magic-sparkles"></i> Vision Rules</span>
+          <span class="card-title"><i class="fas fa-sliders"></i> CV Automation</span>
         </div>
         <div class="card-body" id="cvAutomationSettings">
-          <div class="cv-loading-placeholder">
-            <i class="fas fa-circle-notch fa-spin"></i> Memuat konfigurasi...
-          </div>
+          <p class="muted" style="font-size:.82rem">Pengaturan otomasi CV akan muncul saat kamera aktif.</p>
         </div>
       </div>
     </div>

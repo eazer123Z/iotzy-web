@@ -126,12 +126,12 @@ function showToast(message, type = "info") {
 
 function openModal(id) {
   const modal = document.getElementById(id);
-  if (modal) { modal.classList.add("show"); document.body.style.overflow = "hidden"; }
+  if (modal) { modal.classList.add("active"); document.body.style.overflow = "hidden"; }
 }
 
 function closeModal(id) {
   const modal = document.getElementById(id);
-  if (modal) { modal.classList.remove("show"); document.body.style.overflow = ""; }
+  if (modal) { modal.classList.remove("active"); document.body.style.overflow = ""; }
 }
 
 /* ============================================================
@@ -149,6 +149,10 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', next);
   updateThemeIcon(next);
   
+  // Sync settings dropdown jika ada
+  const sel = document.getElementById('settTheme');
+  if (sel) sel.value = next;
+  
   // Update theme on backend automatically
   apiPost("save_settings", { theme: next }).catch(e => console.warn("Gagal sinkron tema:", e));
 }
@@ -165,7 +169,7 @@ function updateThemeIcon(theme) {
    ============================================================ */
 async function apiPost(action, data = {}) {
   try {
-    const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/data_router.php";
+    const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/index.php";
     const hdrs = { "Content-Type": "application/json" };
     if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
 

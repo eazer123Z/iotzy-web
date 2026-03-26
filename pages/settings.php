@@ -1,108 +1,145 @@
-<div id="settings" class="view app-section">
+<div id="settings" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
       <h3><i class="fas fa-gear"></i> Pengaturan Sistem</h3>
-      <p>Kelola profil, koneksi MQTT, notifikasi, dan keamanan akun Anda.</p>
+      <p>Konfigurasi profil, koneksi MQTT, Telegram, dan keamanan akun.</p>
     </div>
   </div>
+
   <div class="settings-layout">
     <div class="settings-sidebar">
-      <div class="sn-list">
-        <button class="sn-item active" data-target="set-profile"><i class="fas fa-user-circle"></i> Profil Pengguna</button>
-        <button class="sn-item" data-target="set-mqtt"><i class="fas fa-network-wired"></i> Koneksi MQTT</button>
-        <button class="sn-item" data-target="set-telegram"><i class="fas fa-paper-plane"></i> Notifikasi Telegram</button>
-        <button class="sn-item" data-target="set-security"><i class="fas fa-shield-halved"></i> Keamanan & Akun</button>
-        <button class="sn-item" data-target="set-system"><i class="fas fa-server"></i> Informasi Sistem</button>
-        <button class="sn-item" data-target="set-backup"><i class="fas fa-database"></i> Backup & Restore</button>
-      </div>
+      <button class="settings-tab active" data-panel="profilePanel" onclick="switchSettingsTab(this)">
+        <i class="fas fa-user"></i> Profil
+      </button>
+      <button class="settings-tab" data-panel="mqttPanel" onclick="switchSettingsTab(this)">
+        <i class="fas fa-plug"></i> MQTT Broker
+      </button>
+      <button class="settings-tab" data-panel="telegramPanel" onclick="switchSettingsTab(this)">
+        <i class="fab fa-telegram"></i> Telegram
+      </button>
+      <button class="settings-tab" data-panel="securityPanel" onclick="switchSettingsTab(this)">
+        <i class="fas fa-lock"></i> Keamanan
+      </button>
+      <button class="settings-tab" data-panel="aboutPanel" onclick="switchSettingsTab(this)">
+        <i class="fas fa-info-circle"></i> Tentang
+      </button>
     </div>
-    <div class="settings-main">
-      <div id="set-profile" class="settings-panel active">
-        <div class="panel-header">Profil Pengguna</div>
-        <div class="panel-body">
-          <div class="field-item">
-            <label>Username</label>
-            <input type="text" value="<?= $userData['username'] ?? '' ?>" class="form-input" disabled>
-          </div>
-          <div class="field-item">
-            <label>Nama Lengkap</label>
-            <input type="text" id="settingFullName" value="<?= $userData['full_name'] ?? '' ?>" class="form-input">
-          </div>
-          <div class="field-item">
-            <label>Email</label>
-            <input type="email" id="settingEmail" value="<?= $userData['email'] ?? '' ?>" class="form-input">
-          </div>
-          <button class="btn-primary" onclick="saveProfile()">Simpan Profil</button>
+
+    <div class="settings-content">
+      <!-- Profile Panel -->
+      <div id="profilePanel" class="settings-panel active">
+        <h4><i class="fas fa-user"></i> Profil Pengguna</h4>
+        <div class="form-group">
+          <label>Nama Lengkap</label>
+          <input type="text" id="settFullName" value="<?= htmlspecialchars($user['full_name'] ?? '') ?>" placeholder="Nama lengkap Anda">
         </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="settEmail" value="<?= htmlspecialchars($user['email'] ?? '') ?>" placeholder="email@contoh.com">
+        </div>
+        <div class="form-group">
+          <label>Tema Tampilan</label>
+          <select id="settTheme" onchange="applyThemeFromSettings(this.value)">
+            <option value="dark" <?= ($settings['theme'] ?? 'dark') === 'dark' ? 'selected' : '' ?>>🌙 Dark Mode</option>
+            <option value="light" <?= ($settings['theme'] ?? 'dark') === 'light' ? 'selected' : '' ?>>☀️ Light Mode</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="saveProfile()"><i class="fas fa-save"></i> Simpan Profil</button>
       </div>
-      <div id="set-mqtt" class="settings-panel">
-        <div class="panel-header">Konfigurasi MQTT</div>
-        <div class="panel-body">
-          <div class="status-box">
-            <span>Status Koneksi:</span>
-            <span id="mqttStatusSettings" class="setting-val muted">Disconnected</span>
+
+      <!-- MQTT Panel -->
+      <div id="mqttPanel" class="settings-panel">
+        <h4><i class="fas fa-plug"></i> Konfigurasi MQTT</h4>
+        <div class="form-group">
+          <label>Template Broker</label>
+          <select id="mqttTemplate" onchange="applyMQTTTemplate(this.value)">
+            <option value="">— Pilih Template Broker —</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Broker Host</label>
+            <input type="text" id="mqttBroker" value="<?= htmlspecialchars($settings['mqtt_broker'] ?? 'broker.hivemq.com') ?>">
           </div>
-          <div class="field-item">
-            <label>Broker URL</label>
-            <input type="text" id="mqttBroker" class="form-input" value="<?= $settings['mqtt_broker'] ?? '' ?>">
-          </div>
-          <div class="field-item">
+          <div class="form-group">
             <label>Port</label>
-            <input type="number" id="mqttPort" class="form-input" value="<?= $settings['mqtt_port'] ?? '' ?>">
-          </div>
-          <button class="btn-primary" onclick="openMQTTConfigModal()">Edit Konfigurasi Detail</button>
-        </div>
-      </div>
-      <div id="set-telegram" class="settings-panel">
-        <div class="panel-header">Integrasi Telegram</div>
-        <div class="panel-body">
-          <p class="panel-desc">Gunakan Bot Telegram IoTzy untuk menerima notifikasi otomasi dan kontrol perangkat via chat.</p>
-          <div class="field-item">
-            <label>Telegram Chat ID</label>
-            <input type="text" id="settingTelegramId" value="<?= $settings['telegram_chat_id'] ?? '' ?>" class="form-input" placeholder="Contoh: 12345678">
-          </div>
-          <div class="btn-group">
-            <button class="btn-primary" onclick="saveTelegramId()">Simpan Chat ID</button>
-            <button class="btn-secondary" onclick="testTelegram()"><i class="fas fa-vial"></i> Kirim Test</button>
+            <input type="number" id="mqttPort" value="<?= htmlspecialchars($settings['mqtt_port'] ?? 8884) ?>">
           </div>
         </div>
-      </div>
-      <div id="set-security" class="settings-panel">
-        <div class="panel-header">Keamanan & Password</div>
-        <div class="panel-body">
-          <div class="field-item">
-            <label>Password Lama</label>
-            <input type="password" id="oldPassword" class="form-input">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Path</label>
+            <input type="text" id="mqttPath" value="<?= htmlspecialchars($settings['mqtt_path'] ?? '/mqtt') ?>">
           </div>
-          <div class="field-item">
-            <label>Password Baru</label>
-            <input type="password" id="newPassword" class="form-input">
-          </div>
-          <div class="field-item">
-            <label>Konfirmasi Password Baru</label>
-            <input type="password" id="confirmPassword" class="form-input">
-          </div>
-          <button class="btn-primary" onclick="changePassword()">Ganti Password</button>
-        </div>
-      </div>
-      <div id="set-system" class="settings-panel">
-        <div class="panel-header">Informasi Sistem</div>
-        <div class="panel-body">
-          <div class="info-list">
-            <div class="info-item"><span>Versi App</span><span>v2.4.0 (Stabil)</span></div>
-            <div class="info-item"><span>Engine</span><span>PHP 8.2 + Node.js (Edge)</span></div>
-            <div class="info-item"><span>Database</span><span>Supabase (PostgreSQL)</span></div>
-            <div class="info-item"><span>Uptime Server</span><span><?= date("d M Y H:i") ?></span></div>
+          <div class="form-group">
+            <label>Client ID</label>
+            <input type="text" id="mqttClientId" value="<?= htmlspecialchars($settings['mqtt_client_id'] ?? '') ?>" placeholder="Otomatis jika kosong">
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="mqttUsername" value="<?= htmlspecialchars($settings['mqtt_username'] ?? '') ?>" placeholder="Opsional">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="mqttPassword" placeholder="Opsional">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-check">
+            <input type="checkbox" id="mqttUseSSL" <?= !empty($settings['mqtt_use_ssl']) ? 'checked' : '' ?>>
+            Gunakan SSL/TLS (WSS)
+          </label>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn-primary" onclick="saveMQTTSettings()"><i class="fas fa-save"></i> Simpan MQTT</button>
+          <button class="btn-secondary" onclick="connectMQTT()"><i class="fas fa-wifi"></i> Test Koneksi</button>
+        </div>
       </div>
-      <div id="set-backup" class="settings-panel">
-        <div class="panel-header">Backup & Restore Konfigurasi</div>
-        <div class="panel-body">
-          <p class="panel-desc">Ekspor seluruh pengaturan dan data peranti Anda ke dalam file cadangan.</p>
-          <div class="btn-group">
-            <button class="btn-primary"><i class="fas fa-download"></i> Ekspor Konfigurasi (JSON)</button>
-            <button class="btn-secondary"><i class="fas fa-upload"></i> Impor Konfigurasi</button>
+
+      <!-- Telegram Panel -->
+      <div id="telegramPanel" class="settings-panel">
+        <h4><i class="fab fa-telegram"></i> Notifikasi Telegram</h4>
+        <div class="form-group">
+          <label>Chat ID Telegram</label>
+          <input type="text" id="settTelegramChatId" value="<?= htmlspecialchars($settings['telegram_chat_id'] ?? '') ?>" placeholder="Masukkan Chat ID Anda">
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn-primary" onclick="saveTelegramSettings()"><i class="fas fa-save"></i> Simpan</button>
+          <button class="btn-secondary" onclick="testTelegram()"><i class="fas fa-paper-plane"></i> Tes Kirim</button>
+        </div>
+      </div>
+
+      <!-- Security Panel -->
+      <div id="securityPanel" class="settings-panel">
+        <h4><i class="fas fa-lock"></i> Keamanan Akun</h4>
+        <div class="form-group">
+          <label>Password Lama</label>
+          <input type="password" id="settOldPassword" placeholder="Masukkan password lama">
+        </div>
+        <div class="form-group">
+          <label>Password Baru</label>
+          <input type="password" id="settNewPassword" placeholder="Masukkan password baru">
+        </div>
+        <div class="form-group">
+          <label>Konfirmasi Password Baru</label>
+          <input type="password" id="settConfirmPassword" placeholder="Ulangi password baru">
+        </div>
+        <button class="btn-primary" onclick="changePasswordFromSettings()"><i class="fas fa-key"></i> Ganti Password</button>
+      </div>
+
+      <!-- About Panel -->
+      <div id="aboutPanel" class="settings-panel">
+        <h4><i class="fas fa-info-circle"></i> Tentang IoTzy</h4>
+        <div style="display:flex;flex-direction:column;gap:12px;font-size:.88rem;color:var(--text-secondary)">
+          <div><strong>Versi:</strong> <?= APP_VERSION ?></div>
+          <div><strong>Platform:</strong> Vercel Serverless + Supabase MySQL</div>
+          <div><strong>AI Engine:</strong> Gemini Pro via Telegram & Web</div>
+          <div><strong>MQTT:</strong> Paho WebSocket Client</div>
+          <div><strong>Computer Vision:</strong> TensorFlow.js + COCO-SSD</div>
+          <div style="margin-top:8px">
+            <p style="color:var(--text-muted);font-size:.8rem">Dibangun dengan ❤️ untuk Smart Home Indonesia.</p>
           </div>
         </div>
       </div>
