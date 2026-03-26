@@ -525,208 +525,126 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
   color: var(--primary);
 }
 
-/* ── 26. 3D QUICK CONTROLS (ADVANCED) ────────────────── */
-.qc-device-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
+/* ── 26. PREMIUM 3D CONTROLS (PIXEL-PERFECT) ─────────── */
+.device-led  { --accent: #fbbf24; --accent-dim: rgba(251, 191, 36, 0.4); --accent-dim2: rgba(251, 191, 36, 0.2); --accent-plasma: rgba(251, 191, 36, 0.22); --accent-inset: rgba(251, 191, 36, 0.08); }
+.device-fan  { --accent: #06b6d4; --accent-dim: rgba(6, 182, 212, 0.4); --accent-dim2: rgba(6, 182, 212, 0.2); --accent-plasma: rgba(6, 182, 212, 0.22); --accent-inset: rgba(6, 182, 212, 0.08); }
+.device-ac   { --accent: #06b6d4; --accent-dim: rgba(6, 182, 212, 0.4); --accent-dim2: rgba(6, 182, 212, 0.2); --accent-plasma: rgba(6, 182, 212, 0.22); --accent-inset: rgba(6, 182, 212, 0.08); }
+.device-pump { --accent: #10b981; --accent-dim: rgba(16, 185, 129, 0.4); --accent-dim2: rgba(16, 185, 129, 0.2); --accent-plasma: rgba(16, 185, 129, 0.22); --accent-inset: rgba(16, 185, 129, 0.08); }
+.device-lock, .device-door { --accent: #f59e0b; --accent-dim: rgba(245, 158, 11, 0.4); --accent-dim2: rgba(245, 158, 11, 0.2); --accent-plasma: rgba(245, 158, 11, 0.22); --accent-inset: rgba(245, 158, 11, 0.08); }
+.device-tv, .device-speaker { --accent: #8b5cf6; --accent-dim: rgba(139, 92, 246, 0.4); --accent-dim2: rgba(139, 92, 246, 0.2); --accent-plasma: rgba(139, 92, 246, 0.22); --accent-inset: rgba(139, 92, 246, 0.08); }
+
+.btn-wrap {
     position: relative;
+    width: 90px;
+    height: 90px;
     cursor: pointer;
-    user-select: none;
-    transition: transform 0.2s ease;
-    padding: 10px;
+    perspective: 1000px;
 }
 
-.qc-device-card:active { transform: scale(0.96); }
-
-.qc-device-name {
-    font-family: var(--font);
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-secondary);
-    transition: color 0.4s ease;
-    text-align: center;
-}
-
-.qc-device-card.active .qc-device-name { color: var(--accent-light); }
-
-.qc-device-status {
-    font-size: 0.65rem;
-    letter-spacing: 0.05em;
-    font-weight: 500;
-    color: var(--text-muted);
-    transition: color 0.4s ease;
-    margin-top: -8px;
-}
-
-/* ─── 3D BUTTON WRAPPER ─── */
-.qc-btn-wrap {
-    position: relative;
-    width: 86px;
-    height: 86px;
-}
-
-.qc-btn-ring {
+.btn-pulse {
     position: absolute;
-    inset: -6px;
+    inset: -12px;
     border-radius: 50%;
-    border: 1px solid transparent;
-    transition: border-color 0.5s ease, box-shadow 0.5s ease;
+    background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+    opacity: 0;
     pointer-events: none;
+    z-index: 1;
 }
 
-.qc-device-card.active .qc-btn-ring {
-    border-color: var(--accent-glow);
-    box-shadow: 0 0 15px var(--accent-glow), 0 0 40px rgba(99,102,241,0.1);
+.device-card.active .btn-pulse {
+    animation: btn-pulse-anime 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-.qc-btn-surface {
+@keyframes btn-pulse-anime {
+    0% { transform: scale(0.95); opacity: 0; }
+    50% { opacity: 0.15; }
+    100% { transform: scale(1.4); opacity: 0; }
+}
+
+.btn-ring {
+    position: absolute;
+    inset: -5px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.03);
+    z-index: 2;
+    transition: border-color 0.5s ease;
+}
+
+.device-card.active .btn-ring {
+    border-color: var(--accent-dim);
+    box-shadow: 0 0 15px var(--accent-dim2);
+}
+
+.btn-canvas {
+    position: absolute;
+    inset: -5px;
+    width: 100px;
+    height: 100px;
+    z-index: 3;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.device-card.active .btn-canvas { opacity: 0.45; }
+
+.btn-surface {
     position: absolute;
     inset: 0;
     border-radius: 50%;
     background: linear-gradient(145deg, #1c1c2e 0%, #0e0e18 100%);
-    box-shadow:
-        6px 6px 15px rgba(0, 0, 0, 0.6),
-        -3px -3px 10px rgba(255, 255, 255, 0.02),
-        inset 0 1px 0 rgba(255, 255, 255, 0.04),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+    box-shadow: 8px 8px 18px rgba(0, 0, 0, 0.8), -4px -4px 12px rgba(255, 255, 255, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     transition: box-shadow 0.4s ease, transform 0.15s ease, background 0.4s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
+    display: flex; align-items: center; justify-content: center; overflow: hidden; z-index: 4;
 }
 
-[data-theme="light"] .qc-btn-surface {
+[data-theme="light"] .btn-surface {
     background: linear-gradient(145deg, #f8fafc 0%, #e2e8f0 100%);
-    box-shadow: 
-        6px 6px 15px rgba(0,0,0,0.1),
-        -3px -3px 10px rgba(255,255,255,0.8),
-        inset 0 1px 0 rgba(255,255,255,0.9),
-        inset 0 -1px 0 rgba(0,0,0,0.05);
+    box-shadow: 6px 6px 15px rgba(0,0,0,0.1), -3px -3px 10px rgba(255,255,255,0.8);
 }
 
-.qc-device-card.active .qc-btn-surface {
-    box-shadow:
-        6px 6px 15px rgba(0, 0, 0, 0.7),
-        -3px -3px 10px rgba(255, 255, 255, 0.04),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06),
-        0 0 25px var(--accent-glow);
+.device-card.active .btn-surface {
+    box-shadow: 8px 8px 18px rgba(0, 0, 0, 0.82), -4px -4px 12px rgba(255, 255, 255, 0.04), 0 0 30px var(--accent-dim2), inset 0 0 15px var(--accent-inset);
 }
 
-[data-theme="light"] .qc-device-card.active .qc-btn-surface {
-    background: linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%);
-    box-shadow:
-        6px 6px 15px rgba(0, 0, 0, 0.15),
-        -3px -3px 10px rgba(255, 255, 255, 0.9),
-        inset 0 1px 0 rgba(255, 255, 255, 1),
-        0 0 25px var(--accent-glow);
+.btn-surface::before {
+    content: ''; position: absolute; top: 8%; left: 16%; width: 45%; height: 35%;
+    background: radial-gradient(ellipse, rgba(255, 255, 255, 0.12) 0%, transparent 70%);
 }
 
-.qc-btn-surface::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: radial-gradient(circle at 40% 35%, var(--qc-accent-plasma, rgba(99,102,241,0.15)) 0%, transparent 65%);
-    opacity: 0;
-    transition: opacity 0.5s ease;
+.btn-surface::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, var(--accent-plasma) 0%, transparent 65%);
+    opacity: 0; transition: opacity 0.5s ease;
 }
 
-.qc-device-card.active .qc-btn-surface::after { opacity: 1; }
+.device-card.active .btn-surface::after { opacity: 1; }
 
-.qc-power-icon {
-    position: relative;
-    width: 30px;
-    height: 30px;
-    z-index: 2;
+.power-icon { position: relative; width: 36px; height: 36px; z-index: 5; }
+.power-icon svg { width: 100%; height: 100%; transition: all 0.5s ease; }
+.device-card.active .power-icon svg { filter: drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 16px var(--accent-dim)); transform: scale(1.08); }
+
+.icon-ring { stroke: #333344; transition: all 0.5s ease; stroke-dasharray: 75; stroke-dashoffset: 75; fill: none; }
+.device-card.active .icon-ring { stroke: var(--accent); stroke-dashoffset: 0; }
+.icon-stem { stroke: #444466; transition: stroke 0.4s ease; fill: none; }
+.device-card.active .icon-stem { stroke: #fff; }
+
+@keyframes fan-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.device-fan.active .fan-blades { animation: fan-spin 1.2s linear infinite; transform-origin: center; transform-box: fill-box; }
+
+@keyframes pump-flow { 0%, 100% { opacity: 0.4; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+.device-pump.active .pump-drops { animation: pump-flow 0.8s ease-in-out infinite; }
+
+.particles { position: absolute; inset: -15px; pointer-events: none; z-index: 6; }
+
+.device-status {
+    font-size: 0.65rem; font-family: 'Orbitron', sans-serif; letter-spacing: 2px; font-weight: 800;
+    color: var(--text-muted); transition: all 0.4s ease; margin-top: 5px; text-transform: uppercase;
 }
-
-.qc-power-icon svg {
-    width: 100%;
-    height: 100%;
-    transition: filter 0.5s ease, transform 0.4s ease;
-}
-
-.qc-device-card.active .qc-power-icon svg {
-    filter: drop-shadow(0 0 8px var(--accent-light));
-    transform: scale(1.05);
-}
-
-.qc-icon-ring {
-    stroke: var(--text-muted);
-    transition: stroke 0.4s ease, stroke-dashoffset 0.6s ease;
-    stroke-dasharray: 75;
-    stroke-dashoffset: 75;
-    fill: none;
-}
-
-.qc-device-card.active .qc-icon-ring {
-    stroke: var(--accent-light);
-    stroke-dashoffset: 0;
-}
-
-.qc-icon-stem {
-    stroke: var(--text-muted);
-    transition: stroke 0.4s ease;
-    fill: none;
-}
-
-.qc-device-card.active .qc-icon-stem { stroke: var(--accent-light); }
-
-.qc-btn-canvas {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    opacity: 0;
-    transition: opacity 0.4s ease;
-    pointer-events: none;
-}
-
-.qc-device-card.active .qc-btn-canvas { opacity: 0.4; }
-
-.qc-particles {
-    position: absolute;
-    inset: -20px;
-    pointer-events: none;
-    border-radius: 50%;
-    overflow: visible;
-}
+.device-status.on { color: var(--accent); text-shadow: 0 0 12px var(--accent-dim); }
 
 .qc-particle {
-    position: absolute;
-    width: 3px;
-    height: 3px;
-    border-radius: 50%;
-    background: var(--accent-light);
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    opacity: 0;
-}
-
-/* Device-Specific Accents */
-.qc-device-led { --qc-accent: #fbbf24; --qc-accent-plasma: rgba(251, 191, 36, 0.25); }
-.qc-device-fan { --qc-accent: #22d3ee; --qc-accent-plasma: rgba(34, 211, 238, 0.25); }
-.qc-device-pump { --qc-accent: #10b981; --qc-accent-plasma: rgba(16, 185, 129, 0.25); }
-
-@keyframes qc-fan-spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-.qc-device-fan.active .qc-fan-blades {
-    animation: qc-fan-spin 1s linear infinite;
-    transform-origin: center;
-    transform-box: fill-box;
-}
-
-@keyframes qc-pump-flow {
-    0%, 100% { opacity: 0.4; transform: translateY(0); }
-    50% { opacity: 1; transform: translateY(-2px); }
-}
-.qc-device-pump.active .qc-pump-drops {
-    animation: qc-pump-flow 0.8s ease-in-out infinite;
+    position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0;
+    pointer-events: none;
 }

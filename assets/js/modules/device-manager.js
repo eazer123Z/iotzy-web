@@ -361,10 +361,10 @@ function buildDeviceCardHTML(deviceId) {
   const dtype  = getDeviceType(device.icon);
   const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
   
-  const statusHtml = isOn ? "SEDANG AKTIF" : "MATI / STANDBY";
+  const statusHtml = isOn ? "ON" : "OFF";
 
   return `
-    <div class="device-card ${isOn ? "on active" : ""}" id="card-${id}" onclick="handleDeviceCardClick('${id}')">
+    <div class="device-card device-${dtype} ${isOn ? "on active" : ""}" id="card-${id}" onclick="handleDeviceCardClick('${id}')">
       <div class="device-top">
         <div class="device-actions">
           <button onclick="event.stopPropagation(); openTopicSettings('${id}')" title="Settings"><i class="fas fa-cog"></i></button>
@@ -372,18 +372,18 @@ function buildDeviceCardHTML(deviceId) {
         </div>
       </div>
       
-      <div class="qc-btn-wrap">
-        <div class="qc-btn-ring"></div>
-        <canvas class="qc-btn-canvas" id="main-canv-${id}"></canvas>
-        <div class="qc-btn-surface">
-          <div class="qc-power-icon">${getDevice3DSVG(dtype)}</div>
+      <div class="btn-wrap">
+        <div class="btn-pulse"></div>
+        <div class="btn-ring"></div>
+        <canvas class="btn-canvas" id="main-canv-${id}"></canvas>
+        <div class="btn-surface">
+          <div class="power-icon">${getDevice3DSVG(dtype)}</div>
         </div>
-        <div class="qc-particles" id="main-parts-${id}"></div>
+        <div class="particles" id="main-parts-${id}"></div>
       </div>
 
       <div class="device-name">${escHtml(device.name)}</div>
-      <div class="device-type">${dtype}</div>
-      <div class="device-duration ${isOn ? "on" : ""}" id="dur-${id}">${statusHtml}</div>
+      <div class="device-status ${isOn ? "on" : ""}" id="dur-${id}">${statusHtml}</div>
       
       ${buildDeviceExtraHTML(id, device)}
     </div>
@@ -396,7 +396,7 @@ function buildDeviceCardHTML(deviceId) {
 function handleDeviceCardClick(id) {
     const next = !STATE.deviceStates[id];
     const card = document.getElementById(`card-${id}`);
-    const surface = card?.querySelector('.qc-btn-surface');
+    const surface = card?.querySelector('.btn-surface');
     const dtype = getDeviceType(STATE.devices[id]?.icon);
     const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
 
@@ -456,42 +456,42 @@ function filterDevices(q) {
 function getDevice3DSVG(dtype) {
   if (dtype === "light") {
     return `<svg viewBox="0 0 40 40" fill="none">
-      <circle class="qc-icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
-      <path class="qc-icon-stem" d="M16 21 Q18 17 20 15 Q22 17 24 21" stroke-width="1.5" stroke-linecap="round" />
-      <line class="qc-icon-stem" x1="17" y1="23" x2="23" y2="23" stroke-width="1.5" stroke-linecap="round" />
-      <line class="qc-icon-stem" x1="19" y1="25" x2="21" y2="25" stroke-width="1.5" stroke-linecap="round" />
+      <circle class="icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
+      <path class="icon-stem" d="M16 21 Q18 17 20 15 Q22 17 24 21" stroke-width="1.5" stroke-linecap="round" />
+      <line class="icon-stem" x1="17" y1="23" x2="23" y2="23" stroke-width="1.5" stroke-linecap="round" />
+      <line class="icon-stem" x1="19" y1="25" x2="21" y2="25" stroke-width="1.5" stroke-linecap="round" />
     </svg>`;
   }
   if (dtype === "fan" || dtype === "ac") {
     return `<svg viewBox="0 0 40 40" fill="none">
-      <circle class="qc-icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
-      <g class="qc-fan-blades">
-        <path class="qc-icon-stem" d="M20 20 C20 16, 23 14, 23 17" stroke-width="1.5" stroke-linecap="round" />
-        <path class="qc-icon-stem" d="M20 20 C24 20, 26 23, 23 23" stroke-width="1.5" stroke-linecap="round" />
-        <path class="qc-icon-stem" d="M20 20 C20 24, 17 26, 17 23" stroke-width="1.5" stroke-linecap="round" />
-        <path class="qc-icon-stem" d="M20 20 C16 20, 14 17, 17 17" stroke-width="1.5" stroke-linecap="round" />
+      <circle class="icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
+      <g class="fan-blades">
+        <path class="icon-stem" d="M20 20 C20 16, 23 14, 23 17" stroke-width="1.5" stroke-linecap="round" />
+        <path class="icon-stem" d="M20 20 C24 20, 26 23, 23 23" stroke-width="1.5" stroke-linecap="round" />
+        <path class="icon-stem" d="M20 20 C20 24, 17 26, 17 23" stroke-width="1.5" stroke-linecap="round" />
+        <path class="icon-stem" d="M20 20 C16 20, 14 17, 17 17" stroke-width="1.5" stroke-linecap="round" />
       </g>
-      <circle class="qc-icon-stem" cx="20" cy="20" r="1.5" fill="currentColor" stroke="none" />
+      <circle class="icon-stem" cx="20" cy="20" r="1.5" fill="currentColor" stroke="none" />
     </svg>`;
   }
   if (dtype === "lock" || dtype === "door") {
     return `<svg viewBox="0 0 40 40" fill="none">
-        <circle class="qc-icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
-        <path class="qc-icon-stem" d="M15 22 V27 H25 V22 M16 22 V18 C16 15 18 13 20 13 C22 13 24 15 24 18 V22" stroke-width="1.5" stroke-linecap="round" />
-        <circle class="qc-icon-stem" cx="20" cy="24.5" r="1.2" fill="currentColor" stroke="none" />
+        <circle class="icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
+        <path class="icon-stem" d="M15 22 V27 H25 V22 M16 22 V18 C16 15 18 13 20 13 C22 13 24 15 24 18 V22" stroke-width="1.5" stroke-linecap="round" />
+        <circle class="icon-stem" cx="20" cy="24.5" r="1.2" fill="currentColor" stroke="none" />
     </svg>`;
   }
   if (dtype === "tv") {
     return `<svg viewBox="0 0 40 40" fill="none">
-        <circle class="qc-icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
-        <rect class="qc-icon-stem" x="14" y="15" width="12" height="9" rx="1" stroke-width="1.5" />
-        <path class="qc-icon-stem" d="M18 24 L17 26 M22 24 L23 26" stroke-width="1.5" stroke-linecap="round" />
+        <circle class="icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
+        <rect class="icon-stem" x="14" y="15" width="12" height="9" rx="1" stroke-width="1.5" />
+        <path class="icon-stem" d="M18 24 L17 26 M22 24 L23 26" stroke-width="1.5" stroke-linecap="round" />
     </svg>`;
   }
   return `<svg viewBox="0 0 40 40" fill="none">
-    <circle class="qc-icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
-    <path class="qc-icon-stem qc-pump-drops" d="M20 13 C20 13 15 19 15 22.5 C15 25.5 17.2 28 20 28 C22.8 28 25 25.5 25 22.5 C25 19 20 13 20 13Z" stroke-width="1.5" stroke-linecap="round" />
-    <path class="qc-icon-stem" d="M18.5 23 Q18.5 25.5 20.5 25.5" stroke-width="1" stroke-linecap="round" opacity="0.5" />
+    <circle class="icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
+    <path class="icon-stem pump-drops" d="M20 13 C20 13 15 19 15 22.5 C15 25.5 17.2 28 20 28 C22.8 28 25 25.5 25 22.5 C25 19 20 13 20 13Z" stroke-width="1.5" stroke-linecap="round" />
+    <path class="icon-stem" d="M18.5 23 Q18.5 25.5 20.5 25.5" stroke-width="1" stroke-linecap="round" opacity="0.5" />
   </svg>`;
 }
 
@@ -505,7 +505,7 @@ function initDevice3D(canvasId, hexColor, deviceId) {
   if (!canvas) return;
 
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setSize(86, 86);
+  renderer.setSize(90, 90);
   renderer.setPixelRatio(window.devicePixelRatio);
 
   const scene = new THREE.Scene();
@@ -600,14 +600,13 @@ function renderQuickControls() {
     const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
     
     const card = document.createElement('div');
-    card.className = `qc-device-card qc-device-${dtype === 'light' ? 'led' : dtype === 'fan' ? 'fan' : 'pump'}${isOn ? ' active' : ''}`;
+    card.className = `device-card device-${dtype} ${isOn ? 'active on' : ''}`;
     card.id = `qc-${id}`;
     card.dataset.id = id;
     
-    // Toggle Logic dengan Animasi
     card.onclick = () => {
         const next = !STATE.deviceStates[id];
-        const surface = card.querySelector('.qc-btn-surface');
+        const surface = card.querySelector('.btn-surface');
         
         gsap.timeline()
             .to(surface, { scale: 0.88, duration: 0.1, ease: 'power2.in' })
@@ -621,21 +620,20 @@ function renderQuickControls() {
     };
 
     card.innerHTML = `
-      <div class="qc-btn-wrap">
-        <div class="qc-btn-ring"></div>
-        <canvas class="qc-btn-canvas" id="canv-${id}"></canvas>
-        <div class="qc-btn-surface">
-          <div class="qc-power-icon">${getDevice3DSVG(dtype)}</div>
+      <div class="btn-wrap">
+        <div class="btn-pulse"></div>
+        <div class="btn-ring"></div>
+        <canvas class="btn-canvas" id="canv-${id}"></canvas>
+        <div class="btn-surface">
+          <div class="power-icon">${getDevice3DSVG(dtype)}</div>
         </div>
-        <div class="qc-particles" id="parts-${id}"></div>
+        <div class="particles" id="parts-${id}"></div>
       </div>
-      <div class="qc-device-name">${escHtml(device.name)}</div>
-      <div class="qc-device-status">${isOn ? 'AKTIF' : 'MATI'}</div>
+      <div class="device-name">${escHtml(device.name)}</div>
+      <div class="device-status ${isOn ? 'on' : ''}">${isOn ? 'ON' : 'OFF'}</div>
     `;
     
     container.appendChild(card);
-    
-    // Init Three.js setelah render
     setTimeout(() => initDevice3D(`canv-${id}`, accent, id), 10);
   });
 }
