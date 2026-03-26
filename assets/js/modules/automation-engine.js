@@ -15,7 +15,7 @@ const automationEngine = (() => {
 
     // Helper untuk URL API Endpoint
     const _api = (action) => {
-        const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : '') + '/api/data_router.php';
+        const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : '') + '/api/index.php';
         return `${base}?action=${action}`;
     };
 

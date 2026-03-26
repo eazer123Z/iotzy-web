@@ -482,11 +482,11 @@ function openTopicSettings(deviceId) {
   const modal = document.getElementById("topicModal");
   if (modal) { 
     modal.dataset.deviceId = id; 
-    modal.classList.add("show"); 
+    modal.classList.add("active"); 
   }
 }
 
-function closeTopicSettings() { document.getElementById("topicModal")?.classList.remove("show"); }
+function closeTopicSettings() { document.getElementById("topicModal")?.classList.remove("active"); }
 
 /**
  * Menyimpan pembaruan Nama/Icon/Topik perangkat ke Backend.
@@ -526,10 +526,10 @@ function openAddDeviceModal() {
   ["newDeviceName", "newDeviceTopicSub", "newDeviceTopicPub"].forEach((id) => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
-  document.getElementById("addDeviceModal")?.classList.add("show");
+  document.getElementById("addDeviceModal")?.classList.add("active");
 }
 
-function closeAddDeviceModal() { document.getElementById("addDeviceModal")?.classList.remove("show"); }
+function closeAddDeviceModal() { document.getElementById("addDeviceModal")?.classList.remove("active"); }
 
 /**
  * Mendaftarkan perangkat baru ke sistem IOTZY.

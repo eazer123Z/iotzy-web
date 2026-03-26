@@ -281,8 +281,8 @@ function processSensorValue(sensorId, val) {
 /**
  * Modal Config MQTT
  */
-function openMQTTConfigModal()  { document.getElementById("mqttConfigModal")?.classList.add("show"); }
-function closeMQTTConfigModal() { document.getElementById("mqttConfigModal")?.classList.remove("show"); }
+function openMQTTConfigModal()  { document.getElementById("mqttConfigModal")?.classList.add("active"); }
+function closeMQTTConfigModal() { document.getElementById("mqttConfigModal")?.classList.remove("active"); }
 
 /**
  * Menyimpan konfigurasi MQTT baru ke sistem dan mencoba menyambungkan ulang.

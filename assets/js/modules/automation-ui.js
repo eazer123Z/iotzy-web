@@ -294,7 +294,7 @@ function openAddRuleModal(sensorId, deviceId = null) {
       updateRuleActionOptions(devSel.value);
   }
   if (document.getElementById("addRuleDelay")) document.getElementById("addRuleDelay").value = 0;
-  modal.classList.add("show");
+  modal.classList.add("active");
 }
 
 function updateRuleActionOptions(deviceId) {
@@ -330,7 +330,7 @@ function updateRuleConditionUI(cond, meta) {
   }
 }
 
-function closeAddRuleModal() { document.getElementById("addRuleModal")?.classList.remove("show"); _addRuleSensorId = null; }
+function closeAddRuleModal() { document.getElementById("addRuleModal")?.classList.remove("active"); _addRuleSensorId = null; }
 
 function saveNewAutomationRule() {
   const cond       = document.getElementById("addRuleCondition").value;

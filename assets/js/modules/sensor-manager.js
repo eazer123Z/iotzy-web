@@ -268,10 +268,10 @@ function openAddSensorModal() {
   ["newSensorName", "newSensorUnit", "newSensorTopic"].forEach((id) => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
-  document.getElementById("addSensorModal")?.classList.add("show");
+  document.getElementById("addSensorModal")?.classList.add("active");
 }
 
-function closeAddSensorModal() { document.getElementById("addSensorModal")?.classList.remove("show"); }
+function closeAddSensorModal() { document.getElementById("addSensorModal")?.classList.remove("active"); }
 
 /**
  * Menyimpan pendaftaran sensor baru ke backend.
@@ -324,10 +324,10 @@ function openSensorSettings(sensorId) {
   if (g("ssEditUnit"))   g("ssEditUnit").value  = sensor.unit  || "";
   if (g("ssEditTopic"))  g("ssEditTopic").value = sensor.topic || "";
   const modal = document.getElementById("sensorSettingModal");
-  if (modal) { modal.dataset.sensorId = id; modal.classList.add("show"); }
+  if (modal) { modal.dataset.sensorId = id; modal.classList.add("active"); }
 }
 
-function closeSensorSettings() { document.getElementById("sensorSettingModal")?.classList.remove("show"); }
+function closeSensorSettings() { document.getElementById("sensorSettingModal")?.classList.remove("active"); }
 
 async function saveSensorSettings() {
   const modal = document.getElementById("sensorSettingModal");
