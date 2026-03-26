@@ -8,39 +8,39 @@
     </div>
     <nav class="sidebar-nav">
       <div class="nav-group-label">Monitor</div>
-      <a href="#" onclick="switchPage('dashboard',this)" class="nav-item active" data-page="dashboard">
+      <a href="javascript:void(0)" onclick="switchPage('dashboard',this)" class="nav-item active" data-page="dashboard">
         <span class="nav-icon"><i class="fas fa-house"></i></span>
         <span class="nav-label">Overview</span>
       </a>
 
-      <a href="#" onclick="switchPage('devices',this)" class="nav-item" data-page="devices">
+      <a href="javascript:void(0)" onclick="switchPage('devices',this)" class="nav-item" data-page="devices">
         <span class="nav-icon"><i class="fas fa-microchip"></i></span>
         <span class="nav-label">Perangkat</span>
         <span class="nav-badge" id="navDeviceCount"><?= count($devices) ?></span>
       </a>
-      <a href="#" onclick="switchPage('sensors',this)" class="nav-item" data-page="sensors">
+      <a href="javascript:void(0)" onclick="switchPage('sensors',this)" class="nav-item" data-page="sensors">
         <span class="nav-icon"><i class="fas fa-signal"></i></span>
         <span class="nav-label">Sensor</span>
         <span class="nav-badge" id="navSensorCount"><?= count($sensors) ?></span>
       </a>
 
       <div class="nav-group-label" style="margin-top:18px">Otomasi</div>
-      <a href="#" onclick="switchPage('automation',this)" class="nav-item" data-page="automation">
+      <a href="javascript:void(0)" onclick="switchPage('automation',this)" class="nav-item" data-page="automation">
         <span class="nav-icon"><i class="fas fa-sliders"></i></span>
         <span class="nav-label">Aturan Otomasi</span>
       </a>
-      <a href="#" onclick="switchPage('camera',this)" class="nav-item" data-page="camera">
+      <a href="javascript:void(0)" onclick="switchPage('camera',this)" class="nav-item" data-page="camera">
         <span class="nav-icon"><i class="fas fa-eye"></i></span>
         <span class="nav-label">Kamera &amp; CV</span>
         <span class="nav-dot" id="cvNavDot"></span>
       </a>
 
       <div class="nav-group-label" style="margin-top:18px">Sistem</div>
-      <a href="#" onclick="switchPage('analytics',this)" class="nav-item" data-page="analytics">
+      <a href="javascript:void(0)" onclick="switchPage('analytics',this)" class="nav-item" data-page="analytics">
         <span class="nav-icon"><i class="fas fa-list-ul"></i></span>
         <span class="nav-label">Log Aktivitas</span>
       </a>
-      <a href="#" onclick="switchPage('settings',this)" class="nav-item" data-page="settings">
+      <a href="javascript:void(0)" onclick="switchPage('settings',this)" class="nav-item" data-page="settings">
         <span class="nav-icon"><i class="fas fa-gear"></i></span>
         <span class="nav-label">Pengaturan</span>
       </a>
