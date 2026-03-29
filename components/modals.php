@@ -42,19 +42,23 @@
     <div class="modal-body">
       <div class="form-row">
         <div class="form-group"><label>Nama Perangkat</label><input type="text" id="editDeviceName"></div>
-        <div class="form-group"><label>Template</label><select id="editDeviceTemplate" onchange="syncDeviceFormFromTemplate('edit')"></select></div>
         <div class="form-group">
-          <label>Icon</label>
-          <select id="editDeviceIcon">
-            <option value="fa-lightbulb">Lampu</option>
-            <option value="fa-wind">Kipas</option>
-            <option value="fa-snowflake">AC</option>
-            <option value="fa-tv">TV</option>
-            <option value="fa-lock">Kunci</option>
-            <option value="fa-video">Kamera</option>
-            <option value="fa-plug">Plug</option>
-          </select>
+          <label>Model Perangkat</label>
+          <select id="editDeviceTemplate" onchange="syncDeviceFormFromTemplate('edit')"></select>
+          <small id="editDeviceKindHint" class="muted">Jenis perangkat akan mengikuti model yang dipilih.</small>
         </div>
+      </div>
+      <div class="form-group" id="editDeviceManualRow" style="display:none">
+        <label>Ikon Manual</label>
+        <select id="editDeviceIcon">
+          <option value="fa-lightbulb">Lampu</option>
+          <option value="fa-wind">Kipas</option>
+          <option value="fa-snowflake">AC</option>
+          <option value="fa-tv">TV</option>
+          <option value="fa-lock">Kunci</option>
+          <option value="fa-video">Kamera</option>
+          <option value="fa-plug">Plug</option>
+        </select>
       </div>
       <div class="form-group"><label>Topic MQTT</label><input type="text" id="deviceTopic" placeholder="iotzy/device/xxx"></div>
     </div>
@@ -73,9 +77,13 @@
     </div>
     <div class="modal-body">
       <div class="form-group"><label>Nama Perangkat</label><input type="text" id="newDeviceName" placeholder="Lamp Utama"></div>
-      <div class="form-group"><label>Template</label><select id="newDeviceTemplate" onchange="syncDeviceFormFromTemplate('new')"></select></div>
       <div class="form-group">
-        <label>Jenis</label>
+        <label>Model Perangkat</label>
+        <select id="newDeviceTemplate" onchange="syncDeviceFormFromTemplate('new')"></select>
+        <small id="newDeviceKindHint" class="muted">Kalau pilih model, jenis perangkat akan terdeteksi otomatis.</small>
+      </div>
+      <div class="form-group" id="newDeviceManualRow" style="display:none">
+        <label>Ikon Manual</label>
         <select id="newDeviceIcon">
           <option value="fa-lightbulb">Lampu</option>
           <option value="fa-wind">Kipas</option>
@@ -103,11 +111,15 @@
     <div class="modal-body">
       <div class="form-group"><label>Nama Sensor</label><input type="text" id="newSensorName"></div>
       <div class="form-row">
-        <div class="form-group"><label>Template</label><select id="newSensorTemplate" onchange="syncSensorFormFromTemplate('new')"></select></div>
-        <div class="form-group"><label>Device</label><select id="newSensorDevice"></select></div>
+        <div class="form-group">
+          <label>Jenis Sensor</label>
+          <select id="newSensorTemplate" onchange="syncSensorFormFromTemplate('new')"></select>
+          <small id="newSensorTypeHint" class="muted">Jenis dan satuan akan mengikuti pilihan ini.</small>
+        </div>
+        <div class="form-group"><label>Perangkat Tertaut</label><select id="newSensorDevice"></select></div>
       </div>
-      <div class="form-row">
-        <div class="form-group"><label>Tipe</label><select id="newSensorType">
+      <div class="form-row" id="newSensorManualRow" style="display:none">
+        <div class="form-group"><label>Tipe Manual</label><select id="newSensorType">
           <option value="temperature">Suhu</option>
           <option value="humidity">Kelembaban</option>
           <option value="motion">Gerakan</option>
@@ -117,7 +129,7 @@
           <option value="power">Daya</option>
           <option value="distance">Jarak</option>
         </select></div>
-        <div class="form-group"><label>Satuan</label><input type="text" id="newSensorUnit" placeholder="C"></div>
+        <div class="form-group"><label>Satuan Manual</label><input type="text" id="newSensorUnit" placeholder="C"></div>
       </div>
       <div class="form-group"><label>Topic MQTT</label><input type="text" id="newSensorTopic"></div>
     </div>
@@ -137,20 +149,26 @@
     <div class="modal-body">
       <div class="form-group"><label>Nama</label><input type="text" id="ssEditName"></div>
       <div class="form-row">
-        <div class="form-group"><label>Template</label><select id="ssEditTemplate" onchange="syncSensorFormFromTemplate('edit')"></select></div>
-        <div class="form-group"><label>Device</label><select id="ssEditDevice"></select></div>
+        <div class="form-group">
+          <label>Jenis Sensor</label>
+          <select id="ssEditTemplate" onchange="syncSensorFormFromTemplate('edit')"></select>
+          <small id="ssEditTypeHint" class="muted">Jenis dan satuan akan mengikuti pilihan ini.</small>
+        </div>
+        <div class="form-group"><label>Perangkat Tertaut</label><select id="ssEditDevice"></select></div>
       </div>
-      <div class="form-group"><label>Tipe</label><select id="ssEditType">
-        <option value="temperature">Suhu</option>
-        <option value="humidity">Kelembaban</option>
-        <option value="motion">Gerakan</option>
-        <option value="gas">Gas</option>
-        <option value="voltage">Tegangan</option>
-        <option value="current">Arus</option>
-        <option value="power">Daya</option>
-        <option value="distance">Jarak</option>
-      </select></div>
-      <div class="form-group"><label>Satuan</label><input type="text" id="ssEditUnit"></div>
+      <div class="form-row" id="ssEditManualRow" style="display:none">
+        <div class="form-group"><label>Tipe Manual</label><select id="ssEditType">
+          <option value="temperature">Suhu</option>
+          <option value="humidity">Kelembaban</option>
+          <option value="motion">Gerakan</option>
+          <option value="gas">Gas</option>
+          <option value="voltage">Tegangan</option>
+          <option value="current">Arus</option>
+          <option value="power">Daya</option>
+          <option value="distance">Jarak</option>
+        </select></div>
+        <div class="form-group"><label>Satuan Manual</label><input type="text" id="ssEditUnit"></div>
+      </div>
       <div class="form-group"><label>Topic MQTT</label><input type="text" id="ssEditTopic"></div>
     </div>
     <div class="modal-footer">

@@ -44,7 +44,7 @@ async function populateSensorTemplateSelect(selectId, selectedId = "") {
   const select = document.getElementById(selectId);
   if (!select) return;
   const templates = await ensureSensorTemplatesLoaded();
-  select.innerHTML = `<option value="">Manual / tanpa template</option>` + templates.map((template) => {
+  select.innerHTML = `<option value="">Custom / manual</option>` + templates.map((template) => {
     const selected = String(selectedId) === String(template.id) ? " selected" : "";
     return `<option value="${template.id}"${selected}>${escHtml(template.name)}</option>`;
   }).join("");
@@ -64,11 +64,23 @@ function syncSensorFormFromTemplate(prefix = "new") {
   const templateSelect = document.getElementById(prefix === "new" ? "newSensorTemplate" : "ssEditTemplate");
   const typeSelect = document.getElementById(prefix === "new" ? "newSensorType" : "ssEditType");
   const unitInput = document.getElementById(prefix === "new" ? "newSensorUnit" : "ssEditUnit");
+  const hint = document.getElementById(prefix === "new" ? "newSensorTypeHint" : "ssEditTypeHint");
+  const manualRow = document.getElementById(prefix === "new" ? "newSensorManualRow" : "ssEditManualRow");
   if (!templateSelect || !typeSelect || !unitInput) return;
   const template = getSensorTemplateById(templateSelect.value);
-  if (!template) return;
+  if (!template) {
+    typeSelect.disabled = false;
+    unitInput.disabled = false;
+    if (manualRow) manualRow.style.display = "";
+    if (hint) hint.textContent = "Mode manual aktif. Tipe dan satuan sensor bisa kamu atur sendiri.";
+    return;
+  }
   if (template.sensor_type) typeSelect.value = template.sensor_type;
   unitInput.value = template.default_unit || "";
+  typeSelect.disabled = true;
+  unitInput.disabled = true;
+  if (manualRow) manualRow.style.display = "none";
+  if (hint) hint.textContent = `Terdeteksi sebagai ${template.sensor_type || "sensor"} dari ${template.name}.`;
 }
 
 async function loadSensorHistory(sensorId, limit = 24) {
@@ -224,8 +236,11 @@ async function openAddSensorModal() {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
+  const typeSelect = document.getElementById("newSensorType");
+  if (typeSelect) typeSelect.value = "temperature";
   await populateSensorTemplateSelect("newSensorTemplate");
   populateSensorDeviceSelect("newSensorDevice");
+  syncSensorFormFromTemplate("new");
   document.getElementById("addSensorModal")?.classList.add("active");
 }
 
@@ -236,13 +251,13 @@ function closeAddSensorModal() {
 async function saveNewSensor() {
   if (isSensorActionBusy) return;
   const name = document.getElementById("newSensorName")?.value.trim();
-  const type = document.getElementById("newSensorType")?.value || "temperature";
-  const unit = document.getElementById("newSensorUnit")?.value.trim();
   const topic = document.getElementById("newSensorTopic")?.value.trim();
   const templateId = document.getElementById("newSensorTemplate")?.value || "";
   const deviceId = document.getElementById("newSensorDevice")?.value || "";
   const btn = document.getElementById("btnSaveNewSensor");
   const template = getSensorTemplateById(templateId);
+  const type = template?.sensor_type || document.getElementById("newSensorType")?.value || "temperature";
+  const unit = template?.default_unit || document.getElementById("newSensorUnit")?.value.trim();
 
   if (!name || !topic) {
     showToast("Nama sensor dan topic harus diisi!", "warning");
@@ -309,6 +324,7 @@ async function openSensorSettings(sensorId) {
   document.getElementById("ssEditTopic").value = sensor.topic || "";
   await populateSensorTemplateSelect("ssEditTemplate", sensor.sensor_template_id || "");
   populateSensorDeviceSelect("ssEditDevice", sensor.device_id || "");
+  syncSensorFormFromTemplate("edit");
   const modal = document.getElementById("sensorSettingModal");
   if (modal) {
     modal.dataset.sensorId = id;
@@ -326,13 +342,13 @@ async function saveSensorSettings() {
   if (!modal) return;
   const id = String(modal.dataset.sensorId);
   const name = document.getElementById("ssEditName")?.value.trim();
-  const type = document.getElementById("ssEditType")?.value || "temperature";
-  const unit = document.getElementById("ssEditUnit")?.value.trim();
   const topic = document.getElementById("ssEditTopic")?.value.trim();
   const templateId = document.getElementById("ssEditTemplate")?.value || "";
   const deviceId = document.getElementById("ssEditDevice")?.value || "";
   const template = getSensorTemplateById(templateId);
   const btn = document.getElementById("btnSaveSensorEdit");
+  const type = template?.sensor_type || document.getElementById("ssEditType")?.value || "temperature";
+  const unit = template?.default_unit || document.getElementById("ssEditUnit")?.value.trim();
 
   if (!name || !topic) {
     showToast("Nama dan topic harus diisi!", "warning");

@@ -61,11 +61,27 @@ function getDeviceTemplateById(id) {
   return (STATE.deviceTemplates || []).find((template) => Number(template.id) === numericId) || null;
 }
 
+function getDefaultDeviceIcon(deviceType = "switch") {
+  const map = {
+    light: "fa-lightbulb",
+    fan: "fa-wind",
+    ac: "fa-snowflake",
+    tv: "fa-tv",
+    lock: "fa-lock",
+    door: "fa-lock",
+    cctv: "fa-video",
+    speaker: "fa-volume-up",
+    pump: "fa-plug",
+    switch: "fa-plug",
+  };
+  return map[String(deviceType || "switch").toLowerCase()] || "fa-plug";
+}
+
 async function populateDeviceTemplateSelect(selectId, selectedId = "") {
   const select = document.getElementById(selectId);
   if (!select) return;
   const templates = await ensureDeviceTemplatesLoaded();
-  select.innerHTML = `<option value="">Manual / tanpa template</option>` + templates.map((template) => {
+  select.innerHTML = `<option value="">Custom / manual</option>` + templates.map((template) => {
     const selected = String(selectedId) === String(template.id) ? " selected" : "";
     return `<option value="${template.id}"${selected}>${escHtml(template.name)}</option>`;
   }).join("");
@@ -74,10 +90,20 @@ async function populateDeviceTemplateSelect(selectId, selectedId = "") {
 function syncDeviceFormFromTemplate(prefix = "new") {
   const templateSelect = document.getElementById(prefix === "new" ? "newDeviceTemplate" : "editDeviceTemplate");
   const iconSelect = document.getElementById(prefix === "new" ? "newDeviceIcon" : "editDeviceIcon");
+  const hint = document.getElementById(prefix === "new" ? "newDeviceKindHint" : "editDeviceKindHint");
+  const manualRow = document.getElementById(prefix === "new" ? "newDeviceManualRow" : "editDeviceManualRow");
   if (!templateSelect || !iconSelect) return;
   const template = getDeviceTemplateById(templateSelect.value);
-  if (!template) return;
-  if (template.default_icon) iconSelect.value = template.default_icon;
+  if (!template) {
+    iconSelect.disabled = false;
+    if (manualRow) manualRow.style.display = "";
+    if (hint) hint.textContent = "Mode manual aktif. Ikon perangkat bisa kamu atur sendiri.";
+    return;
+  }
+  iconSelect.value = template.default_icon || getDefaultDeviceIcon(template.device_type);
+  iconSelect.disabled = true;
+  if (manualRow) manualRow.style.display = "none";
+  if (hint) hint.textContent = `Terdeteksi sebagai ${template.device_type || "perangkat"} dari model ${template.name}.`;
 }
 
 /* ==================== DEVICE UI ==================== */
@@ -829,7 +855,7 @@ function openTopicSettings(deviceId) {
   if (g("topicDeviceName")) g("topicDeviceName").textContent = device.name;
   if (g("editDeviceName"))  g("editDeviceName").value  = device.name    || "";
   if (g("editDeviceIcon"))  g("editDeviceIcon").value  = device.icon    || "fa-plug";
-  populateDeviceTemplateSelect("editDeviceTemplate", device.device_template_id || "");
+  populateDeviceTemplateSelect("editDeviceTemplate", device.device_template_id || "").then(() => syncDeviceFormFromTemplate("edit"));
   if (g("deviceTopic"))  g("deviceTopic").value  = topics.sub || topics.pub || device.topic_sub || device.topic_pub || "";
 
   const modal = document.getElementById("topicModal");
@@ -850,11 +876,12 @@ async function saveDeviceSettings() {
   
   const id   = String(modal.dataset.deviceId);
   const name = document.getElementById("editDeviceName")?.value.trim();
-  const icon = document.getElementById("editDeviceIcon")?.value;
   const templateId = document.getElementById("editDeviceTemplate")?.value || "";
   const top  = document.getElementById("deviceTopic")?.value.trim();
   const btn  = document.getElementById("btnSaveDeviceEdit");
   const template = getDeviceTemplateById(templateId);
+  const icon = document.getElementById("editDeviceIcon")?.value || template?.default_icon || STATE.devices[id]?.icon || getDefaultDeviceIcon(template?.device_type || STATE.devices[id]?.type);
+  const resolvedType = template?.device_type || STATE.devices[id]?.type || getDeviceType(icon);
 
   if (!name) { showToast("Nama perangkat harus diisi!", "warning"); return; }
 
@@ -866,7 +893,7 @@ async function saveDeviceSettings() {
       id,
       name,
       icon,
-      type: template?.device_type || getDeviceType(icon),
+      type: resolvedType,
       device_template_id: templateId || null,
       state_on_label: template?.state_on_label || null,
       state_off_label: template?.state_off_label || null,
@@ -878,7 +905,7 @@ async function saveDeviceSettings() {
         ...STATE.devices[id],
         name,
         icon,
-        type: template?.device_type || STATE.devices[id]?.type || getDeviceType(icon),
+        type: resolvedType,
         device_template_id: templateId || null,
         template_name: template?.name || null,
         template_slug: template?.slug || null,
@@ -912,7 +939,9 @@ function openAddDeviceModal() {
   ["newDeviceName", "newDeviceTopic"].forEach((id) => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
-  populateDeviceTemplateSelect("newDeviceTemplate");
+  const iconSelect = document.getElementById("newDeviceIcon");
+  if (iconSelect) iconSelect.value = "fa-plug";
+  populateDeviceTemplateSelect("newDeviceTemplate").then(() => syncDeviceFormFromTemplate("new"));
   document.getElementById("addDeviceModal")?.classList.add("active");
 }
 
@@ -921,11 +950,12 @@ function closeAddDeviceModal() { document.getElementById("addDeviceModal")?.clas
 async function saveNewDevice() {
   if (isDeviceActionBusy) return;
   const name = document.getElementById("newDeviceName")?.value.trim();
-  const icon = document.getElementById("newDeviceIcon")?.value  || "fa-plug";
   const templateId = document.getElementById("newDeviceTemplate")?.value || "";
   const top  = document.getElementById("newDeviceTopic")?.value.trim();
   const btn  = document.getElementById("btnSaveNewDevice");
   const template = getDeviceTemplateById(templateId);
+  const icon = document.getElementById("newDeviceIcon")?.value || template?.default_icon || getDefaultDeviceIcon(template?.device_type);
+  const resolvedType = template?.device_type || getDeviceType(icon);
 
   if (!name) { showToast("Nama perangkat harus diisi!", "warning"); return; }
 
@@ -936,7 +966,7 @@ async function saveNewDevice() {
     const result = await apiPost("add_device", {
       name,
       icon,
-      type: template?.device_type || getDeviceType(icon),
+      type: resolvedType,
       device_template_id: templateId || null,
       state_on_label: template?.state_on_label || null,
       state_off_label: template?.state_off_label || null,
@@ -949,7 +979,7 @@ async function saveNewDevice() {
         id,
         name,
         icon,
-        type: template?.device_type || getDeviceType(icon),
+        type: resolvedType,
         template_name: template?.name || null,
         template_slug: template?.slug || null,
         device_template_id: templateId || null,
