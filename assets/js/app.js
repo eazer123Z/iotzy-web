@@ -48,7 +48,6 @@ const STATE = {
   automationRules:     {},
   logs:                [],
   logFilter:           "",
-  logTypeFilter:       "all",
   logSearchFilter:     "",
   analyticsDate:       new Date().toISOString().slice(0, 10),
   analytics:           null,

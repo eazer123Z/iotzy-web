@@ -18,13 +18,23 @@ function normalizeLogRecord(row) {
     device: row.device || row.device_name || "System",
     activity: row.activity || "",
     trigger: row.trigger || row.trigger_type || "System",
-    type: row.type || row.log_type || "info",
     device_id: row.device_id ?? null,
     sensor_id: row.sensor_id ?? null,
     sensor_name: row.sensor_name || null,
     metadata: row.metadata || null,
     ts,
   };
+}
+
+function isUserFacingLog(log) {
+  const deviceName = String(log?.device || "").trim().toLowerCase();
+  const trigger = String(log?.trigger || "").trim().toLowerCase();
+  const hasEntity = Number(log?.device_id || 0) > 0 || Number(log?.sensor_id || 0) > 0;
+
+  if (hasEntity) return true;
+  if (deviceName === "system" || deviceName === "mqtt") return false;
+  if (trigger === "system") return false;
+  return String(log?.activity || "").trim() !== "";
 }
 
 async function loadLogs(date = getAnalyticsDate()) {
@@ -40,7 +50,7 @@ async function loadLogs(date = getAnalyticsDate()) {
   ]);
 
   if (Array.isArray(logsResult)) {
-    STATE.logs = logsResult.map(normalizeLogRecord);
+    STATE.logs = logsResult.map(normalizeLogRecord).filter(isUserFacingLog);
   }
 
   if (summaryResult?.success && summaryResult.data) {
@@ -56,19 +66,20 @@ async function loadLogs(date = getAnalyticsDate()) {
   renderAnalyticsPower();
 }
 
-async function addLog(device, activity, trigger, type = "info", extra = {}) {
+async function addLog(device, activity, trigger, _type = "info", extra = {}) {
   const now = new Date();
   const log = normalizeLogRecord({
     created_at: now.toISOString(),
     device,
     activity,
     trigger,
-    type,
     ...extra,
   });
-  STATE.logs.unshift(log);
-  if (STATE.logs.length > (CONFIG.app.maxLogs || 500)) {
-    STATE.logs.length = CONFIG.app.maxLogs || 500;
+  if (isUserFacingLog(log)) {
+    STATE.logs.unshift(log);
+    if (STATE.logs.length > (CONFIG.app.maxLogs || 500)) {
+      STATE.logs.length = CONFIG.app.maxLogs || 500;
+    }
   }
   updateLogDisplay();
   updateDashboardActivityFeed();
@@ -78,18 +89,10 @@ async function addLog(device, activity, trigger, type = "info", extra = {}) {
     device: device || "System",
     activity,
     trigger,
-    type,
     device_id: extra.device_id ?? null,
     sensor_id: extra.sensor_id ?? null,
     metadata: extra.metadata ?? null,
   }).catch(() => {});
-}
-
-function filterLogType(type, btn) {
-  STATE.logTypeFilter = type || "all";
-  document.querySelectorAll(".log-filter-tab").forEach((tab) => tab.classList.remove("active"));
-  if (btn) btn.classList.add("active");
-  updateLogDisplay();
 }
 
 function filterLogSearch(value) {
@@ -97,17 +100,17 @@ function filterLogSearch(value) {
   updateLogDisplay();
 }
 
+function getVisibleLogs() {
+  return (STATE.logs || []).filter(isUserFacingLog);
+}
+
 function getFilteredLogs() {
-  const typeFilter = STATE.logTypeFilter || "all";
   const search = STATE.logSearchFilter || "";
-  return (STATE.logs || []).filter((log) => {
-    if (typeFilter !== "all" && log.type !== typeFilter) {
-      return false;
-    }
+  return getVisibleLogs().filter((log) => {
     if (!search) {
       return true;
     }
-    const haystack = `${log.device} ${log.activity} ${log.trigger} ${log.sensor_name || ""}`.toLowerCase();
+    const haystack = `${log.device} ${log.activity} ${log.sensor_name || ""}`.toLowerCase();
     return haystack.includes(search);
   });
 }
@@ -122,14 +125,12 @@ function updateLogDisplay() {
     return;
   }
 
-  let html = '<table class="log-table"><thead><tr><th>Waktu</th><th>Perangkat</th><th>Aktivitas</th><th>Trigger</th><th>Tipe</th></tr></thead><tbody>';
+  let html = '<table class="log-table"><thead><tr><th>Waktu</th><th>Perangkat</th><th>Aktivitas</th></tr></thead><tbody>';
   filtered.forEach((log) => {
     html += `<tr>
       <td class="log-time">${escHtml(log.waktu)}</td>
       <td class="log-dev">${escHtml(log.device)}</td>
       <td class="log-act">${escHtml(log.activity)}</td>
-      <td>${escHtml(log.trigger)}</td>
-      <td><span class="log-type-badge ${escHtml(log.type)}">${escHtml(log.type)}</span></td>
     </tr>`;
   });
   html += '</tbody></table>';
@@ -251,7 +252,7 @@ function renderAnalyticsDevices() {
           <div style="font-size:15px; font-weight:700">${escHtml(device.name)}</div>
           <div style="font-size:12px; color:var(--text-muted)">${escHtml(device.model_label || device.type || "Device")}</div>
         </div>
-        <span class="log-type-badge ${device.active_duration_seconds > 0 ? "success" : "info"}">
+        <span class="device-status-pill ${device.active_duration_seconds > 0 ? "on" : ""}" style="margin-top:0">
           ${device.active_duration_seconds > 0 ? escHtml(device.state_on_label || "ON") : escHtml(device.state_off_label || "OFF")}
         </span>
       </div>
@@ -303,12 +304,13 @@ function updateDashboardActivityFeed() {
   const feed = document.getElementById("activityFeedContainer");
   if (!feed) return;
 
-  if (!STATE.logs || STATE.logs.length === 0) {
+  const visibleLogs = getVisibleLogs();
+  if (!visibleLogs.length) {
     feed.innerHTML = '<p class="muted" style="text-align:center;font-size:.85rem">Belum ada aktivitas tercatat.</p>';
     return;
   }
 
-  const recentLogs = STATE.logs.slice(0, 5);
+  const recentLogs = visibleLogs.slice(0, 5);
   const iconMap = {
     Manual: "fa-hand-pointer",
     Automation: "fa-robot",
@@ -365,9 +367,15 @@ function exportLog() {
     return;
   }
 
-  let csv = "Tanggal,Waktu,Perangkat,Aktivitas,Trigger,Tipe\n";
-  STATE.logs.forEach((log) => {
-    csv += `"${log.tanggal}","${log.waktu}","${String(log.device).replace(/"/g, '""')}","${String(log.activity).replace(/"/g, '""')}","${String(log.trigger).replace(/"/g, '""')}","${String(log.type).replace(/"/g, '""')}"\n`;
+  const rows = getFilteredLogs();
+  if (!rows.length) {
+    showToast("Tidak ada data yang bisa diekspor", "warning");
+    return;
+  }
+
+  let csv = "Tanggal,Waktu,Perangkat,Aktivitas\n";
+  rows.forEach((log) => {
+    csv += `"${log.tanggal}","${log.waktu}","${String(log.device).replace(/"/g, '""')}","${String(log.activity).replace(/"/g, '""')}"\n`;
   });
 
   const blob = new Blob([csv], { type: "text/csv" });

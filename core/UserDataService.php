@@ -523,6 +523,28 @@ function addActivityLog(
     }
 }
 
+function iotzyIsUserFacingLog(array $log): bool
+{
+    $deviceId = isset($log['device_id']) && $log['device_id'] !== null ? (int)$log['device_id'] : 0;
+    $sensorId = isset($log['sensor_id']) && $log['sensor_id'] !== null ? (int)$log['sensor_id'] : 0;
+    if ($deviceId > 0 || $sensorId > 0) {
+        return true;
+    }
+
+    $deviceName = strtolower(trim((string)($log['linked_device_name'] ?? $log['device_name'] ?? $log['device'] ?? '')));
+    $trigger = strtolower(trim((string)($log['trigger_type'] ?? $log['trigger'] ?? '')));
+
+    if ($deviceName === 'system' || $deviceName === 'mqtt') {
+        return false;
+    }
+
+    if ($trigger === 'system') {
+        return false;
+    }
+
+    return trim((string)($log['activity'] ?? '')) !== '';
+}
+
 function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = null): array
 {
     $db = $db ?: getLocalDB();
@@ -624,6 +646,10 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
     $timeline = array_fill(0, 24, 0);
     $recentLogs = [];
     foreach ($logs as $log) {
+        if (!iotzyIsUserFacingLog($log)) {
+            continue;
+        }
+
         $ts = strtotime($log['created_at']);
         $timeline[(int)date('G', $ts)]++;
         $deviceId = $log['device_id'] !== null ? (int)$log['device_id'] : null;

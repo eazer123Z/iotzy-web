@@ -23,6 +23,10 @@ function handleLogAction(string $action, int $userId, array $body, PDO $db): voi
         $stmt->execute([$userId, $start, $end, $limit]);
         $rows = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $log) {
+            if (!iotzyIsUserFacingLog($log)) {
+                continue;
+            }
+
             $ts = strtotime($log['created_at']);
             $rows[] = [
                 'id' => (int)$log['id'],
@@ -34,8 +38,6 @@ function handleLogAction(string $action, int $userId, array $body, PDO $db): voi
                 'activity' => $log['activity'],
                 'trigger' => $log['trigger_type'],
                 'trigger_type' => $log['trigger_type'],
-                'type' => $log['log_type'],
-                'log_type' => $log['log_type'],
                 'device_id' => $log['device_id'] !== null ? (int)$log['device_id'] : null,
                 'sensor_id' => $log['sensor_id'] !== null ? (int)$log['sensor_id'] : null,
                 'sensor_name' => $log['linked_sensor_name'],
@@ -72,12 +74,11 @@ function handleLogAction(string $action, int $userId, array $body, PDO $db): voi
         $dev = trim((string)($body['device'] ?? ''));
         $act = trim((string)($body['activity'] ?? ''));
         $trig = trim((string)($body['trigger'] ?? 'System'));
-        $type = trim((string)($body['type'] ?? 'info'));
         $deviceId = isset($body['device_id']) && $body['device_id'] !== '' ? (int)$body['device_id'] : null;
         $sensorId = isset($body['sensor_id']) && $body['sensor_id'] !== '' ? (int)$body['sensor_id'] : null;
         $metadata = $body['metadata'] ?? null;
         if ($dev !== '' && $act !== '') {
-            addActivityLog($userId, $dev, $act, $trig, $type, $deviceId, $sensorId, $metadata);
+            addActivityLog($userId, $dev, $act, $trig, 'info', $deviceId, $sensorId, $metadata);
             jsonOut(['success' => true]);
         }
         jsonOut(['success' => false, 'error' => 'Data log tidak lengkap']);
@@ -85,7 +86,6 @@ function handleLogAction(string $action, int $userId, array $body, PDO $db): voi
 
     if ($action === 'clear_logs') {
         dbWrite("DELETE FROM activity_logs WHERE user_id = ?", [$userId]);
-        addActivityLog($userId, 'System', 'Semua log aktivitas telah dihapus', 'User', 'warning');
         jsonOut(['success' => true, 'message' => 'Log berhasil dibersihkan']);
     }
 }

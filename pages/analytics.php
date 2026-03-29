@@ -84,13 +84,6 @@
   </div>
 
   <div class="log-toolbar">
-    <div class="log-filter-tabs">
-      <button class="log-filter-tab active" onclick="filterLogType('all',this)">Semua</button>
-      <button class="log-filter-tab" onclick="filterLogType('success',this)">Success</button>
-      <button class="log-filter-tab" onclick="filterLogType('info',this)">Info</button>
-      <button class="log-filter-tab" onclick="filterLogType('warning',this)">Warning</button>
-      <button class="log-filter-tab" onclick="filterLogType('error',this)">Error</button>
-    </div>
     <div class="search-box">
       <i class="fas fa-search"></i>
       <input type="text" id="logSearchInput" placeholder="Cari log..." oninput="filterLogSearch(this.value)">
