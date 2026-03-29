@@ -77,6 +77,30 @@ function getDefaultDeviceIcon(deviceType = "switch") {
   return map[String(deviceType || "switch").toLowerCase()] || "fa-plug";
 }
 
+function getDeviceAccent(deviceType = "switch") {
+  const map = {
+    light: "#fbbf24",
+    fan: "#22d3ee",
+    ac: "#22d3ee",
+    tv: "#8b5cf6",
+    speaker: "#8b5cf6",
+    lock: "#f59e0b",
+    door: "#f59e0b",
+    cctv: "#38bdf8",
+    pump: "#10b981",
+    switch: "#10b981",
+  };
+  return map[String(deviceType || "switch").toLowerCase()] || "#10b981";
+}
+
+function getDeviceCardIcon(device, isOn = false) {
+  const dtype = getDeviceType(device);
+  if ((dtype === "lock" || dtype === "door") && isOn) {
+    return "fa-lock-open";
+  }
+  return String(device?.icon || device?.template_default_icon || getDefaultDeviceIcon(dtype) || "fa-plug");
+}
+
 async function populateDeviceTemplateSelect(selectId, selectedId = "") {
   const select = document.getElementById(selectId);
   if (!select) return;
@@ -128,14 +152,17 @@ function updateDeviceUI(deviceId) {
       pill.textContent = isLock ? (isOn ? onLabel : offLabel) : (isOn ? onLabel : offLabel);
     }
 
-    const dur = card.querySelector(".device-usage, .device-status");
+    const dur = card.querySelector(".device-usage");
     if (dur) {
         if (isLock) dur.textContent = isOn ? "Terbuka" : "Terkunci";
-        else dur.textContent = isOn ? "Aktif" : (dur.classList.contains('device-usage') ? "Standby" : "OFF");
+        else dur.textContent = isOn ? "Aktif" : "Standby";
     }
 
-    const icon = card.querySelector(".power-icon");
-    if (icon) icon.style.opacity = isOn ? 0 : 0.4;
+    const icon = card.querySelector(".device-icon");
+    if (icon && isLock) {
+      icon.classList.remove("fa-lock", "fa-lock-open");
+      icon.classList.add(isOn ? "fa-lock-open" : "fa-lock");
+    }
     
     // Update Extra Controls visibility within this card
     card.querySelectorAll('.control-row, .fan-speed-row, .ac-controls, .brightness-row, .volume-row').forEach(row => {
@@ -143,10 +170,6 @@ function updateDeviceUI(deviceId) {
     });
   });
 
-  // 2. Update 3D State
-  [`canv-${id}`, `main-canv-${id}`].forEach(cid => {
-      if (QC_3D.scenes[cid]) QC_3D.scenes[cid].active = isOn;
-  });
 }
 
 /**
@@ -395,34 +418,27 @@ function buildDeviceCardHTML(deviceId, context = 'grid') {
   
   const isOn = !!STATE.deviceStates[id];
   const dtype = getDeviceType(device);
-  const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
+  const accent = getDeviceAccent(dtype);
+  const iconClass = getDeviceCardIcon(device, isOn);
   const isQC = context === 'quick';
   const prefix = isQC ? 'qc-' : 'card-';
-  const canvId = isQC ? `canv-${id}` : `main-canv-${id}`;
-  const partsId = isQC ? `parts-${id}` : `main-parts-${id}`;
 
   return `
     <div class="device-card device-${dtype} ${isOn ? 'active on' : ''}" id="${prefix}${id}" onclick="handleDeviceCardClick('${id}', '${context}')">
-      <div class="card-glow" style="--card-accent: ${accent}"></div>
       <div class="card-controls-top">
         <div class="device-actions">
           <button class="card-action-btn" onclick="event.stopPropagation(); openTopicSettings('${id}')" title="Settings"><i class="fas fa-cog"></i></button>
           <button class="card-action-btn trash" onclick="event.stopPropagation(); removeDevice('${id}')" title="Hapus"><i class="fas fa-trash"></i></button>
         </div>
       </div>
-      
-      <div class="btn-wrap">
-        <div class="btn-pulse" style="background: ${accent}"></div>
-        <canvas class="btn-canvas" id="${canvId}"></canvas>
-        <div class="btn-surface">
-          <div class="power-icon" style="opacity: ${isOn ? 0 : 0.4}">${getDevice3DSVG(dtype)}</div>
-        </div>
-        <div class="particles" id="${partsId}"></div>
+
+      <div class="device-icon-wrap" style="--card-accent: ${accent}">
+        <i class="fas ${iconClass} device-icon"></i>
       </div>
 
       <div class="device-info">
         <div class="device-name">${escHtml(device.name)}</div>
-        <div class="device-model" style="font-size:11px;color:var(--text-muted);margin-top:2px">${escHtml(device.template_name || getDeviceTypeName(device))}</div>
+        <div class="device-model">${escHtml(device.template_name || getDeviceTypeName(device))}</div>
         <div class="device-usage" id="dur-${id}">${isOn ? 'Aktif' : 'Standby'}</div>
       </div>
       
@@ -442,24 +458,6 @@ function buildDeviceCardHTML(deviceId, context = 'grid') {
  */
 function handleDeviceCardClick(id, context = 'grid') {
     const next = !STATE.deviceStates[id];
-    const prefix = context === 'quick' ? 'qc-' : 'card-';
-    const card = document.getElementById(`${prefix}${id}`);
-    const surface = card?.querySelector('.btn-surface');
-    const dtype = getDeviceType(STATE.devices[id]);
-    const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
-    const partsId = context === 'quick' ? `parts-${id}` : `main-parts-${id}`;
-    const canvId = context === 'quick' ? `canv-${id}` : `main-canv-${id}`;
-
-    if (surface) {
-        gsap.timeline()
-            .to(surface, { scale: 0.88, duration: 0.1, ease: 'power2.in' })
-            .to(surface, { scale: next ? 1.06 : 1, duration: 0.4, ease: 'elastic.out(1, 0.4)' })
-            .to(surface, { scale: 1, duration: 0.2, ease: 'power2.out' }, '-=0.15');
-    }
-
-    if (next) spawnQCParticles(partsId, accent, true);
-    if (QC_3D.scenes[canvId]) QC_3D.scenes[canvId].active = next;
-    
     toggleDeviceState(id, next);
 }
 
@@ -477,9 +475,6 @@ function renderDevices() {
   
   keys.forEach((id) => {
     grid.insertAdjacentHTML('beforeend', buildDeviceCardHTML(id, 'grid'));
-  const dtype = getDeviceType(STATE.devices[id]);
-    const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
-    setTimeout(() => initDevice3D(`main-canv-${id}`, accent, id), 10);
   });
 }
 
@@ -492,252 +487,10 @@ function filterDevices(q) {
   });
 }
 
-/* ==================== 3D UI HELPERS (Advanced) ==================== */
-
-/**
- * Mendapatkan SVG kustom untuk tombol 3D berdasarkan tipe perangkat.
- */
-function getDevice3DSVG(dtype) {
-  if (dtype === "light") {
-    return `<svg viewBox="0 0 40 40" fill="none">
-      <circle class="icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
-      <path class="icon-stem" d="M16 21 Q18 17 20 15 Q22 17 24 21" stroke-width="1.5" stroke-linecap="round" />
-      <line class="icon-stem" x1="17" y1="23" x2="23" y2="23" stroke-width="1.5" stroke-linecap="round" />
-      <line class="icon-stem" x1="19" y1="25" x2="21" y2="25" stroke-width="1.5" stroke-linecap="round" />
-    </svg>`;
-  }
-  if (dtype === "fan" || dtype === "ac") {
-    return `<svg viewBox="0 0 40 40" fill="none">
-      <circle class="icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
-      <g class="fan-blades">
-        <path class="icon-stem" d="M20 20 C20 16, 23 14, 23 17" stroke-width="1.5" stroke-linecap="round" />
-        <path class="icon-stem" d="M20 20 C24 20, 26 23, 23 23" stroke-width="1.5" stroke-linecap="round" />
-        <path class="icon-stem" d="M20 20 C20 24, 17 26, 17 23" stroke-width="1.5" stroke-linecap="round" />
-        <path class="icon-stem" d="M20 20 C16 20, 14 17, 17 17" stroke-width="1.5" stroke-linecap="round" />
-      </g>
-      <circle class="icon-stem" cx="20" cy="20" r="1.5" fill="currentColor" stroke="none" />
-    </svg>`;
-  }
-  if (dtype === "lock" || dtype === "door") {
-    return `<svg viewBox="0 0 40 40" fill="none">
-        <circle class="icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
-        <path class="icon-stem" d="M15 22 V27 H25 V22 M16 22 V18 C16 15 18 13 20 13 C22 13 24 15 24 18 V22" stroke-width="1.5" stroke-linecap="round" />
-        <circle class="icon-stem" cx="20" cy="24.5" r="1.2" fill="currentColor" stroke="none" />
-    </svg>`;
-  }
-  if (dtype === "tv") {
-    return `<svg viewBox="0 0 40 40" fill="none">
-        <circle class="icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
-        <rect class="icon-stem" x="14" y="15" width="12" height="9" rx="1" stroke-width="1.5" />
-        <path class="icon-stem" d="M18 24 L17 26 M22 24 L23 26" stroke-width="1.5" stroke-linecap="round" />
-    </svg>`;
-  }
-  return `<svg viewBox="0 0 40 40" fill="none">
-    <circle class="icon-ring" cx="20" cy="20" r="13" stroke-width="1.5" stroke-linecap="round" />
-    <path class="icon-stem pump-drops" d="M20 13 C20 13 15 19 15 22.5 C15 25.5 17.2 28 20 28 C22.8 28 25 25.5 25 22.5 C25 19 20 13 20 13Z" stroke-width="1.5" stroke-linecap="round" />
-    <path class="icon-stem" d="M18.5 23 Q18.5 25.5 20.5 25.5" stroke-width="1" stroke-linecap="round" opacity="0.5" />
-  </svg>`;
-}
-
-const QC_3D = { scenes: {} };
-
-/**
- * Membuat grup ikon 3D premium berdasarkan tipe perangkat.
- */
-function create3DIcon(dtype, hexColor) {
-  const group = new THREE.Group();
-  const color = new THREE.Color(hexColor);
-  
-  // Material Dasar Premium (Plastik/Logam Mengkilap)
-  const baseMat = new THREE.MeshStandardMaterial({
-    color: color,
-    metalness: 0.9,
-    roughness: 0.05,
-    emissive: color,
-    emissiveIntensity: 0.3, // Lebih terang saat idle
-  });
-
-  // Material Glow (Pendar)
-  const glowMat = new THREE.MeshStandardMaterial({
-    color: color,
-    metalness: 0.6,
-    roughness: 0.1,
-    emissive: color,
-    emissiveIntensity: 1.2,
-  });
-
-  if (dtype === "light") {
-    // Elegant Bulb Base
-    const baseGeo = new THREE.CylinderGeometry(0.15, 0.2, 0.25, 24);
-    const base = new THREE.Mesh(baseGeo, baseMat);
-    base.position.y = -0.3;
-    group.add(base);
-
-    // Tech Bulb (Low-poly Elegant)
-    const bulbGeo = new THREE.IcosahedronGeometry(0.42, 1);
-    const bulb = new THREE.Mesh(bulbGeo, glowMat);
-    bulb.position.y = 0.22;
-    group.add(bulb);
-  } else if (dtype === "fan" || dtype === "ac") {
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.15, 24), baseMat);
-    hub.rotation.x = Math.PI/2;
-    group.add(hub);
-    
-    // Aerodynamic Blades
-    const engine = new THREE.Group();
-    for (let i = 0; i < 4; i++) {
-        const bladeGeo = new THREE.BoxGeometry(0.75, 0.18, 0.04);
-        const blade = new THREE.Mesh(bladeGeo, glowMat);
-        blade.position.x = 0.45;
-        const pivot = new THREE.Group();
-        pivot.rotation.z = (i * Math.PI) / 2;
-        pivot.add(blade);
-        engine.add(pivot);
-    }
-    group.add(engine);
-    group.userData.engine = engine;
-  } else if (dtype === "lock" || dtype === "door") {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 0.22, 1, 1, 1), baseMat);
-    body.position.y = -0.1;
-    group.add(body);
-    
-    // Smooth Shackle
-    const shackleGeo = new THREE.TorusGeometry(0.25, 0.07, 12, 32, Math.PI);
-    const shackle = new THREE.Mesh(shackleGeo, glowMat);
-    shackle.position.y = 0.15;
-    group.add(shackle);
-  } else if (dtype === "tv" || dtype === "speaker") {
-    const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.52, 0.08), baseMat);
-    group.add(bezel);
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.45), glowMat);
-    screen.position.z = 0.05;
-    group.add(screen);
-    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.12, 0.18, 16), baseMat);
-    stand.position.y = -0.38;
-    group.add(stand);
-  } else if (dtype === "pump") {
-    // Sharp Crystal for Smart Pump
-    const coreGeo = new THREE.OctahedronGeometry(0.45, 0);
-    const core = new THREE.Mesh(coreGeo, glowMat);
-    core.scale.set(0.7, 1.5, 0.7);
-    group.add(core);
-  } else {
-    // Tech Diamond for General Switch
-    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 0), glowMat);
-    core.rotation.set(Math.PI/4, Math.PI/4, 0);
-    group.add(core);
-  }
-
-  return group;
-}
-
-/**
- * Inisialisasi visual Three.js Premium.
- */
-function initDevice3D(canvasId, hexColor, deviceId) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setSize(90, 90);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-  camera.position.z = 3.2;
-
-  const dtype = getDeviceType(STATE.devices[deviceId]);
-  const iconGroup = create3DIcon(dtype, hexColor);
-  scene.add(iconGroup);
-
-  // Advanced Lighting System
-  scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-  const p1 = new THREE.PointLight(0xffffff, 3.5, 10);
-  p1.position.set(2, 3, 4);
-  scene.add(p1);
-  const p2 = new THREE.PointLight(hexColor, 3, 5);
-  p2.position.set(-2, -1, 1);
-  scene.add(p2);
-
-  QC_3D.scenes[canvasId] = { 
-    iconGroup, renderer, scene, camera, 
-    active: !!STATE.deviceStates[deviceId],
-    lastState: !!STATE.deviceStates[deviceId]
-  };
-
-  // GSAP Levitation Animation
-  gsap.to(iconGroup.position, {
-    y: 0.1,
-    duration: 2 + Math.random(),
-    repeat: -1,
-    yoyo: true,
-    ease: "sine.inOut"
-  });
-
-  function loop(time) {
-    if (!document.getElementById(canvasId)) return;
-    requestAnimationFrame(loop);
-    
-    const sc = QC_3D.scenes[canvasId];
-    if (sc.active !== sc.lastState) {
-        // Trigger transisi smooth saat state berubah
-        iconGroup.traverse(m => {
-            if (m.material) {
-                gsap.to(m.material, { 
-                    emissiveIntensity: sc.active ? 1.2 : 0.2, 
-                    duration: 0.6, 
-                    ease: "power2.out" 
-                });
-            }
-        });
-        sc.lastState = sc.active;
-    }
-
-    if (sc.active) {
-      iconGroup.rotation.y += 0.012;
-      if (groupHasEngine(iconGroup)) iconGroup.userData.engine.rotation.z += 0.18;
-    } else {
-      iconGroup.rotation.y *= 0.96;
-      if (groupHasEngine(iconGroup)) iconGroup.userData.engine.rotation.z *= 0.94;
-    }
-    renderer.render(scene, camera);
-  }
-  
-  function groupHasEngine(g) { return g && g.userData && g.userData.engine; }
-  
-  loop(0);
-}
-
-/**
- * Efek partikel saat aktivasi tombol.
- */
-function spawnQCParticles(containerId, color, isOn) {
-    const cont = document.getElementById(containerId);
-    if (!cont || !isOn) return;
-    cont.innerHTML = '';
-    for (let i = 0; i < 8; i++) {
-        const p = document.createElement('div');
-        p.className = 'qc-particle';
-        p.style.background = color;
-        cont.appendChild(p);
-        const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.5;
-        const dist = 30 + Math.random() * 20;
-        gsap.fromTo(p, { x: 0, y: 0, opacity: 1, scale: 1 }, {
-            x: Math.cos(angle) * dist,
-            y: Math.sin(angle) * dist,
-            opacity: 0,
-            scale: 0.2,
-            duration: 0.5 + Math.random() * 0.3,
-            ease: 'power2.out',
-            onComplete: () => p.remove()
-        });
-    }
-}
-
 /* ==================== QUICK CONTROLS ==================== */
 
 /**
- * Merender Quick Control Card 3D Premium ke Dashboard.
+ * Merender Quick Control Card ke Dashboard.
  */
 function renderQuickControls() {
   const container = document.getElementById('quickControlsContainer');
@@ -757,9 +510,6 @@ function renderQuickControls() {
 
   selected.forEach((id) => {
     container.insertAdjacentHTML('beforeend', buildDeviceCardHTML(id, 'quick'));
-    const dtype = getDeviceType(STATE.devices[id]);
-    const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
-    setTimeout(() => initDevice3D(`canv-${id}`, accent, id), 10);
   });
 }
 
