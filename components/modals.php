@@ -24,7 +24,7 @@
     </div>
     <div class="modal-body">
       <div id="cameraDevicesList">
-        <p class="muted"><i class="fas fa-spinner fa-spin"></i> Memuat daftar kamera…</p>
+        <p class="muted"><i class="fas fa-spinner fa-spin"></i> Memuat daftar kamera...</p>
       </div>
     </div>
     <div class="modal-footer">
@@ -36,22 +36,23 @@
 <div id="topicModal" class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>Konfigurasi — <span id="topicDeviceName"></span></h3>
+      <h3>Konfigurasi - <span id="topicDeviceName"></span></h3>
       <button onclick="closeTopicSettings()" class="modal-close"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
       <div class="form-row">
         <div class="form-group"><label>Nama Perangkat</label><input type="text" id="editDeviceName"></div>
+        <div class="form-group"><label>Template</label><select id="editDeviceTemplate" onchange="syncDeviceFormFromTemplate('edit')"></select></div>
         <div class="form-group">
           <label>Icon</label>
           <select id="editDeviceIcon">
-            <option value="fa-lightbulb">💡 Lampu</option>
-            <option value="fa-wind">🌀 Kipas</option>
-            <option value="fa-snowflake">❄️ AC</option>
-            <option value="fa-tv">📺 TV</option>
-            <option value="fa-lock">🔒 Kunci</option>
-            <option value="fa-video">📹 CCTV</option>
-            <option value="fa-plug">🔌 Plug</option>
+            <option value="fa-lightbulb">Lampu</option>
+            <option value="fa-wind">Kipas</option>
+            <option value="fa-snowflake">AC</option>
+            <option value="fa-tv">TV</option>
+            <option value="fa-lock">Kunci</option>
+            <option value="fa-video">Kamera</option>
+            <option value="fa-plug">Plug</option>
           </select>
         </div>
       </div>
@@ -72,15 +73,16 @@
     </div>
     <div class="modal-body">
       <div class="form-group"><label>Nama Perangkat</label><input type="text" id="newDeviceName" placeholder="Lamp Utama"></div>
+      <div class="form-group"><label>Template</label><select id="newDeviceTemplate" onchange="syncDeviceFormFromTemplate('new')"></select></div>
       <div class="form-group">
         <label>Jenis</label>
         <select id="newDeviceIcon">
-          <option value="fa-lightbulb">💡 Lampu</option>
-          <option value="fa-wind">🌀 Kipas</option>
-          <option value="fa-snowflake">❄️ AC</option>
-          <option value="fa-lock">🔒 Kunci</option>
-          <option value="fa-video">📹 CCTV</option>
-          <option value="fa-plug">🔌 Plug</option>
+          <option value="fa-lightbulb">Lampu</option>
+          <option value="fa-wind">Kipas</option>
+          <option value="fa-snowflake">AC</option>
+          <option value="fa-lock">Kunci</option>
+          <option value="fa-video">Kamera</option>
+          <option value="fa-plug">Plug</option>
         </select>
       </div>
       <div class="form-group"><label>Topic MQTT</label><input type="text" id="newDeviceTopic" placeholder="iotzy/device/xxx"></div>
@@ -101,8 +103,21 @@
     <div class="modal-body">
       <div class="form-group"><label>Nama Sensor</label><input type="text" id="newSensorName"></div>
       <div class="form-row">
-        <div class="form-group"><label>Tipe</label><select id="newSensorType"><option value="temperature">🌡️ Suhu</option><option value="humidity">💧 Lembab</option></select></div>
-        <div class="form-group"><label>Satuan</label><input type="text" id="newSensorUnit" placeholder="°C"></div>
+        <div class="form-group"><label>Template</label><select id="newSensorTemplate" onchange="syncSensorFormFromTemplate('new')"></select></div>
+        <div class="form-group"><label>Device</label><select id="newSensorDevice"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Tipe</label><select id="newSensorType">
+          <option value="temperature">Suhu</option>
+          <option value="humidity">Kelembaban</option>
+          <option value="motion">Gerakan</option>
+          <option value="gas">Gas</option>
+          <option value="voltage">Tegangan</option>
+          <option value="current">Arus</option>
+          <option value="power">Daya</option>
+          <option value="distance">Jarak</option>
+        </select></div>
+        <div class="form-group"><label>Satuan</label><input type="text" id="newSensorUnit" placeholder="C"></div>
       </div>
       <div class="form-group"><label>Topic MQTT</label><input type="text" id="newSensorTopic"></div>
     </div>
@@ -121,6 +136,20 @@
     </div>
     <div class="modal-body">
       <div class="form-group"><label>Nama</label><input type="text" id="ssEditName"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Template</label><select id="ssEditTemplate" onchange="syncSensorFormFromTemplate('edit')"></select></div>
+        <div class="form-group"><label>Device</label><select id="ssEditDevice"></select></div>
+      </div>
+      <div class="form-group"><label>Tipe</label><select id="ssEditType">
+        <option value="temperature">Suhu</option>
+        <option value="humidity">Kelembaban</option>
+        <option value="motion">Gerakan</option>
+        <option value="gas">Gas</option>
+        <option value="voltage">Tegangan</option>
+        <option value="current">Arus</option>
+        <option value="power">Daya</option>
+        <option value="distance">Jarak</option>
+      </select></div>
       <div class="form-group"><label>Satuan</label><input type="text" id="ssEditUnit"></div>
       <div class="form-group"><label>Topic MQTT</label><input type="text" id="ssEditTopic"></div>
     </div>
@@ -165,7 +194,7 @@
     <div class="modal-body">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
         <div id="addRuleSensorIcon" style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;background:var(--accent-bg);color:var(--accent)"></div>
-        <span id="addRuleSensorLabel" style="font-weight:600;font-size:.85rem">—</span>
+        <span id="addRuleSensorLabel" style="font-weight:600;font-size:.85rem">-</span>
       </div>
       <div class="form-group">
         <label>Kondisi</label>
@@ -186,8 +215,8 @@
       <div class="form-group">
         <label>Aksi</label>
         <select id="addRuleAction">
-          <option value="on">⚡ Nyalakan (ON)</option>
-          <option value="off">✕ Matikan (OFF)</option>
+          <option value="on">Nyalakan (ON)</option>
+          <option value="off">Matikan (OFF)</option>
         </select>
       </div>
       <div class="form-row">

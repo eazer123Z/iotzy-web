@@ -1,33 +1,32 @@
 <?php
-function handleDashboardAction($action, $userId, $body, $db) {
-    if ($action === 'get_dashboard_data') {
-        try {
-            // Fetch devices
-            $stmt = $db->prepare("SELECT id, user_id, device_key, name, icon, type, topic_sub, topic_pub, is_active, last_state, latest_state, last_seen FROM devices WHERE user_id = ? AND is_active = TRUE ORDER BY created_at ASC");
-            $stmt->execute([$userId]);
-            $devices = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Fetch sensors
-            $stmt2 = $db->prepare("SELECT id, user_id, sensor_key, name, type, icon, unit, topic, latest_value, last_seen FROM sensors WHERE user_id = ? ORDER BY created_at ASC");
-            $stmt2->execute([$userId]);
-            $sensors = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+require_once __DIR__ . '/../core/bootstrap.php';
+require_once __DIR__ . '/../core/UserDataService.php';
 
-            // Fetch cv_state
-            $stmt3 = $db->prepare("SELECT person_count, brightness, light_condition, is_active FROM cv_state WHERE user_id = ?");
-            $stmt3->execute([$userId]);
-            $cv_state = $stmt3->fetch(PDO::FETCH_ASSOC);
+function handleDashboardAction(string $action, int $userId, array $body, PDO $db): void
+{
+    if ($action !== 'get_dashboard_data') {
+        return;
+    }
 
-            echo json_encode([
-                'success' => true,
-                'devices' => $devices,
-                'sensors' => $sensors,
-                'cv_state' => $cv_state ?: ['person_count' => 0, 'brightness' => 0, 'light_condition' => 'unknown', 'is_active' => 0]
-            ]);
-            exit;
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
-            exit;
-        }
+    try {
+        $cameraBundle = getUserCameraBundle($userId, $db);
+        $analytics = getDailyAnalyticsSummary($userId, date('Y-m-d'), $db);
+
+        jsonOut([
+            'success' => true,
+            'devices' => getUserDevices($userId),
+            'sensors' => getUserSensors($userId),
+            'cv_state' => $cameraBundle['cv_state'] ?? iotzyDefaultCvState(),
+            'camera' => $cameraBundle['camera'] ?? null,
+            'camera_settings' => $cameraBundle['camera_settings'] ?? [],
+            'analytics_summary' => $analytics['summary'] ?? [],
+        ]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        jsonOut([
+            'success' => false,
+            'error' => 'Database error: ' . $e->getMessage(),
+        ], 500);
     }
 }

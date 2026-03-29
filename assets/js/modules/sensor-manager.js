@@ -1,384 +1,387 @@
-/**
- * public/assets/js/modules/sensor-manager.js
- * ───
- * Pengelola Data Sensor IoTzy.
- * Menangani visualisasi real-time (Gauge, Grafik Sparkline), 
- * pembaruan nilai sensor, serta pengkategorian status pembacaan data (Suhu, Udara, dsb).
- */
-
-
-/* ==================== SENSOR CONFIGURATIONS ==================== */
-
-/**
- * Konfigurasi tampilan untuk setiap tipe sensor.
- * Berisi warna, ambang batas, icon, dan kelas CSS terkait.
- */
 const SENSOR_CONFIG = {
-  temperature: { icon: "fa-temperature-half", color: "var(--red)",    min: 10, max: 40,  unit: "°C",  barClass: "temp-bar",       gaugeColor: "#ef4444" },
-  humidity:    { icon: "fa-droplet",          color: "var(--blue)",   min: 0,  max: 100, unit: "%",   barClass: "humidity-bar",   gaugeColor: "#3b82f6" },
-  air_quality: { icon: "fa-wind",             color: "var(--teal)",   min: 0,  max: 500, unit: "AQI", barClass: "air-bar",        gaugeColor: "#0d9488" },
-  presence:    { icon: "fa-user-check",       color: "var(--green)"  },
-  brightness:  { icon: "fa-sun",             color: "var(--amber)",  min: 0,  max: 1,   unit: "",    barClass: "brightness-bar", gaugeColor: "#f59e0b" },
-  motion:      { icon: "fa-person-running",   color: "var(--purple)" },
-  smoke:       { icon: "fa-fire",             color: "var(--red)",    min: 0,  max: 300, unit: "ppm", barClass: "smoke-bar",       gaugeColor: "#ef4444" },
-  gas:         { icon: "fa-triangle-exclamation", color: "var(--amber)", min: 0, max: 1000, unit: "ppm", barClass: "gas-bar",    gaugeColor: "#f59e0b" },
+  temperature: { icon: "fa-temperature-half", color: "var(--red)", min: 10, max: 40, unit: "C", gaugeColor: "#ef4444" },
+  humidity:    { icon: "fa-droplet", color: "var(--blue)", min: 0, max: 100, unit: "%", gaugeColor: "#3b82f6" },
+  air_quality: { icon: "fa-wind", color: "var(--teal)", min: 0, max: 500, unit: "AQI", gaugeColor: "#0d9488" },
+  presence:    { icon: "fa-user-check", color: "var(--green)" },
+  brightness:  { icon: "fa-sun", color: "var(--amber)", min: 0, max: 1, unit: "", gaugeColor: "#f59e0b" },
+  motion:      { icon: "fa-person-running", color: "var(--purple)" },
+  smoke:       { icon: "fa-fire", color: "var(--red)", min: 0, max: 300, unit: "ppm", gaugeColor: "#ef4444" },
+  gas:         { icon: "fa-triangle-exclamation", color: "var(--amber)", min: 0, max: 1000, unit: "ppm", gaugeColor: "#f59e0b" },
+  voltage:     { icon: "fa-bolt", color: "var(--accent)", min: 0, max: 24, unit: "V", gaugeColor: "#38bdf8" },
+  current:     { icon: "fa-bolt", color: "var(--warning)", min: 0, max: 10, unit: "A", gaugeColor: "#f97316" },
+  power:       { icon: "fa-bolt", color: "var(--success)", min: 0, max: 500, unit: "W", gaugeColor: "#22c55e" },
+  distance:    { icon: "fa-ruler-horizontal", color: "var(--info)", min: 0, max: 500, unit: "cm", gaugeColor: "#06b6d4" },
 };
 
 const SENSOR_LABELS = {
-  temperature: "Suhu",        humidity:    "Kelembaban",
-  air_quality: "Kualitas Udara", presence: "Kehadiran",
-  brightness:  "Kecerahan",  motion:       "Gerakan",
-  smoke:       "Asap",       gas:          "Gas",
+  temperature: "Suhu",
+  humidity: "Kelembaban",
+  air_quality: "Kualitas Udara",
+  presence: "Kehadiran",
+  brightness: "Kecerahan",
+  motion: "Gerakan",
+  smoke: "Asap",
+  gas: "Gas",
+  voltage: "Tegangan",
+  current: "Arus",
+  power: "Daya",
+  distance: "Jarak",
 };
 
-/**
- * Label status untuk Air Quality Index (AQI).
- */
-function getAQILabel(val) {
-  if (val < 50)  return { label: "Baik",         color: "#22c55e", bg: "#f0fdf4" };
-  if (val < 100) return { label: "Sedang",        color: "#eab308", bg: "#fefce8" };
-  if (val < 150) return { label: "Tidak Sehat",   color: "#f97316", bg: "#fff7ed" };
-  if (val < 200) return { label: "Sangat Buruk",  color: "#ef4444", bg: "#fef2f2" };
-  return           { label: "Berbahaya",          color: "#7c3aed", bg: "#f5f3ff" };
+async function ensureSensorTemplatesLoaded() {
+  if (Array.isArray(STATE.sensorTemplates) && STATE.sensorTemplates.length) return STATE.sensorTemplates;
+  const result = await apiPost("get_sensor_templates", {});
+  STATE.sensorTemplates = result?.templates || [];
+  return STATE.sensorTemplates;
 }
 
-/**
- * Label status untuk deteksi asap/gas berbahaya.
- */
-function getSmokeDangerLabel(val) {
-  if (val < 50)  return { label: "Normal",  color: "var(--green)", cls: "" };
-  if (val < 100) return { label: "Waspada", color: "var(--amber)", cls: "warning" };
-  return           { label: "BAHAYA!",      color: "var(--red)",   cls: "danger" };
+function getSensorTemplateById(id) {
+  const numericId = Number(id);
+  return (STATE.sensorTemplates || []).find((template) => Number(template.id) === numericId) || null;
 }
 
-/* ==================== RENDERING LOGIC ==================== */
+async function populateSensorTemplateSelect(selectId, selectedId = "") {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const templates = await ensureSensorTemplatesLoaded();
+  select.innerHTML = `<option value="">Manual / tanpa template</option>` + templates.map((template) => {
+    const selected = String(selectedId) === String(template.id) ? " selected" : "";
+    return `<option value="${template.id}"${selected}>${escHtml(template.name)}</option>`;
+  }).join("");
+}
 
-/**
- * Membangun elemen kartu (Card) untuk satu sensor.
- * Menggunakan template berbeda berdasarkan tipe sensor (Gauge vs Progress Bar).
- */
+function populateSensorDeviceSelect(selectId, selectedId = "") {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const devices = Object.values(STATE.devices || {});
+  select.innerHTML = `<option value="">Tidak ditautkan</option>` + devices.map((device) => {
+    const selected = String(selectedId) === String(device.id) ? " selected" : "";
+    return `<option value="${device.id}"${selected}>${escHtml(device.name)}</option>`;
+  }).join("");
+}
+
+function syncSensorFormFromTemplate(prefix = "new") {
+  const templateSelect = document.getElementById(prefix === "new" ? "newSensorTemplate" : "ssEditTemplate");
+  const typeSelect = document.getElementById(prefix === "new" ? "newSensorType" : "ssEditType");
+  const unitInput = document.getElementById(prefix === "new" ? "newSensorUnit" : "ssEditUnit");
+  if (!templateSelect || !typeSelect || !unitInput) return;
+  const template = getSensorTemplateById(templateSelect.value);
+  if (!template) return;
+  if (template.sensor_type) typeSelect.value = template.sensor_type;
+  unitInput.value = template.default_unit || "";
+}
+
+async function loadSensorHistory(sensorId, limit = 24) {
+  const result = await apiPost("get_sensor_history", { sensor_id: sensorId, limit });
+  if (!Array.isArray(result)) return;
+  STATE.sensorHistory[String(sensorId)] = result.map((row) => ({
+    val: Number(row.value),
+    t: row.recorded_at,
+  }));
+  drawSparkline(String(sensorId));
+}
+
+function getSensorDisplayValue(sensor, val) {
+  if (val === null || val === undefined || val === "") return "N/A";
+  const unit = sensor.unit || SENSOR_CONFIG[sensor.type]?.unit || "";
+  const precision = ["temperature", "humidity", "voltage", "current", "power", "distance"].includes(sensor.type) ? 2 : 0;
+  return `${Number(val).toFixed(precision)}${unit}`;
+}
+
 function renderSensorCard(sensorId) {
   const sensor = STATE.sensors[sensorId];
-  const val    = STATE.sensorData[sensorId];
-  const cfg    = SENSOR_CONFIG[sensor.type] || {};
-  const tLabel = SENSOR_LABELS[sensor.type] || sensor.type;
-  const hasVal = val !== null && val !== undefined;
-  
-  const card   = document.createElement("div");
-  card.id        = `sensor-card-${sensorId}`;
-  card.className = "sensor-card" + (hasVal ? " has-data" : "");
-  card.setAttribute("data-type", sensor.type);
+  const val = STATE.sensorData[sensorId];
+  const cfg = SENSOR_CONFIG[sensor.type] || {};
+  const label = SENSOR_LABELS[sensor.type] || sensor.type;
+  const linked = sensor.device_name ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${escHtml(sensor.device_name)}</div>` : "";
+  const latest = getSensorDisplayValue(sensor, val);
+  const hasValue = val !== null && val !== undefined;
 
-  // Header Kartu: Icon, Nama, dan Aksi (Edit/Hapus)
-  const topHTML = `
+  const card = document.createElement("div");
+  card.id = `sensor-card-${sensorId}`;
+  card.className = "sensor-card" + (hasValue ? " has-data" : "");
+  card.innerHTML = `
     <div class="sensor-card-top">
       <div class="sensor-card-info">
-        <div class="sensor-big-icon" style="background:${cfg.color ? `color-mix(in srgb, ${cfg.color} 14%, transparent)` : 'var(--surface-hover)'}">
+        <div class="sensor-big-icon" style="background:${cfg.color ? `color-mix(in srgb, ${cfg.color} 16%, transparent)` : 'var(--surface-hover)'}">
           <i class="fas ${sensor.icon || cfg.icon || "fa-microchip"}" style="color:${cfg.color || "var(--text-secondary)"}"></i>
         </div>
         <div>
           <div class="sensor-name">${escHtml(sensor.name)}</div>
-          <div class="sensor-type-label">${tLabel}</div>
+          <div class="sensor-type-label">${escHtml(sensor.template_name || label)}</div>
+          ${linked}
         </div>
       </div>
       <div class="sensor-card-actions">
         <button class="icon-btn small" onclick="openSensorSettings('${sensorId}')"><i class="fas fa-sliders"></i></button>
         <button class="trash-btn" onclick="removeSensor('${sensorId}')"><i class="fas fa-trash"></i></button>
       </div>
-    </div>`;
-
-  let bodyHTML = "";
-  
-  // Custom Card Body berdasarkan tipe
-  if (sensor.type === "presence") {
-    // Tipe Presence: Hanya titik deteksi
-    const isD = !!val;
-    bodyHTML = `<div class="presence-status"><div class="presence-dot${isD ? " detected" : ""}" id="presence-dot-${sensorId}"></div><div class="presence-text" id="presence-txt-${sensorId}">${isD ? "Terdeteksi" : "Tidak Terdeteksi"}</div></div><div class="sensor-meta"><span style="font-size:10.5px;color:var(--text-muted)">PIR / Ultrasonic</span><span class="sensor-meta-val" id="time-${sensorId}">—</span></div>`;
-  } else if (sensor.type === "motion") {
-    // Tipe Motion: Icon animasi
-    const isM = !!val;
-    bodyHTML = `<div class="motion-indicator${isM ? " active" : ""}" id="motion-ind-${sensorId}"><i class="fas fa-person-running motion-icon" style="color:${isM ? "var(--purple)" : "var(--text-muted)"}"></i><div style="flex:1"><div style="font-size:12.5px;font-weight:700;color:${isM ? "var(--purple)" : "var(--text-secondary)"}" id="motion-txt-${sensorId}">${isM ? "Gerakan Terdeteksi" : "Tidak Ada Gerakan"}</div><div style="font-size:10px;color:var(--text-muted)" id="time-${sensorId}">—</div></div></div>`;
-  } else if (sensor.type === "humidity") {
-    // Tipe Humidity: Circular Gauge SVG
-    const pct    = hasVal ? Math.min(100, val) : 0;
-    const valStr = hasVal ? val.toFixed(1) : "";
-    bodyHTML = `<div style="display:flex;align-items:center;gap:12px"><div style="flex:1"><div class="sensor-value-big" id="val-${sensorId}">${valStr}<span style="font-size:13px;font-weight:500">${sensor.unit || "%"}</span></div><div style="font-size:10.5px;color:var(--text-muted);margin-top:2px" id="hum-desc-${sensorId}">${hasVal ? (val < 40 ? "Terlalu Kering" : val > 70 ? "Terlalu Lembab" : "Normal") : ""}</div></div><div style="width:80px;height:80px;flex-shrink:0"><svg viewBox="0 0 80 80" class="gauge-svg" id="gauge-svg-${sensorId}"><circle cx="40" cy="40" r="30" fill="none" stroke="var(--border)" stroke-width="7"/><circle cx="40" cy="40" r="30" fill="none" stroke="#3b82f6" stroke-width="7" stroke-dasharray="${(pct / 100) * 188.4} 188.4" stroke-dashoffset="47.1" stroke-linecap="round" transform="rotate(-90 40 40)" id="gauge-circle-${sensorId}"/><text x="40" y="44" text-anchor="middle" font-size="14" font-weight="800" fill="var(--text)" font-family="var(--font-mono)" id="gauge-txt-${sensorId}">${hasVal ? Math.round(val) : ""}</text></svg></div></div><div class="sensor-meta"><span class="sensor-meta-val" id="time-${sensorId}">—</span></div><canvas class="sparkline-canvas" id="spark-${sensorId}"></canvas>`;
-  } else {
-    // Tipe General: Progress Bar mendatar + Sparkline
-    let pct = 0;
-    if (hasVal && cfg.min !== undefined && cfg.max !== undefined)
-      pct = Math.min(100, Math.max(0, ((val - cfg.min) / (cfg.max - cfg.min)) * 100));
-    const prec   = sensor.type === "brightness" ? 2 : 1;
-    const valStr = hasVal ? val.toFixed(prec) + (sensor.unit || "") : "";
-    bodyHTML = `<div class="sensor-status-row"><span class="sensor-value-big" id="val-${sensorId}">${valStr}</span><span class="sensor-meta-val" id="time-${sensorId}">—</span></div><canvas class="sparkline-canvas" id="spark-${sensorId}"></canvas><div class="progress-track"><div class="progress-fill ${cfg.barClass || "default-bar"}" id="bar-${sensorId}" style="width:${pct}%"></div></div><div class="progress-labels"><span>${cfg.min !== undefined ? cfg.min + (sensor.unit || "") : "Min"}</span><span>${cfg.max !== undefined ? cfg.max + (sensor.unit || "") : "Max"}</span></div>`;
-  }
-
-  card.innerHTML = topHTML + bodyHTML;
+    </div>
+    <div class="sensor-status-row" style="margin:12px 0 8px">
+      <span class="sensor-value-big" id="val-${sensorId}">${escHtml(latest)}</span>
+      <span class="sensor-meta-val" id="time-${sensorId}">${sensor.last_seen ? escHtml(sensor.last_seen) : "—"}</span>
+    </div>
+    <canvas class="sparkline-canvas" id="spark-${sensorId}"></canvas>
+    <div class="progress-track">
+      <div class="progress-fill ${cfg.barClass || "temp-bar"}" id="bar-${sensorId}" style="width:0%"></div>
+    </div>
+  `;
   return card;
 }
 
-/**
- * Merender daftar semua sensor yang ada di State ke grid UI.
- */
 function renderSensors() {
-  const grid  = document.getElementById("sensorsGrid");
+  const grid = document.getElementById("sensorsGrid");
   const empty = document.getElementById("emptySensors");
   if (!grid) return;
-  
+
+  const keys = Object.keys(STATE.sensors || {});
   grid.innerHTML = "";
-  const keys = Object.keys(STATE.sensors);
   if (empty) empty.classList.toggle("hidden", keys.length > 0);
-  
+
   keys.forEach((id) => {
     const card = renderSensorCard(id);
     grid.appendChild(card);
-    // Render grafik garis (sparkline) setelah elemen masuk ke DOM
-    requestAnimationFrame(() => drawSparkline(id));
+    updateSensorValueUI(id);
+    if (!STATE.sensorHistory[id] || STATE.sensorHistory[id].length < 2) {
+      loadSensorHistory(id).catch(() => {});
+    } else {
+      drawSparkline(id);
+    }
   });
 }
 
-/**
- * Memperbarui nilai numerik sensor di UI tanpa melakukan render ulang seluruh kartu.
- * Dipanggil oleh MQTT Manager saat pesan data masuk.
- */
 function updateSensorValueUI(sensorId) {
-  const val    = STATE.sensorData[sensorId];
-  const sensor = STATE.sensors[sensorId];
-  if (val === null || val === undefined || !sensor) return;
-
-  const cfg   = SENSOR_CONFIG[sensor.type] || {};
-  const now   = new Date().toLocaleTimeString("id-ID");
-  const valEl = document.getElementById(`val-${sensorId}`);
+  const sensor = STATE.sensors[String(sensorId)];
+  if (!sensor) return;
+  const val = STATE.sensorData[String(sensorId)];
+  const valueEl = document.getElementById(`val-${sensorId}`);
+  const timeEl = document.getElementById(`time-${sensorId}`);
   const barEl = document.getElementById(`bar-${sensorId}`);
-  const timeEl = document.getElementById(`time-${sensorId}`);
-  
-  if (timeEl) timeEl.textContent = now;
+  const cfg = SENSOR_CONFIG[sensor.type] || {};
 
-  // Logika update spesifik per tipe (Optimized)
-  if (sensor.type === "humidity") {
-    if (valEl) valEl.innerHTML = `${val.toFixed(1)}<span style="font-size:13px;font-weight:500">${sensor.unit || "%"}</span>`;
-    const gc = document.getElementById(`gauge-circle-${sensorId}`);
-    if (gc) { 
-      const pct = Math.min(100, val); 
-      gc.setAttribute("stroke-dasharray", `${(pct / 100) * 188.4} 188.4`); 
-    }
-    const gt = document.getElementById(`gauge-txt-${sensorId}`);
-    if (gt) gt.textContent = Math.round(val);
-    const desc = document.getElementById(`hum-desc-${sensorId}`);
-    if (desc) desc.textContent = val < 40 ? "Terlalu Kering" : val > 70 ? "Terlalu Lembab" : "Normal";
-  } else if (sensor.type === "air_quality") {
-    if (valEl) valEl.innerHTML = `${val.toFixed(0)} <span style="font-size:13px;font-weight:500">${sensor.unit || "AQI"}</span>`;
-    if (barEl && cfg.max) barEl.style.width = Math.min(100, (val / cfg.max) * 100) + "%";
-  } else if (sensor.type === "smoke" || sensor.type === "gas") {
-    if (valEl) valEl.innerHTML = `${val.toFixed(0)} <span style="font-size:13px;font-weight:500">${sensor.unit || "ppm"}</span>`;
-    if (barEl && cfg.max) barEl.style.width = Math.min(100, (val / cfg.max) * 100) + "%";
-  } else {
-    const prec = sensor.type === "brightness" ? 2 : 1;
-    if (valEl) valEl.textContent = val.toFixed(prec) + (sensor.unit || "");
-    if (barEl && cfg.min !== undefined && cfg.max !== undefined) {
-      const p = Math.min(100, Math.max(0, ((val - cfg.min) / (cfg.max - cfg.min)) * 100));
-      barEl.style.width = p + "%";
-    }
-  }
-
-  // Tandai kartu memiliki data dan gambar ulang Sparkline
-  document.getElementById(`sensor-card-${sensorId}`)?.classList.add("has-data");
-  drawSparkline(sensorId);
-}
-
-/**
- * Memperbarui UI sensor bertipe Boolean (Terdeteksi vs Tidak).
- */
-function updateSensorBoolUI(sensorId) {
-  const val    = STATE.sensorData[sensorId];
-  const sensor = STATE.sensors[sensorId];
-  const timeEl = document.getElementById(`time-${sensorId}`);
+  if (valueEl) valueEl.textContent = getSensorDisplayValue(sensor, val);
   if (timeEl) timeEl.textContent = new Date().toLocaleTimeString("id-ID");
-
-  if (sensor.type === "presence") {
-    const dot = document.getElementById(`presence-dot-${sensorId}`);
-    const txt = document.getElementById(`presence-txt-${sensorId}`);
-    if (dot) dot.classList.toggle("detected", !!val);
-    if (txt) txt.textContent = val ? "Terdeteksi" : "Tidak Terdeteksi";
-  } else if (sensor.type === "motion") {
-    const ind = document.getElementById(`motion-ind-${sensorId}`);
-    const txt = document.getElementById(`motion-txt-${sensorId}`);
-    if (ind) ind.className = `motion-indicator${val ? " active" : ""}`;
-    if (txt) txt.textContent = val ? "Gerakan Terdeteksi" : "Tidak Ada Gerakan";
+  if (barEl && val !== null && val !== undefined && cfg.min !== undefined && cfg.max !== undefined) {
+    const pct = Math.max(0, Math.min(100, ((Number(val) - cfg.min) / (cfg.max - cfg.min || 1)) * 100));
+    barEl.style.width = `${pct}%`;
   }
-  
-  document.getElementById(`sensor-card-${sensorId}`)?.classList.toggle("has-data", val !== null && val !== undefined);
+
+  if (!STATE.sensorHistory[String(sensorId)]) {
+    STATE.sensorHistory[String(sensorId)] = [];
+  }
+  STATE.sensorHistory[String(sensorId)].push({ val: Number(val), t: new Date().toISOString() });
+  if (STATE.sensorHistory[String(sensorId)].length > 30) STATE.sensorHistory[String(sensorId)].shift();
+  drawSparkline(String(sensorId));
 }
 
-/**
- * Menggambar riwayat data (history) sensor ke Canvas Sparkline (Grafik Garis).
- */
+function updateSensorBoolUI(sensorId) {
+  updateSensorValueUI(sensorId);
+}
+
 function drawSparkline(sensorId) {
   const canvas = document.getElementById(`spark-${sensorId}`);
-  if (!canvas) return;
+  const history = (STATE.sensorHistory[String(sensorId)] || []).map((item) => typeof item === "object" ? Number(item.val) : Number(item));
+  if (!canvas || history.length < 2) return;
 
-  const rawHistory = STATE.sensorHistory[sensorId] || [];
-  const history    = rawHistory.map((h) => (typeof h === "object" ? h.val : h));
-  if (history.length < 2) return;
+  const width = canvas.clientWidth || 200;
+  const height = canvas.clientHeight || 38;
+  canvas.width = width;
+  canvas.height = height;
 
-  const W   = canvas.clientWidth || canvas.offsetWidth || 200;
-  const H   = canvas.clientHeight || canvas.offsetHeight || 38;
-  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  const min = Math.min(...history);
+  const max = Math.max(...history);
+  const range = max - min || 1;
+  const color = SENSOR_CONFIG[STATE.sensors[String(sensorId)]?.type]?.gaugeColor || "#38bdf8";
 
-  const ctx  = canvas.getContext("2d");
-  ctx.clearRect(0, 0, W, H);
-  
-  const mn   = Math.min(...history), mx = Math.max(...history), range = mx - mn || 1;
-  const pts  = history.map((v, i) => ({ 
-    x: (i / (history.length - 1)) * W, 
-    y: H - ((v - mn) / range) * (H - 6) - 3 
-  }));
-
-  const cfg  = SENSOR_CONFIG[STATE.sensors[sensorId]?.type] || {};
-  const color = cfg.gaugeColor || "#0ea5e9";
-
-  // Gambar area gradient di bawah garis
-  const grad  = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, color + "28"); grad.addColorStop(1, color + "05");
+  ctx.clearRect(0, 0, width, height);
   ctx.beginPath();
-  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
-
-  // Gambar garis utama
-  ctx.beginPath();
-  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.strokeStyle = color; ctx.lineWidth = 1.8; ctx.lineJoin = "round"; ctx.stroke();
-
-  // Gambar titik data terakhir
-  const last = pts[pts.length - 1];
-  ctx.beginPath(); ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
-  ctx.fillStyle = color; ctx.fill();
+  history.forEach((value, index) => {
+    const x = (index / (history.length - 1)) * width;
+    const y = height - ((value - min) / range) * (height - 6) - 3;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
 }
 
-function filterSensors(q) {
-  const lq = q.toLowerCase();
-  document.querySelectorAll(".sensor-card").forEach((c) => {
-    const id = c.id.replace("sensor-card-", "");
-    c.style.display = (STATE.sensors[id]?.name?.toLowerCase() || "").includes(lq) ? "" : "none";
+function filterSensors(query) {
+  const needle = String(query || "").toLowerCase();
+  document.querySelectorAll(".sensor-card").forEach((card) => {
+    const id = card.id.replace("sensor-card-", "");
+    const sensor = STATE.sensors[id];
+    const text = `${sensor?.name || ""} ${sensor?.device_name || ""} ${sensor?.type || ""}`.toLowerCase();
+    card.style.display = text.includes(needle) ? "" : "none";
   });
 }
-
-/* ==================== SENSOR CRUD ==================== */
 
 let isSensorActionBusy = false;
 
-function openAddSensorModal() {
+async function openAddSensorModal() {
   ["newSensorName", "newSensorUnit", "newSensorTopic"].forEach((id) => {
-    const el = document.getElementById(id); if (el) el.value = "";
+    const el = document.getElementById(id);
+    if (el) el.value = "";
   });
+  await populateSensorTemplateSelect("newSensorTemplate");
+  populateSensorDeviceSelect("newSensorDevice");
   document.getElementById("addSensorModal")?.classList.add("active");
 }
 
-function closeAddSensorModal() { document.getElementById("addSensorModal")?.classList.remove("active"); }
+function closeAddSensorModal() {
+  document.getElementById("addSensorModal")?.classList.remove("active");
+}
 
 async function saveNewSensor() {
   if (isSensorActionBusy) return;
   const name = document.getElementById("newSensorName")?.value.trim();
-  const type  = document.getElementById("newSensorType")?.value  || "temperature";
-  const unit  = document.getElementById("newSensorUnit")?.value.trim();
+  const type = document.getElementById("newSensorType")?.value || "temperature";
+  const unit = document.getElementById("newSensorUnit")?.value.trim();
   const topic = document.getElementById("newSensorTopic")?.value.trim();
-  const btn   = document.getElementById("btnSaveNewSensor");
+  const templateId = document.getElementById("newSensorTemplate")?.value || "";
+  const deviceId = document.getElementById("newSensorDevice")?.value || "";
+  const btn = document.getElementById("btnSaveNewSensor");
+  const template = getSensorTemplateById(templateId);
 
-  if (!name) { showToast("Nama sensor harus diisi!", "warning"); return; }
-  if (!topic) { showToast("MQTT topic harus diisi!", "warning"); return; }
+  if (!name || !topic) {
+    showToast("Nama sensor dan topic harus diisi!", "warning");
+    return;
+  }
 
   try {
     isSensorActionBusy = true;
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menambahkan...'; }
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menambahkan...';
+    }
 
-    const result = await apiPost("add_sensor", { name, type, unit, topic });
+    const result = await apiPost("add_sensor", {
+      name,
+      type,
+      unit,
+      topic,
+      sensor_template_id: templateId || null,
+      device_id: deviceId || null,
+    });
+
     if (result?.success) {
-      const id      = String(result.id);
-      const iconMap = {
-        temperature: "fa-temperature-half", humidity: "fa-droplet", air_quality: "fa-wind",
-        presence: "fa-user-check", brightness: "fa-sun", motion: "fa-person-running",
-        smoke: "fa-fire", gas: "fa-triangle-exclamation",
+      const id = String(result.id);
+      STATE.sensors[id] = {
+        id,
+        name,
+        type,
+        icon: template?.default_icon || SENSOR_CONFIG[type]?.icon || "fa-microchip",
+        unit: unit || template?.default_unit || "",
+        topic,
+        sensor_key: result.sensor_key,
+        sensor_template_id: templateId || null,
+        template_name: template?.name || null,
+        template_slug: template?.slug || null,
+        device_id: deviceId || null,
+        device_name: deviceId ? (STATE.devices[String(deviceId)]?.name || null) : null,
       };
-      
-      STATE.sensors[id]       = { id, name, type, icon: iconMap[type] || "fa-microchip", unit, topic, sensor_key: result.sensor_key };
-      STATE.sensorData[id]    = null;
+      STATE.sensorData[id] = null;
       STATE.sensorHistory[id] = [];
-      
-      if (STATE.mqtt.connected && topic) { try { STATE.mqtt.client.subscribe(topic); } catch (_) {} }
-      
       renderSensors();
-      const countEl = document.getElementById("navSensorCount");
-      if (countEl) countEl.textContent = Object.keys(STATE.sensors).length;
-      
-      closeAddSensorModal(); 
+      closeAddSensorModal();
       showToast("Sensor berhasil ditambahkan!", "success");
-      addLog(name, "Sensor baru ditambahkan", "System", "success");
+      addLog(name, "Sensor baru ditambahkan", "System", "success", { sensor_id: Number(id), device_id: deviceId ? Number(deviceId) : null });
     } else {
       showToast(result?.error || "Gagal menambah sensor", "error");
     }
-  } catch (err) {
-    showToast("Terjadi kesalahan sistem", "error");
   } finally {
     isSensorActionBusy = false;
-    if (btn) { btn.disabled = false; btn.innerHTML = "Tambah"; }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "Tambah";
+    }
   }
 }
 
-function openSensorSettings(sensorId) {
-  const id     = String(sensorId);
+async function openSensorSettings(sensorId) {
+  const id = String(sensorId);
   const sensor = STATE.sensors[id];
   if (!sensor) return;
-  const g = (i) => document.getElementById(i);
-  if (g("ssSensorName")) g("ssSensorName").textContent = sensor.name;
-  if (g("ssEditName"))   g("ssEditName").value  = sensor.name  || "";
-  if (g("ssEditType"))   g("ssEditType").value  = sensor.type  || "temperature";
-  if (g("ssEditUnit"))   g("ssEditUnit").value  = sensor.unit  || "";
-  if (g("ssEditTopic"))  g("ssEditTopic").value = sensor.topic || "";
+  document.getElementById("ssEditName").value = sensor.name || "";
+  document.getElementById("ssEditType").value = sensor.type || "temperature";
+  document.getElementById("ssEditUnit").value = sensor.unit || "";
+  document.getElementById("ssEditTopic").value = sensor.topic || "";
+  await populateSensorTemplateSelect("ssEditTemplate", sensor.sensor_template_id || "");
+  populateSensorDeviceSelect("ssEditDevice", sensor.device_id || "");
   const modal = document.getElementById("sensorSettingModal");
-  if (modal) { modal.dataset.sensorId = id; modal.classList.add("active"); }
+  if (modal) {
+    modal.dataset.sensorId = id;
+    modal.classList.add("active");
+  }
 }
 
-function closeSensorSettings() { document.getElementById("sensorSettingModal")?.classList.remove("active"); }
+function closeSensorSettings() {
+  document.getElementById("sensorSettingModal")?.classList.remove("active");
+}
 
 async function saveSensorSettings() {
   if (isSensorActionBusy) return;
   const modal = document.getElementById("sensorSettingModal");
   if (!modal) return;
-  const id    = String(modal.dataset.sensorId);
-  const name  = document.getElementById("ssEditName")?.value.trim();
-  const type  = document.getElementById("ssEditType")?.value;
-  const unit  = document.getElementById("ssEditUnit")?.value.trim();
+  const id = String(modal.dataset.sensorId);
+  const name = document.getElementById("ssEditName")?.value.trim();
+  const type = document.getElementById("ssEditType")?.value || "temperature";
+  const unit = document.getElementById("ssEditUnit")?.value.trim();
   const topic = document.getElementById("ssEditTopic")?.value.trim();
-  const btn   = document.getElementById("btnSaveSensorEdit");
-  
-  if (!name || !topic) { showToast("Nama dan topic harus diisi!", "warning"); return; }
-  
+  const templateId = document.getElementById("ssEditTemplate")?.value || "";
+  const deviceId = document.getElementById("ssEditDevice")?.value || "";
+  const template = getSensorTemplateById(templateId);
+  const btn = document.getElementById("btnSaveSensorEdit");
+
+  if (!name || !topic) {
+    showToast("Nama dan topic harus diisi!", "warning");
+    return;
+  }
+
   try {
     isSensorActionBusy = true;
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+    }
 
-    const result = await apiPost("update_sensor", { id, name, type, unit, topic });
+    const result = await apiPost("update_sensor", {
+      id,
+      name,
+      type,
+      unit,
+      topic,
+      sensor_template_id: templateId || null,
+      device_id: deviceId || null,
+    });
+
     if (result?.success) {
-      const iconMap = {
-        temperature: "fa-temperature-half", humidity: "fa-droplet", air_quality: "fa-wind",
-        presence: "fa-user-check", brightness: "fa-sun", motion: "fa-person-running",
-        smoke: "fa-fire", gas: "fa-triangle-exclamation",
+      STATE.sensors[id] = {
+        ...STATE.sensors[id],
+        name,
+        type,
+        unit: unit || template?.default_unit || "",
+        icon: template?.default_icon || SENSOR_CONFIG[type]?.icon || STATE.sensors[id]?.icon || "fa-microchip",
+        topic,
+        sensor_template_id: templateId || null,
+        template_name: template?.name || null,
+        template_slug: template?.slug || null,
+        device_id: deviceId || null,
+        device_name: deviceId ? (STATE.devices[String(deviceId)]?.name || null) : null,
       };
-      STATE.sensors[id] = { ...STATE.sensors[id], name, type, icon: iconMap[type] || STATE.sensors[id]?.icon || "fa-microchip", unit, topic };
-      if (STATE.mqtt.connected && topic) { try { STATE.mqtt.client.subscribe(topic); } catch (_) {} }
-      
-      renderSensors(); 
-      closeSensorSettings(); 
+      renderSensors();
+      closeSensorSettings();
       showToast("Sensor berhasil diperbarui!", "success");
     } else {
-      showToast("Gagal memperbarui sensor", "error");
+      showToast(result?.error || "Gagal memperbarui sensor", "error");
     }
-  } catch (err) {
-    showToast("Terjadi kesalahan sistem", "error");
   } finally {
     isSensorActionBusy = false;
-    if (btn) { btn.disabled = false; btn.innerHTML = "Simpan"; }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "Simpan";
+    }
   }
 }
 
@@ -387,27 +390,22 @@ async function removeSensor(sensorId) {
   const id = String(sensorId);
   const name = STATE.sensors[id]?.name || "Sensor";
   if (!confirm(`Hapus sensor "${name}"? Seluruh histori data akan hilang.`)) return;
-  
+
   try {
     isSensorActionBusy = true;
-    showToast(`Menghapus ${name}...`, "info");
-
     const result = await apiPost("delete_sensor", { id });
     if (result?.success) {
-      delete STATE.sensors[id]; delete STATE.sensorData[id]; delete STATE.sensorHistory[id];
-      if (STATE.automationRules[id]) delete STATE.automationRules[id];
-      
-      renderSensors(); 
-      renderAutomationView(); 
+      delete STATE.sensors[id];
+      delete STATE.sensorData[id];
+      delete STATE.sensorHistory[id];
+      renderSensors();
+      if (typeof renderAutomationView === "function") renderAutomationView();
       updateDashboardStats();
-      
-      showToast("Sensor telah dihapus", "info"); 
-      addLog(name, "Sensor dihapus", "System", "warning");
+      showToast("Sensor telah dihapus", "info");
+      addLog(name, "Sensor dihapus", "System", "warning", { sensor_id: Number(id) });
     } else {
-      showToast("Gagal menghapus sensor", "error");
+      showToast(result?.error || "Gagal menghapus sensor", "error");
     }
-  } catch (err) {
-    showToast("Terjadi kesalahan sistem", "error");
   } finally {
     isSensorActionBusy = false;
   }

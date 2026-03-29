@@ -9,6 +9,7 @@
 
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/UserDataService.php';
 
 if (!defined('AI_TIMEOUT_SECONDS'))
     define('AI_TIMEOUT_SECONDS', 120);
@@ -54,12 +55,8 @@ function iotzy_collect_full_context(int $userId, PDO $db): array
         $ctx['user']['cv_config'] = null;
     }
 
-    $stmt = $db->prepare("SELECT id,name,type,icon,device_key,topic_sub,topic_pub,is_active,last_state,latest_state,last_seen,last_state_changed FROM devices WHERE user_id=? ORDER BY name");
-    $stmt->execute([$userId]);
-    $ctx['devices'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $stmt = $db->prepare("SELECT id,name,type,icon,sensor_key,unit,topic,latest_value,last_seen FROM sensors WHERE user_id=? ORDER BY name");
-    $stmt->execute([$userId]);
-    $ctx['sensors'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $ctx['devices'] = getUserDevices($userId);
+    $ctx['sensors'] = getUserSensors($userId);
     $stmt = $db->prepare("SELECT sr.sensor_id,s.name sensor_name,s.unit,ROUND(AVG(sr.value),2) avg_val,ROUND(MIN(sr.value),2) min_val,ROUND(MAX(sr.value),2) max_val,COUNT(*) total_readings FROM sensor_readings sr JOIN sensors s ON s.id=sr.sensor_id WHERE s.user_id=? AND sr.recorded_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR) GROUP BY sr.sensor_id,s.name,s.unit");
     $stmt->execute([$userId]);
     $ctx['sensor_summary_1h'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -78,15 +75,17 @@ function iotzy_collect_full_context(int $userId, PDO $db): array
     }
     unset($sc);
     $ctx['schedules'] = $rawSched;
-    $stmt = $db->prepare("SELECT is_active, model_loaded, person_count, brightness, light_condition, last_updated FROM cv_state WHERE user_id=?");
-    $stmt->execute([$userId]);
-    $ctx['cv_state'] = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $cameraBundle = getUserCameraBundle($userId, $db);
+    $ctx['camera'] = $cameraBundle['camera'] ?? null;
+    $ctx['camera_settings'] = $cameraBundle['camera_settings'] ?? [];
+    $ctx['cv_state'] = $cameraBundle['cv_state'] ?? iotzyDefaultCvState();
     $stmt = $db->prepare("SELECT d.name device_name,ds.turned_on_at,ds.turned_off_at,ds.duration_seconds,ds.trigger_type FROM device_sessions ds JOIN devices d ON d.id=ds.device_id WHERE ds.user_id=? AND DATE(ds.turned_on_at) = CURRENT_DATE ORDER BY ds.turned_on_at DESC LIMIT 30");
     $stmt->execute([$userId]);
     $ctx['device_sessions_today'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $stmt = $db->prepare("SELECT device_name,activity,trigger_type,log_type,created_at FROM activity_logs WHERE user_id=? ORDER BY created_at DESC LIMIT 25");
     $stmt->execute([$userId]);
     $ctx['activity_logs'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $ctx['daily_analytics'] = getDailyAnalyticsSummary($userId, date('Y-m-d'), $db);
     $q = fn($sql) => (function () use ($db, $userId, $sql) {
         $s = $db->prepare($sql);
         $s->execute([$userId]);
@@ -162,7 +161,9 @@ function iotzy_format_context(int $userId, PDO $db, ?float $sessionStart = null,
         $rows = [];
         foreach ($ctx['devices'] as $d) {
             $lastChanged = $d['last_state_changed'] ? ' last_changed:' . date('H:i', strtotime($d['last_state_changed'])) : '';
-            $rows[] = "  ID:{$d['id']} \"{$d['name']}\" type:{$d['type']} "
+            $templateLabel = !empty($d['template_name']) ? " template:{$d['template_name']}" : '';
+            $controlLabel = !empty($d['control_mode']) ? " control:{$d['control_mode']}" : '';
+            $rows[] = "  ID:{$d['id']} \"{$d['name']}\" type:{$d['type']}{$templateLabel}{$controlLabel} "
                 . "(Status:" . ($d['is_active'] ? 'Enabled' : 'Disabled') . ") "
                 . "(Power:" . ($d['last_state'] ? 'ON' : 'OFF') . "){$lastChanged} "
                 . "[Sub:{$d['topic_sub']} Pub:{$d['topic_pub']}]";
@@ -183,7 +184,9 @@ function iotzy_format_context(int $userId, PDO $db, ?float $sessionStart = null,
                 $sm = $sumMap[$s['id']];
                 $summary = " [1h: avg:{$sm['avg_val']} min:{$sm['min_val']} max:{$sm['max_val']}]";
             }
-            $rows[] = "  ID:{$s['id']} \"{$s['name']}\" type:{$s['type']} val:{$val}{$summary} [Topic:{$s['topic']}]";
+            $deviceLink = !empty($s['device_name']) ? " device:{$s['device_name']}" : '';
+            $templateLabel = !empty($s['template_name']) ? " template:{$s['template_name']}" : '';
+            $rows[] = "  ID:{$s['id']} \"{$s['name']}\" type:{$s['type']}{$templateLabel}{$deviceLink} val:{$val}{$summary} [Topic:{$s['topic']}]";
         }
         $sec[] = "## SENSOR\n" . implode("\n", $rows);
     }
@@ -216,6 +219,13 @@ function iotzy_format_context(int $userId, PDO $db, ?float $sessionStart = null,
         $sec[] = "## JADWAL\n" . implode("\n", $rows);
     }
 
+    if (!empty($ctx['daily_analytics']['summary'])) {
+        $da = $ctx['daily_analytics']['summary'];
+        $sec[] = "## ANALYTICS HARI INI\n"
+            . "  Aktivitas: {$da['total_logs']} | Device aktif harian: {$da['devices_active_today']} | Idle: {$da['devices_idle_today']}\n"
+            . "  Durasi aktif total: {$da['total_duration_human']} | Energi: {$da['total_energy_kwh']} kWh | Power device: {$da['power_devices']}";
+    }
+
     if (!empty($ctx['activity_logs'])) {
         $rows = [];
         foreach (array_slice($ctx['activity_logs'], 0, 10) as $l)
@@ -226,6 +236,7 @@ function iotzy_format_context(int $userId, PDO $db, ?float $sessionStart = null,
     if (!empty($ctx['cv_state'])) {
         $c = $ctx['cv_state'];
         $sec[] = "## CAMERA & CV (DB Live)\n"
+            . "  Camera: " . (($ctx['camera']['name'] ?? null) ?: 'Browser Camera') . "\n"
             . "  Model Loaded: " . (($c['model_loaded'] ?? 0) ? 'YES' : 'NO') . "\n"
             . "  Status Kamera: " . ($c['is_active'] ? 'ON' : 'OFF') . "\n"
             . "  Orang Terdeteksi: " . ($c['person_count'] ?? 0) . "\n"
@@ -606,11 +617,58 @@ function execute_ai_actions(int $userId, array $parsed): array
                     $result['executed'][] = 'automation';
                     break;
                 case 'add_device':
-                    $db->prepare("INSERT INTO devices (user_id,name,type,icon,device_key,topic_sub,topic_pub) VALUES (?,?,?,?,?,?,?)")->execute([$userId, $a['name'], $a['device_type'] ?? 'switch', $a['icon'] ?? 'fa-plug', $a['device_key'] ?? strtolower(str_replace(' ', '_', $a['name'])), $a['topic_sub'] ?? '', $a['topic_pub'] ?? '']);
+                    $template = resolveDeviceTemplate(
+                        $db,
+                        $a['device_template_id'] ?? null,
+                        $a['template_slug'] ?? null,
+                        $a['device_type'] ?? null,
+                        $a['icon'] ?? null
+                    );
+                    $deviceType = $a['device_type'] ?? ($template['device_type'] ?? 'switch');
+                    $deviceIcon = $a['icon'] ?? ($template['default_icon'] ?? 'fa-plug');
+                    $deviceKey = $a['device_key'] ?? strtolower(str_replace(' ', '_', $a['name'])) . '_' . substr(bin2hex(random_bytes(4)), 0, 8);
+                    $db->prepare(
+                        "INSERT INTO devices (user_id,device_template_id,name,type,icon,device_key,topic_sub,topic_pub,state_on_label,state_off_label)
+                         VALUES (?,?,?,?,?,?,?,?,?,?)"
+                    )->execute([
+                        $userId,
+                        $template['id'] ?? null,
+                        $a['name'],
+                        $deviceType,
+                        $deviceIcon,
+                        $deviceKey,
+                        $a['topic_sub'] ?? '',
+                        $a['topic_pub'] ?? '',
+                        $a['state_on_label'] ?? ($template['state_on_label'] ?? null),
+                        $a['state_off_label'] ?? ($template['state_off_label'] ?? null),
+                    ]);
                     $result['executed'][] = 'add_device';
                     break;
                 case 'add_sensor':
-                    $db->prepare("INSERT INTO sensors (user_id,name,type,icon,sensor_key,unit,topic) VALUES (?,?,?,?,?,?,?)")->execute([$userId, $a['name'], $a['sensor_type'] ?? 'temperature', $a['icon'] ?? 'fa-microchip', $a['sensor_key'] ?? strtolower(str_replace(' ', '_', $a['name'])), $a['unit'] ?? '', $a['topic'] ?? '']);
+                    $template = resolveSensorTemplate(
+                        $db,
+                        $a['sensor_template_id'] ?? null,
+                        $a['template_slug'] ?? null,
+                        $a['sensor_type'] ?? null
+                    );
+                    $sensorType = $a['sensor_type'] ?? ($template['sensor_type'] ?? 'temperature');
+                    $sensorIcon = $a['icon'] ?? ($template['default_icon'] ?? 'fa-microchip');
+                    $sensorUnit = $a['unit'] ?? ($template['default_unit'] ?? '');
+                    $sensorKey = $a['sensor_key'] ?? strtolower(str_replace(' ', '_', $a['name'])) . '_' . substr(bin2hex(random_bytes(4)), 0, 8);
+                    $db->prepare(
+                        "INSERT INTO sensors (user_id,device_id,sensor_template_id,name,type,icon,sensor_key,unit,topic)
+                         VALUES (?,?,?,?,?,?,?,?,?)"
+                    )->execute([
+                        $userId,
+                        $a['device_id'] ?? null,
+                        $template['id'] ?? null,
+                        $a['name'],
+                        $sensorType,
+                        $sensorIcon,
+                        $sensorKey,
+                        $sensorUnit,
+                        $a['topic'] ?? '',
+                    ]);
                     $result['executed'][] = 'add_sensor';
                     break;
                 case 'delete_device':
@@ -707,10 +765,13 @@ function execute_ai_actions(int $userId, array $parsed): array
                     break;
                 case 'cv_action':
                     $act = $a['action'] ?? '';
-                    if ($act === 'start_detection')
-                        $db->prepare("UPDATE cv_state SET is_active=1 WHERE user_id=?")->execute([$userId]);
-                    elseif ($act === 'stop_detection')
-                        $db->prepare("UPDATE cv_state SET is_active=0 WHERE user_id=?")->execute([$userId]);
+                    if ($act === 'start_detection') {
+                        updateUserCVState($userId, ['is_active' => 1], $db);
+                    } elseif ($act === 'stop_detection') {
+                        updateUserCVState($userId, ['is_active' => 0], $db);
+                    } elseif ($act === 'load_model') {
+                        updateUserCVState($userId, ['model_loaded' => 1], $db);
+                    }
                     $result['executed'][] = "cv_action:$act";
                     break;
                 case 'navigate':

@@ -1,102 +1,98 @@
 <?php
-/**
- * controllers/CVController.php
- * ───
- * Menangani konfigurasi Computer Vision (CV) berbasis TensorFlow.js.
- * Mengelola aturan deteksi objek, ambang batas cahaya, dan statistik deteksi.
- */
 
 require_once __DIR__ . '/../core/bootstrap.php';
+require_once __DIR__ . '/../core/UserDataService.php';
 
-function handleCVAction(string $action, int $userId, array $body, PDO $db): void {
-    $defRules = ['human'=>['enabled'=>true,'onDetect'=>[],'onAbsent'=>[],'delay'=>5000],'light'=>['enabled'=>true,'onDark'=>[],'onBright'=>[],'delay'=>2000]];
-    
+function handleCVAction(string $action, int $userId, array $body, PDO $db): void
+{
+    $defRules = [
+        'human' => ['enabled' => true, 'onDetect' => [], 'onAbsent' => [], 'delay' => 5000],
+        'light' => ['enabled' => true, 'onDark' => [], 'onBright' => [], 'delay' => 2000],
+    ];
+
+    $bundle = getUserCameraBundle($userId, $db);
+    $cameraId = (int)($bundle['camera']['id'] ?? 0);
+
     if ($action === 'get_cv_rules') {
-        try {
-            $stmt=$db->prepare("SELECT cv_rules FROM user_settings WHERE user_id=?"); 
-            $stmt->execute([$userId]);
-            $row=$stmt->fetchColumn();
-            jsonOut($row?(json_decode($row,true)??$defRules):$defRules);
-        } catch (\PDOException $e) {
-            error_log('[CVController] get_cv_rules missing column fallback');
-            jsonOut($defRules); // Fallback jika kolom belum dibuat
-        }
+        $rules = iotzyJsonDecode($bundle['camera_settings']['cv_rules'] ?? null, $defRules);
+        jsonOut($rules ?: $defRules);
     }
 
     if ($action === 'save_cv_rules') {
-        $rules=$body['rules']??null;
-        if (!$rules||!is_array($rules)) jsonOut(['success'=>false,'error'=>'Data tidak valid']);
-        try {
-            dbWrite("UPDATE user_settings SET cv_rules=? WHERE user_id=?",[json_encode($rules),$userId]);
-            jsonOut(['success'=>true]);
-        } catch (\PDOException $e) {
-            jsonOut(['success'=>false,'error'=>'Tabel DB perlu diupdate. Jalankan script Vercel db-init.php']);
+        requireCsrf();
+        $rules = $body['rules'] ?? null;
+        if (!$rules || !is_array($rules) || $cameraId <= 0) {
+            jsonOut(['success' => false, 'error' => 'Data tidak valid']);
         }
+
+        $json = json_encode($rules, JSON_UNESCAPED_UNICODE);
+        dbWrite("UPDATE camera_settings SET cv_rules = ? WHERE camera_id = ?", [$json, $cameraId]);
+        dbWrite("UPDATE user_settings SET cv_rules = ? WHERE user_id = ?", [$json, $userId]);
+        jsonOut(['success' => true]);
     }
 
     if ($action === 'get_cv_config') {
-        $defConfig = [
-            'showBoundingBox' => true, 
-            'showDebugInfo' => true, 
-            'minConfidence' => 0.6,
-            'darkThreshold' => 0.3,
-            'brightThreshold' => 0.7,
-            'humanEnabled' => true,
-            'lightEnabled' => true
+        $settings = $bundle['camera_settings'] ?? [];
+        $config = [
+            'showBoundingBox' => isset($settings['show_bounding_box']) ? (bool)$settings['show_bounding_box'] : true,
+            'showDebugInfo' => isset($settings['show_debug_info']) ? (bool)$settings['show_debug_info'] : true,
+            'minConfidence' => isset($settings['min_confidence']) ? (float)$settings['min_confidence'] : 0.6,
+            'darkThreshold' => isset($settings['dark_threshold']) ? (float)$settings['dark_threshold'] : 0.3,
+            'brightThreshold' => isset($settings['bright_threshold']) ? (float)$settings['bright_threshold'] : 0.7,
+            'humanEnabled' => isset($settings['human_rules_enabled']) ? (bool)$settings['human_rules_enabled'] : true,
+            'lightEnabled' => isset($settings['light_rules_enabled']) ? (bool)$settings['light_rules_enabled'] : true,
         ];
-        try {
-            $stmt=$db->prepare("SELECT cv_config, cv_min_confidence, cv_dark_threshold, cv_bright_threshold, cv_human_rules_enabled, cv_light_rules_enabled FROM user_settings WHERE user_id=?"); 
-            $stmt->execute([$userId]);
-            $row=$stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row) {
-                $defConfig['minConfidence'] = (float)($row['cv_min_confidence'] ?? 0.6);
-                $defConfig['darkThreshold'] = (float)($row['cv_dark_threshold'] ?? 0.3);
-                $defConfig['brightThreshold'] = (float)($row['cv_bright_threshold'] ?? 0.7);
-                $defConfig['humanEnabled'] = (bool)($row['cv_human_rules_enabled'] ?? true);
-                $defConfig['lightEnabled'] = (bool)($row['cv_light_rules_enabled'] ?? true);
-            }
-        } catch (\PDOException $e) {
-            error_log('[CVController] get_cv_config missing column fallback');
-        }
-        jsonOut($defConfig);
+        jsonOut($config);
     }
 
     if ($action === 'save_cv_config') {
-        $config=$body['config']??null;
-        if (!$config||!is_array($config)) jsonOut(['success'=>false,'error'=>'Data tidak valid']);
-        
-        $hasMin     = array_key_exists('minConfidence', $config);
-        $hasDark    = array_key_exists('darkThreshold', $config);
-        $hasBright  = array_key_exists('brightThreshold', $config);
-        $hasHuman   = array_key_exists('humanEnabled', $config);
-        $hasLight   = array_key_exists('lightEnabled', $config);
+        requireCsrf();
+        $config = $body['config'] ?? null;
+        if (!$config || !is_array($config) || $cameraId <= 0) {
+            jsonOut(['success' => false, 'error' => 'Data tidak valid']);
+        }
 
-        $minConfidence = $hasMin ? max(0.1, min(0.99, (float)($config['minConfidence'] ?? 0.6))) : null;
-        $darkThreshold = $hasDark ? max(0.01, min(0.99, (float)($config['darkThreshold'] ?? 0.3))) : null;
-        $brightThreshold = $hasBright ? max(0.01, min(0.99, (float)($config['brightThreshold'] ?? 0.7))) : null;
-        $humanEnabled = $hasHuman ? (int)($config['humanEnabled'] ?? 1) : null;
-        $lightEnabled = $hasLight ? (int)($config['lightEnabled'] ?? 1) : null;
+        $showBoundingBox = array_key_exists('showBoundingBox', $config) ? (int)(bool)$config['showBoundingBox'] : null;
+        $showDebugInfo = array_key_exists('showDebugInfo', $config) ? (int)(bool)$config['showDebugInfo'] : null;
+        $minConfidence = array_key_exists('minConfidence', $config) ? max(0.1, min(0.99, (float)$config['minConfidence'])) : null;
+        $darkThreshold = array_key_exists('darkThreshold', $config) ? max(0.01, min(0.99, (float)$config['darkThreshold'])) : null;
+        $brightThreshold = array_key_exists('brightThreshold', $config) ? max(0.01, min(0.99, (float)$config['brightThreshold'])) : null;
+        $humanEnabled = array_key_exists('humanEnabled', $config) ? (int)(bool)$config['humanEnabled'] : null;
+        $lightEnabled = array_key_exists('lightEnabled', $config) ? (int)(bool)$config['lightEnabled'] : null;
 
-        $sql = "UPDATE user_settings SET
-                cv_min_confidence = COALESCE(?, cv_min_confidence),
-                cv_dark_threshold = COALESCE(?, cv_dark_threshold),
-                cv_bright_threshold = COALESCE(?, cv_bright_threshold),
-                cv_human_rules_enabled = COALESCE(?, cv_human_rules_enabled),
-                cv_light_rules_enabled = COALESCE(?, cv_light_rules_enabled)
-                WHERE user_id = ?";
-        
-        try {
-            dbWrite($sql, [
+        dbWrite(
+            "UPDATE camera_settings
+             SET show_bounding_box = COALESCE(?, show_bounding_box),
+                 show_debug_info = COALESCE(?, show_debug_info),
+                 min_confidence = COALESCE(?, min_confidence),
+                 dark_threshold = COALESCE(?, dark_threshold),
+                 bright_threshold = COALESCE(?, bright_threshold),
+                 human_rules_enabled = COALESCE(?, human_rules_enabled),
+                 light_rules_enabled = COALESCE(?, light_rules_enabled)
+             WHERE camera_id = ?",
+            [
+                $showBoundingBox,
+                $showDebugInfo,
                 $minConfidence,
                 $darkThreshold,
                 $brightThreshold,
                 $humanEnabled,
                 $lightEnabled,
-                $userId
-            ]);
-            jsonOut(['success'=>true]);
-        } catch (\PDOException $e) {
-            jsonOut(['success'=>false,'error'=>'Kolom DB gagal disimpan. Harap jalankan script init DB.']);
-        }
+                $cameraId,
+            ]
+        );
+
+        dbWrite(
+            "UPDATE user_settings
+             SET cv_min_confidence = COALESCE(?, cv_min_confidence),
+                 cv_dark_threshold = COALESCE(?, cv_dark_threshold),
+                 cv_bright_threshold = COALESCE(?, cv_bright_threshold),
+                 cv_human_rules_enabled = COALESCE(?, cv_human_rules_enabled),
+                 cv_light_rules_enabled = COALESCE(?, cv_light_rules_enabled)
+             WHERE user_id = ?",
+            [$minConfidence, $darkThreshold, $brightThreshold, $humanEnabled, $lightEnabled, $userId]
+        );
+
+        jsonOut(['success' => true]);
     }
 }

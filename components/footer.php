@@ -43,6 +43,8 @@
   const PHP_DEVICES  = <?= json_encode($devices ?? []) ?>;
   const PHP_SENSORS  = <?= json_encode($sensors ?? []) ?>;
   const PHP_CV_STATE = <?= json_encode($cvState ?? []) ?>;
+  const PHP_CAMERA   = <?= json_encode($camera ?? null) ?>;
+  const PHP_CAMERA_SETTINGS = <?= json_encode($cameraSettings ?? []) ?>;
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>

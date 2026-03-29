@@ -1,9 +1,38 @@
+function setCVModelStatus(label) {
+  const el = document.getElementById("cvModelStatus");
+  if (el) el.textContent = label;
+}
+
+function startCVFpsMonitor() {
+  stopCVFpsMonitor();
+  CV.frameCount = 0;
+  CV.fpsTimer = setInterval(() => {
+    CV.fps = CV.frameCount;
+    const fpsEl = document.getElementById("cvFPS");
+    if (fpsEl) fpsEl.textContent = String(CV.fps);
+    CV.frameCount = 0;
+  }, 1000);
+}
+
+function stopCVFpsMonitor() {
+  if (CV.fpsTimer) {
+    clearInterval(CV.fpsTimer);
+    CV.fpsTimer = null;
+  }
+  CV.fps = 0;
+  CV.frameCount = 0;
+  const fpsEl = document.getElementById("cvFPS");
+  if (fpsEl) fpsEl.textContent = "0";
+}
+
 async function initializeCV() {
   if (typeof cvDetector !== 'undefined') {
       if (cvDetector.isLoading) return;
       if (cvDetector.isReady)   return true;
   } else return false;
 
+  CV.modelLoading = true;
+  setCVModelStatus("Memuat");
   if (document.getElementById("cvLoadingStatus")) {
     document.getElementById("cvLoadingStatus").classList.remove("hidden");
   }
@@ -17,7 +46,11 @@ async function initializeCV() {
 
   const ok = await cvDetector.initialize();
   if (ok) {
+    CV.modelLoading = false;
+    CV.modelLoaded = true;
+    CV.model = cvDetector.model || CV.model;
     updateCVBadge("ready", "Siap");
+    setCVModelStatus("Siap");
     if (document.getElementById("cvLoadingStatus")) document.getElementById("cvLoadingStatus").classList.add("hidden");
     if (document.getElementById("cvSystemStatus")) {
       document.getElementById("cvSystemStatus").textContent = "Model siap";
@@ -31,7 +64,10 @@ async function initializeCV() {
     apiPost('update_cv_state', { model_loaded: 1 }).catch(() => {});
     return true;
   } else {
+    CV.modelLoading = false;
+    CV.modelLoaded = false;
     updateCVBadge("error", "Gagal");
+    setCVModelStatus("Gagal");
     if (document.getElementById("cvLoadingStatus")) document.getElementById("cvLoadingStatus").classList.add("hidden");
     showToast("Gagal memuat model CV", "error");
     return false;
@@ -48,7 +84,9 @@ function startCVDetection() {
   const video = document.getElementById("cameraFocus");
   if (!video || !cvDetector.isReady) return;
 
+  CV.detecting = true;
   cvDetector.startDetection(video);
+  startCVFpsMonitor();
 
   if (typeof lightAnalyzer !== 'undefined') {
     lightAnalyzer.startAnalysis(video);
@@ -59,11 +97,15 @@ function startCVDetection() {
   if (document.getElementById("cvDetectionInfo")) document.getElementById("cvDetectionInfo").style.display = "flex";
   
   updateCVBadge("active", "Aktif");
+  setCVModelStatus("Aktif");
+  if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
   showToast("Deteksi CV dimulai", "info");
 }
 
 function stopCVDetection() {
+  CV.detecting = false;
   cvDetector.stopDetection();
+  stopCVFpsMonitor();
   if (typeof lightAnalyzer !== 'undefined') lightAnalyzer.stopAnalysis();
 
   if (document.getElementById("btnStartCV")) document.getElementById("btnStartCV").disabled = false;
@@ -71,7 +113,26 @@ function stopCVDetection() {
   if (document.getElementById("cvDetectionInfo")) document.getElementById("cvDetectionInfo").style.display = "none";
   
   updateCVBadge("ready", "Siap");
+  setCVModelStatus(CV.modelLoaded ? "Siap" : "Idle");
+  if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
   showToast("Deteksi CV dihentikan", "info");
+}
+
+async function startDetection() {
+  if (typeof STATE !== "undefined" && !STATE.camera.active && typeof startCamera === "function") {
+    const cameraOk = await startCamera();
+    if (!cameraOk) return false;
+  }
+
+  const ready = await initializeCV();
+  if (!ready) return false;
+
+  startCVDetection();
+  return true;
+}
+
+function stopDetection() {
+  stopCVDetection();
 }
 
 async function loadCVConfig() {

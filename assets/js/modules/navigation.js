@@ -126,7 +126,15 @@ function switchPage(page, el) {
     }, 150);
   }
   
-  if (page === "analytics") updateLogDisplay();
+  if (page === "analytics") {
+    if (typeof loadLogs === "function") {
+      loadLogs(typeof getAnalyticsDate === "function" ? getAnalyticsDate() : undefined).catch(() => {
+        if (typeof updateLogDisplay === "function") updateLogDisplay();
+      });
+    } else if (typeof updateLogDisplay === "function") {
+      updateLogDisplay();
+    }
+  }
 
   // Tutup sidebar otomatis di mobile setelah klik menu
   document.getElementById("sidebar")?.classList.remove("open");

@@ -40,13 +40,18 @@ const STATE = {
   deviceTopics:        {},
   deviceOnAt:          {},
   deviceExtras:        {},
+  deviceTemplates:     [],
   sensors:             {},
   sensorData:          {},
   sensorHistory:       {},
+  sensorTemplates:     [],
   automationRules:     {},
   logs:                [],
   logFilter:           "",
   logTypeFilter:       "all",
+  logSearchFilter:     "",
+  analyticsDate:       new Date().toISOString().slice(0, 10),
+  analytics:           null,
   quickControlDevices: [],
   mqtt: { client: null, connected: false, reconnectAttempts: 0, templates: [] },
   camera: {
@@ -54,6 +59,8 @@ const STATE = {
     active:           false,
     selectedDeviceId: null,
     availableDevices: [],
+    defaultMeta:      null,
+    settings:         {},
   },
   sessionStart: Date.now(),
   cv: {
@@ -316,9 +323,11 @@ async function syncDevicesFromServer() {
   data.forEach(d => {
     const id = String(d.id);
     const isNew = !STATE.devices[id];
-    STATE.devices[id] = { ...d, id };
+    STATE.devices[id] = { ...(STATE.devices[id] || {}), ...d, id };
     if (STATE.deviceStates[id] === undefined)
       STATE.deviceStates[id] = Boolean(Number(d.last_state ?? 0));
+    else
+      STATE.deviceStates[id] = Boolean(Number(d.last_state ?? d.latest_state ?? (STATE.deviceStates[id] ? 1 : 0)));
     STATE.deviceTopics[id] = { sub: d.topic_sub || "", pub: d.topic_pub || "" };
     if (isNew && STATE.mqtt.connected && d.topic_sub) {
       try { STATE.mqtt.client.subscribe(d.topic_sub); } catch(e) { console.warn("MQTT Re-sub:", e); }
@@ -341,13 +350,15 @@ async function syncSensorsFromServer() {
   data.forEach(s => {
     const id = String(s.id);
     const isNew = !STATE.sensors[id];
-    STATE.sensors[id] = { ...s, id };
+    STATE.sensors[id] = { ...(STATE.sensors[id] || {}), ...s, id };
     if (isNew) {
-      STATE.sensorData[id] = null;
+      STATE.sensorData[id] = s.latest_value ?? null;
       STATE.sensorHistory[id] = [];
       if (STATE.mqtt.connected && s.topic) {
         try { STATE.mqtt.client.subscribe(s.topic); } catch(e) {}
       }
+    } else {
+      STATE.sensorData[id] = s.latest_value ?? STATE.sensorData[id] ?? null;
     }
   });
   renderAll();
@@ -387,6 +398,7 @@ async function syncAllFromServer(forceSync = false) {
       res.devices.forEach(d => {
         const id = String(d.id);
         if (!STATE.devices[id]) return;
+        STATE.devices[id] = { ...STATE.devices[id], ...d, id };
         const oldState = STATE.deviceStates[id];
         const newState = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
         if (oldState !== newState) {
@@ -400,7 +412,10 @@ async function syncAllFromServer(forceSync = false) {
     if (res.sensors) {
       res.sensors.forEach(s => {
         const id = String(s.id);
-        if (STATE.sensors[id]) STATE.sensorData[id] = s.latest_value;
+        if (STATE.sensors[id]) {
+          STATE.sensors[id] = { ...STATE.sensors[id], ...s, id };
+          STATE.sensorData[id] = s.latest_value;
+        }
       });
       if (typeof renderSensors === 'function') renderSensors();
     }
@@ -409,6 +424,17 @@ async function syncAllFromServer(forceSync = false) {
       STATE.cv.personCount    = res.cv_state.person_count || 0;
       STATE.cv.brightness     = res.cv_state.brightness   || 0;
       STATE.cv.lightCondition = res.cv_state.light_condition || 'unknown';
+    }
+
+    if (res.camera) {
+      STATE.camera.defaultMeta = res.camera;
+    }
+    if (res.camera_settings) {
+      STATE.camera.settings = res.camera_settings;
+    }
+    if (res.analytics_summary) {
+      STATE.analytics = { ...(STATE.analytics || {}), summary: res.analytics_summary };
+      if (typeof updateLogStats === 'function') updateLogStats();
     }
 
     updateDashboardStats();
@@ -488,9 +514,16 @@ function loadFromPHP() {
       PHP_SENSORS.forEach((s) => {
         const id = String(s.id);
         STATE.sensors[id]       = { ...s, id };
-        STATE.sensorData[id]    = null;
+        STATE.sensorData[id]    = s.latest_value ?? null;
         STATE.sensorHistory[id] = [];
       });
+    }
+
+    if (typeof PHP_CAMERA !== 'undefined') {
+      STATE.camera.defaultMeta = PHP_CAMERA || null;
+    }
+    if (typeof PHP_CAMERA_SETTINGS !== 'undefined') {
+      STATE.camera.settings = PHP_CAMERA_SETTINGS || {};
     }
 
     // Auto-start CV jika aktif di DB

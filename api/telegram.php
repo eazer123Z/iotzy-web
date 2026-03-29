@@ -95,9 +95,7 @@ try {
 
         error_log("[Telegram] User ID: $userId | Processing AI for text: $text");
 
-        $stmtCv = $db->prepare("SELECT is_active, model_loaded, person_count, brightness, light_condition FROM cv_state WHERE user_id = ?");
-        $stmtCv->execute([$userId]);
-        $cvData = $stmtCv->fetch(PDO::FETCH_ASSOC) ?: null;
+        $cvData = getUserCVState($userId, $db);
 
         $stmtSess = $db->prepare("SELECT created_at FROM sessions WHERE user_id = ? AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1");
         $stmtSess->execute([$userId]);

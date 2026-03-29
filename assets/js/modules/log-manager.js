@@ -1,199 +1,397 @@
-async function loadLogs() {
-  const result = await apiPost("get_logs", {});
-  if (result && Array.isArray(result)) {
-    STATE.logs = result.map((r) => ({
-      tanggal:  r.tanggal    || new Date(r.created_at).toLocaleDateString("id-ID"),
-      waktu:    r.waktu      || new Date(r.created_at).toLocaleTimeString("id-ID"),
-      device:   r.device_name,
-      activity: r.activity,
-      trigger:  r.trigger_type,
-      type:     r.log_type,
-      ts:       new Date(r.created_at).getTime(),
-    }));
-    if (typeof updateLogDisplay === 'function') updateLogDisplay();
-    if (typeof updateDashboardActivityFeed === 'function') updateDashboardActivityFeed();
-    if (typeof updateLogStats === 'function') updateLogStats();
-  }
+const LOG_CHARTS = {
+  timeline: null,
+  devices: null,
+};
+
+function getAnalyticsDate() {
+  return STATE.analyticsDate || new Date().toISOString().slice(0, 10);
 }
 
-async function addLog(device, activity, trigger, type = "info") {
+function normalizeLogRecord(row) {
+  const createdAt = row.created_at || `${row.tanggal || ''} ${row.waktu || ''}`;
+  const ts = createdAt ? new Date(createdAt).getTime() : Date.now();
+  return {
+    id: row.id || ts,
+    created_at: row.created_at || null,
+    tanggal: row.tanggal || new Date(ts).toLocaleDateString("id-ID"),
+    waktu: row.waktu || new Date(ts).toLocaleTimeString("id-ID"),
+    device: row.device || row.device_name || "System",
+    activity: row.activity || "",
+    trigger: row.trigger || row.trigger_type || "System",
+    type: row.type || row.log_type || "info",
+    device_id: row.device_id ?? null,
+    sensor_id: row.sensor_id ?? null,
+    sensor_name: row.sensor_name || null,
+    metadata: row.metadata || null,
+    ts,
+  };
+}
+
+async function loadLogs(date = getAnalyticsDate()) {
+  STATE.analyticsDate = date;
+  const dateInput = document.getElementById("logSummaryDate");
+  if (dateInput && dateInput.value !== date) {
+    dateInput.value = date;
+  }
+
+  const [logsResult, summaryResult] = await Promise.all([
+    apiPost("get_logs", { date, limit: 500 }),
+    apiPost("get_logs_daily_summary", { date }),
+  ]);
+
+  if (Array.isArray(logsResult)) {
+    STATE.logs = logsResult.map(normalizeLogRecord);
+  }
+
+  if (summaryResult?.success && summaryResult.data) {
+    STATE.analytics = summaryResult.data;
+  }
+
+  updateLogDisplay();
+  updateDashboardActivityFeed();
+  updateLogStats();
+  renderAnalyticsSummary();
+  renderAnalyticsCharts();
+  renderAnalyticsDevices();
+  renderAnalyticsPower();
+}
+
+async function addLog(device, activity, trigger, type = "info", extra = {}) {
   const now = new Date();
-  const log = {
-    tanggal:  now.toLocaleDateString("id-ID"),
-    waktu:    now.toLocaleTimeString("id-ID"),
-    device:   device || "System",
+  const log = normalizeLogRecord({
+    created_at: now.toISOString(),
+    device,
     activity,
     trigger,
     type,
-    ts: now.getTime(),
-  };
-  STATE.logs.unshift(log);
-  if (STATE.logs.length > (CONFIG.app.maxLogs || 500)) STATE.logs.length = (CONFIG.app.maxLogs || 500);
-  if (typeof updateLogDisplay === 'function') updateLogDisplay();
-  if (typeof updateDashboardActivityFeed === 'function') updateDashboardActivityFeed();
-  if (typeof updateLogStats === 'function') updateLogStats();
-  apiPost("add_log", { device: device || "System", activity, trigger, type }).catch(() => {});
-}
-
-function groupLogs(logs) {
-  const groups     = [];
-  const SESSION_GAP = 120000;
-  logs.forEach((log) => {
-    const last = groups.find((g) =>
-      g.device === log.device && g.trigger === log.trigger && g.latestTs - log.ts < SESSION_GAP);
-    if (last) { last.count++; last.activities.unshift(log); last.earliest = log; }
-    else groups.push({
-      device:     log.device,
-      activity:   log.activity,
-      trigger:    log.trigger,
-      type:       log.type,
-      latestTs:   log.ts,
-      tanggal:    log.tanggal,
-      waktu:      log.waktu,
-      count:      1,
-      activities: [log],
-      earliest:   log,
-    });
+    ...extra,
   });
-  return groups;
+  STATE.logs.unshift(log);
+  if (STATE.logs.length > (CONFIG.app.maxLogs || 500)) {
+    STATE.logs.length = CONFIG.app.maxLogs || 500;
+  }
+  updateLogDisplay();
+  updateDashboardActivityFeed();
+  updateLogStats();
+
+  apiPost("add_log", {
+    device: device || "System",
+    activity,
+    trigger,
+    type,
+    device_id: extra.device_id ?? null,
+    sensor_id: extra.sensor_id ?? null,
+    metadata: extra.metadata ?? null,
+  }).catch(() => {});
 }
 
-function initLogTabs() {
-  const tabs = document.querySelectorAll('.log-tab');
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      tabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      const type = tab.getAttribute('data-type');
-      STATE.logTypeFilter = type; 
-      updateLogDisplay();
-    });
+function filterLogType(type, btn) {
+  STATE.logTypeFilter = type || "all";
+  document.querySelectorAll(".log-filter-tab").forEach((tab) => tab.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+  updateLogDisplay();
+}
+
+function filterLogSearch(value) {
+  STATE.logSearchFilter = String(value || "").trim().toLowerCase();
+  updateLogDisplay();
+}
+
+function getFilteredLogs() {
+  const typeFilter = STATE.logTypeFilter || "all";
+  const search = STATE.logSearchFilter || "";
+  return (STATE.logs || []).filter((log) => {
+    if (typeFilter !== "all" && log.type !== typeFilter) {
+      return false;
+    }
+    if (!search) {
+      return true;
+    }
+    const haystack = `${log.device} ${log.activity} ${log.trigger} ${log.sensor_name || ""}`.toLowerCase();
+    return haystack.includes(search);
   });
 }
 
 function updateLogDisplay() {
   const container = document.getElementById("logsContainer");
   if (!container) return;
-  const tf = STATE.logTypeFilter || "device";
-  let filtered = STATE.logs;
-  if (tf === "device") filtered = filtered.filter(l => l.trigger !== "Automation" && l.trigger !== "Sensor");
-  else if (tf === "sensor") filtered = filtered.filter(l => l.trigger === "Sensor");
-  else if (tf === "automation") filtered = filtered.filter(l => l.trigger === "Automation");
+
+  const filtered = getFilteredLogs();
   if (filtered.length === 0) {
-    container.innerHTML = `<div class="empty-logs">Tidak ada riwayat untuk kategori ini.</div>`;
+    container.innerHTML = `<div class="empty-logs">Tidak ada riwayat untuk filter ini.</div>`;
     return;
   }
-  let html = '<table class="log-table"><thead><tr><th>Waktu</th><th>Perangkat</th><th>Aktivitas</th><th>Trigger</th></tr></thead><tbody>';
-  filtered.forEach(l => {
+
+  let html = '<table class="log-table"><thead><tr><th>Waktu</th><th>Perangkat</th><th>Aktivitas</th><th>Trigger</th><th>Tipe</th></tr></thead><tbody>';
+  filtered.forEach((log) => {
     html += `<tr>
-      <td class="log-time">${l.waktu}</td>
-      <td class="log-dev">${escHtml(l.device)}</td>
-      <td class="log-act">${escHtml(l.activity)}</td>
-      <td><span class="log-type-badge ${l.type}">${l.trigger}</span></td>
+      <td class="log-time">${escHtml(log.waktu)}</td>
+      <td class="log-dev">${escHtml(log.device)}</td>
+      <td class="log-act">${escHtml(log.activity)}</td>
+      <td>${escHtml(log.trigger)}</td>
+      <td><span class="log-type-badge ${escHtml(log.type)}">${escHtml(log.type)}</span></td>
     </tr>`;
   });
   html += '</tbody></table>';
   container.innerHTML = html;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  initLogTabs();
-});
+function renderAnalyticsSummary() {
+  const summary = STATE.analytics?.summary;
+  if (!summary) return;
 
-// Mengekstrak 5 log teratas untuk ditampilkan di Dashboard Utama
+  const dateLabel = document.getElementById("analyticsDateLabel");
+  if (dateLabel) dateLabel.textContent = STATE.analytics?.date || getAnalyticsDate();
+
+  const g = (id) => document.getElementById(id);
+  if (g("logStatTotal")) g("logStatTotal").textContent = summary.total_logs ?? 0;
+  if (g("analyticsActiveDevices")) g("analyticsActiveDevices").textContent = summary.devices_active_today ?? 0;
+  if (g("analyticsIdleDevices")) g("analyticsIdleDevices").textContent = `Idle: ${summary.devices_idle_today ?? 0}`;
+  if (g("analyticsTotalDuration")) g("analyticsTotalDuration").textContent = summary.total_duration_human || "0d";
+  if (g("analyticsOnOffEvents")) g("analyticsOnOffEvents").textContent = `ON: ${summary.device_on_events ?? 0} / OFF: ${summary.device_off_events ?? 0}`;
+  if (g("analyticsTotalEnergy")) g("analyticsTotalEnergy").textContent = `${summary.total_energy_kwh ?? 0} kWh`;
+  if (g("analyticsCurrentPower")) g("analyticsCurrentPower").textContent = `Power sekarang: ${summary.current_power_watts ?? 0} W`;
+}
+
+function destroyChart(instanceKey) {
+  if (LOG_CHARTS[instanceKey]) {
+    LOG_CHARTS[instanceKey].destroy();
+    LOG_CHARTS[instanceKey] = null;
+  }
+}
+
+function renderAnalyticsCharts() {
+  if (typeof Chart === "undefined" || !STATE.analytics) return;
+
+  const timelineCanvas = document.getElementById("analyticsTimelineChart");
+  const deviceCanvas = document.getElementById("analyticsDeviceChart");
+  if (!timelineCanvas || !deviceCanvas) return;
+
+  destroyChart("timeline");
+  destroyChart("devices");
+
+  const timeline = STATE.analytics.timeline || [];
+  LOG_CHARTS.timeline = new Chart(timelineCanvas.getContext("2d"), {
+    type: "line",
+    data: {
+      labels: Array.from({ length: 24 }, (_, hour) => `${hour}:00`),
+      datasets: [{
+        label: "Aktivitas",
+        data: timeline,
+        borderColor: "#38bdf8",
+        backgroundColor: "rgba(56,189,248,0.18)",
+        borderWidth: 2,
+        fill: true,
+        tension: 0.32,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+        y: { ticks: { color: "#94a3b8", precision: 0 }, grid: { color: "rgba(148,163,184,0.08)" } },
+      },
+    },
+  });
+
+  const devices = (STATE.analytics.devices || []).slice(0, 8);
+  LOG_CHARTS.devices = new Chart(deviceCanvas.getContext("2d"), {
+    type: "bar",
+    data: {
+      labels: devices.map((device) => device.name),
+      datasets: [{
+        label: "Menit aktif",
+        data: devices.map((device) => Math.round((device.active_duration_seconds || 0) / 60)),
+        backgroundColor: ["#22c55e", "#38bdf8", "#f59e0b", "#a855f7", "#ef4444", "#14b8a6", "#f97316", "#6366f1"],
+        borderRadius: 10,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
+        y: { ticks: { color: "#94a3b8", precision: 0 }, grid: { color: "rgba(148,163,184,0.08)" } },
+      },
+    },
+  });
+}
+
+function renderAnalyticsDevices() {
+  const container = document.getElementById("analyticsDevicesSummary");
+  if (!container) return;
+
+  const devices = STATE.analytics?.devices || [];
+  if (!devices.length) {
+    container.innerHTML = '<p class="muted">Belum ada data perangkat untuk tanggal ini.</p>';
+    return;
+  }
+
+  container.innerHTML = devices.map((device) => {
+    const sensors = (device.linked_sensors || []).map((sensor) => {
+      const value = sensor.latest_value !== null && sensor.latest_value !== undefined
+        ? `${sensor.latest_value}${sensor.unit || ""}`
+        : "N/A";
+      return `<span style="display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:rgba(148,163,184,0.08); color:var(--text-secondary); font-size:12px">
+        <i class="fas ${escHtml(sensor.icon || "fa-microchip")}"></i>
+        ${escHtml(sensor.name)}: ${escHtml(String(value))}
+      </span>`;
+    }).join("");
+
+    const powerLine = device.latest_power_watts !== null
+      ? `<div style="font-size:12px; color:var(--text-muted)">Power: ${device.latest_power_watts} W | Energy: ${device.energy_kwh} kWh</div>`
+      : "";
+
+    return `<div class="card" style="padding:16px; border:1px solid var(--border)">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px">
+        <div>
+          <div style="font-size:15px; font-weight:700">${escHtml(device.name)}</div>
+          <div style="font-size:12px; color:var(--text-muted)">${escHtml(device.model_label || device.type || "Device")}</div>
+        </div>
+        <span class="log-type-badge ${device.active_duration_seconds > 0 ? "success" : "info"}">
+          ${device.active_duration_seconds > 0 ? escHtml(device.state_on_label || "ON") : escHtml(device.state_off_label || "OFF")}
+        </span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; margin-bottom:12px">
+        <div><div style="font-size:11px; color:var(--text-muted)">Durasi</div><div style="font-size:13px; font-weight:700">${escHtml(device.active_duration_human || "0d")}</div></div>
+        <div><div style="font-size:11px; color:var(--text-muted)">Sesi</div><div style="font-size:13px; font-weight:700">${device.session_count || 0}</div></div>
+        <div><div style="font-size:11px; color:var(--text-muted)">Log</div><div style="font-size:13px; font-weight:700">${device.logs_count || 0}</div></div>
+      </div>
+      ${powerLine}
+      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px">${sensors || '<span class="muted" style="font-size:12px">Belum ada sensor tertaut.</span>'}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderAnalyticsPower() {
+  const section = document.getElementById("analyticsPowerSection");
+  const total = document.getElementById("analyticsPowerTotal");
+  const breakdown = document.getElementById("analyticsPowerBreakdown");
+  if (!section || !total || !breakdown) return;
+
+  const devices = (STATE.analytics?.devices || []).filter((device) => {
+    return (device.latest_power_watts !== null && device.latest_power_watts !== undefined) || (device.energy_wh || 0) > 0;
+  });
+
+  if (!devices.length) {
+    section.style.display = "";
+    total.textContent = "Belum ada sensor daya terhubung.";
+    breakdown.innerHTML = "";
+    return;
+  }
+
+  const summary = STATE.analytics?.summary || {};
+  total.textContent = `Total ${summary.total_energy_kwh || 0} kWh • ${summary.current_power_watts || 0} W • ${summary.power_devices || 0} perangkat terukur`;
+  breakdown.innerHTML = devices.map((device) => `
+    <div class="card" style="padding:14px">
+      <div style="font-size:14px; font-weight:700">${escHtml(device.name)}</div>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:4px">${escHtml(device.model_label || device.type || "Device")}</div>
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:12px">
+        <div><div style="font-size:11px; color:var(--text-muted)">Now</div><div style="font-size:13px; font-weight:700">${device.latest_power_watts ?? 0} W</div></div>
+        <div><div style="font-size:11px; color:var(--text-muted)">Avg</div><div style="font-size:13px; font-weight:700">${device.avg_power_watts ?? 0} W</div></div>
+        <div><div style="font-size:11px; color:var(--text-muted)">Peak</div><div style="font-size:13px; font-weight:700">${device.peak_power_watts ?? 0} W</div></div>
+      </div>
+      <div style="margin-top:10px; font-size:12px; color:var(--text-secondary)">Energi: ${device.energy_kwh || 0} kWh</div>
+    </div>
+  `).join("");
+}
+
 function updateDashboardActivityFeed() {
   const feed = document.getElementById("activityFeedContainer");
   if (!feed) return;
-  
+
   if (!STATE.logs || STATE.logs.length === 0) {
     feed.innerHTML = '<p class="muted" style="text-align:center;font-size:.85rem">Belum ada aktivitas tercatat.</p>';
     return;
   }
-  
+
   const recentLogs = STATE.logs.slice(0, 5);
-  let html = '';
-  
   const iconMap = {
-    'Manual': 'fa-hand-pointer',
-    'Automation': 'fa-robot',
-    'Sensor': 'fa-temperature-half',
-    'AI Assistant': 'fa-comment-dots',
-    'System': 'fa-microchip'
+    Manual: "fa-hand-pointer",
+    Automation: "fa-robot",
+    Sensor: "fa-temperature-half",
+    AI: "fa-comment-dots",
+    System: "fa-microchip",
+    CV: "fa-eye",
+    MQTT: "fa-satellite-dish",
   };
-  
+
   const colorMap = {
-    'Manual': 'var(--accent)',
-    'Automation': 'var(--purple)',
-    'Sensor': 'var(--info)',
-    'AI Assistant': 'var(--success)',
-    'System': 'var(--text-muted)'
+    Manual: "var(--accent)",
+    Automation: "var(--purple)",
+    Sensor: "var(--info)",
+    AI: "var(--success)",
+    System: "var(--text-muted)",
+    CV: "var(--warning)",
+    MQTT: "var(--blue)",
   };
-  
-  recentLogs.forEach(log => {
-    const icon = iconMap[log.trigger] || 'fa-bolt';
-    const color = colorMap[log.trigger] || 'var(--text-secondary)';
-    
-    html += `
+
+  feed.innerHTML = recentLogs.map((log) => {
+    const icon = iconMap[log.trigger] || "fa-bolt";
+    const color = colorMap[log.trigger] || "var(--text-secondary)";
+    return `
       <div class="activity-item">
         <div class="activity-icon" style="color:${color}">
           <i class="fas ${icon}"></i>
         </div>
         <div class="activity-content">
-          <div class="activity-title">${escHtml(log.device)} — ${escHtml(log.activity)}</div>
+          <div class="activity-title">${escHtml(log.device)} - ${escHtml(log.activity)}</div>
           <div class="activity-meta">
-            <span class="activity-time">${log.waktu}</span> • 
-            <span class="activity-trigger" style="color:${color}">${log.trigger}</span>
+            <span class="activity-time">${log.waktu}</span> •
+            <span class="activity-trigger" style="color:${color}">${escHtml(log.trigger)}</span>
           </div>
         </div>
-      </div>
-    `;
-  });
-  
-  if (STATE.logs.length > 5) {
-    html += `<button class="ov-link" style="width:100%; text-align:center; margin-top:10px" onclick="switchPage('analytics')">Lihat Semua Aktivitas <i class="fas fa-arrow-right"></i></button>`;
-  }
-  
-  feed.innerHTML = html;
+      </div>`;
+  }).join("");
 }
 
 function clearAllLogs() {
   if (!confirm("Hapus semua riwayat aktivitas?")) return;
-  apiPost("clear_logs").then(res => {
+  apiPost("clear_logs").then(async (res) => {
     if (res?.success) {
       STATE.logs = [];
-      updateLogDisplay();
-      updateDashboardActivityFeed();
+      await loadLogs(getAnalyticsDate());
       showToast("Seluruh log telah dihapus.", "success");
     }
   });
 }
 
 function exportLog() {
-  if (STATE.logs.length === 0) { showToast("Tidak ada data untuk diekspor", "warning"); return; }
-  let csv = "Waktu,Perangkat,Aktivitas,Trigger,Tipe\n";
-  STATE.logs.forEach(l => {
-    csv += `${l.waktu},"${l.device}","${l.activity}","${l.trigger}","${l.type}"\n`;
+  if (!STATE.logs.length) {
+    showToast("Tidak ada data untuk diekspor", "warning");
+    return;
+  }
+
+  let csv = "Tanggal,Waktu,Perangkat,Aktivitas,Trigger,Tipe\n";
+  STATE.logs.forEach((log) => {
+    csv += `"${log.tanggal}","${log.waktu}","${String(log.device).replace(/"/g, '""')}","${String(log.activity).replace(/"/g, '""')}","${String(log.trigger).replace(/"/g, '""')}","${String(log.type).replace(/"/g, '""')}"\n`;
   });
-  const blob = new Blob([csv], { type: 'text/csv' });
+
+  const blob = new Blob([csv], { type: "text/csv" });
   const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.setAttribute('hidden', '');
-  a.setAttribute('href', url);
-  a.setAttribute('download', `IoTzy_Logs_${new Date().toISOString().slice(0,10)}.csv`);
+  const a = document.createElement("a");
+  a.setAttribute("hidden", "");
+  a.setAttribute("href", url);
+  a.setAttribute("download", `IoTzy_Logs_${getAnalyticsDate()}.csv`);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 }
 
 function updateLogStats() {
+  const summary = STATE.analytics?.summary;
+  if (!summary) return;
   const g = (id) => document.getElementById(id);
-  if (!g("logStatTotal")) return;
-  
-  const total = STATE.logs.length;
-  const success = STATE.logs.filter(l => l.type === 'success' || l.type === 'info').length;
-  const warning = STATE.logs.filter(l => l.type === 'warning' || l.type === 'error').length;
-  
-  g("logStatTotal").textContent   = total;
-  g("logStatSuccess").textContent = success;
-  g("logStatWarning").textContent = warning;
+  if (g("logStatTotal")) g("logStatTotal").textContent = summary.total_logs ?? 0;
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  const dateInput = document.getElementById("logSummaryDate");
+  if (dateInput) {
+    dateInput.value = getAnalyticsDate();
+    dateInput.addEventListener("change", () => loadLogs(dateInput.value || getAnalyticsDate()));
+  }
+});

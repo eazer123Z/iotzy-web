@@ -3,79 +3,241 @@
 require_once __DIR__ . '/../core/bootstrap.php';
 require_once __DIR__ . '/../core/UserDataService.php';
 
-function handleSensorAction(string $action, int $userId, array $body, PDO $db): void {
-    if ($action === 'get_sensors') jsonOut(getUserSensors($userId));
+function handleSensorAction(string $action, int $userId, array $body, PDO $db): void
+{
+    if ($action === 'get_sensors') {
+        jsonOut(getUserSensors($userId));
+    }
+
+    if ($action === 'get_sensor_templates') {
+        jsonOut([
+            'success' => true,
+            'templates' => getUserSensorTemplates($db),
+        ]);
+    }
+
+    if ($action === 'get_sensor_readings' || $action === 'get_sensor_history') {
+        $senId = (int)($_GET['sensor_id'] ?? $body['sensor_id'] ?? 0);
+        $limit = max(1, min((int)($_GET['limit'] ?? $body['limit'] ?? 30), 500));
+        $offset = max(0, (int)($_GET['offset'] ?? $body['offset'] ?? 0));
+        if ($senId <= 0) {
+            jsonOut([]);
+        }
+
+        $stmt = $db->prepare(
+            "SELECT sr.value, sr.recorded_at
+             FROM sensor_readings sr
+             JOIN sensors s ON s.id = sr.sensor_id
+             WHERE sr.sensor_id = ? AND s.user_id = ?
+             ORDER BY sr.recorded_at DESC
+             LIMIT ? OFFSET ?"
+        );
+        $stmt->execute([$senId, $userId, $limit, $offset]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        jsonOut(array_reverse($rows));
+    }
 
     requireCsrf();
 
     if ($action === 'add_sensor') {
-        $name  = trim($body['name'] ?? '');
-        $type  = trim($body['type'] ?? 'temperature');
-        $topic = trim($body['topic'] ?? '');
-        $unit  = trim($body['unit'] ?? '');
-        $allowedTypes = ['temperature','humidity','presence','brightness','motion','smoke','gas','air_quality'];
-        if (!in_array($type, $allowedTypes, true)) $type = 'temperature';
-        if (!$name || !$topic) jsonOut(['error'=>'Nama sensor dan Topic MQTT harus diisi']);
-        $iconMap = ['temperature'=>'fa-temperature-half','humidity'=>'fa-droplet','presence'=>'fa-user-check','brightness'=>'fa-sun','motion'=>'fa-person-running','smoke'=>'fa-fire','gas'=>'fa-triangle-exclamation','air_quality'=>'fa-wind'];
-        $icon  = $iconMap[$type] ?? 'fa-microchip';
-        $key   = 'sensor_' . uniqid();
-        $newId = dbInsert("INSERT INTO sensors (user_id,sensor_key,name,type,icon,unit,topic) VALUES (?,?,?,?,?,?,?)", [$userId,$key,$name,$type,$icon,$unit,$topic]);
-        addActivityLog($userId, $name, 'Sensor baru ditambahkan', 'User', 'success');
-        jsonOut(['success'=>true,'id'=>$newId,'sensor_key'=>$key,'message'=>'Sensor berhasil disimpan']);
+        $name = trim((string)($body['name'] ?? ''));
+        $topic = trim((string)($body['topic'] ?? ''));
+        if ($name === '' || $topic === '') {
+            jsonOut(['success' => false, 'error' => 'Nama sensor dan topic MQTT harus diisi']);
+        }
+
+        $template = resolveSensorTemplate(
+            $db,
+            $body['sensor_template_id'] ?? null,
+            $body['template_slug'] ?? null,
+            $body['type'] ?? $body['sensor_type'] ?? null
+        );
+
+        $type = trim((string)($body['type'] ?? $body['sensor_type'] ?? ''));
+        if ($type === '') {
+            $type = $template['sensor_type'] ?? 'temperature';
+        }
+
+        $unit = trim((string)($body['unit'] ?? ''));
+        if ($unit === '') {
+            $unit = (string)($template['default_unit'] ?? '');
+        }
+
+        $icon = trim((string)($body['icon'] ?? ''));
+        if ($icon === '') {
+            $icon = (string)($template['default_icon'] ?? 'fa-microchip');
+        }
+
+        $deviceId = isset($body['device_id']) && $body['device_id'] !== '' ? (int)$body['device_id'] : null;
+        if ($deviceId) {
+            $stmt = $db->prepare("SELECT id FROM devices WHERE id = ? AND user_id = ? LIMIT 1");
+            $stmt->execute([$deviceId, $userId]);
+            if (!$stmt->fetch()) {
+                $deviceId = null;
+            }
+        }
+
+        $sensorKeyBase = preg_replace('/[^a-z0-9_]+/i', '_', strtolower($name)) ?: 'sensor';
+        $sensorKey = $sensorKeyBase . '_' . substr(bin2hex(random_bytes(4)), 0, 8);
+
+        $newId = dbInsert(
+            "INSERT INTO sensors (
+                user_id, device_id, sensor_template_id, sensor_key, name, type, icon, unit, topic
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                $userId,
+                $deviceId,
+                $template['id'] ?? null,
+                $sensorKey,
+                $name,
+                $type,
+                $icon,
+                $unit !== '' ? $unit : null,
+                $topic,
+            ]
+        );
+
+        addActivityLog(
+            $userId,
+            $name,
+            'Sensor baru ditambahkan',
+            'User',
+            'success',
+            $deviceId,
+            $newId,
+            ['template_slug' => $template['slug'] ?? null, 'type' => $type]
+        );
+
+        jsonOut([
+            'success' => true,
+            'id' => $newId,
+            'sensor_key' => $sensorKey,
+            'message' => 'Sensor berhasil disimpan',
+        ]);
     }
 
     if ($action === 'update_sensor') {
         $senId = (int)($body['id'] ?? 0);
-        $name  = trim($body['name'] ?? '');
-        $topic = trim($body['topic'] ?? '');
-        $unit  = trim($body['unit'] ?? '');
-        $type  = trim($body['type'] ?? 'temperature');
-        $allowedTypes = ['temperature','humidity','air_quality','presence','brightness','motion','smoke','gas'];
-        if (!$senId || !$name || !$topic || !in_array($type, $allowedTypes, true)) jsonOut(['success'=>false,'error'=>'Data input tidak lengkap']);
-        $stmt = $db->prepare("SELECT id FROM sensors WHERE id=? AND user_id=?");
-        $stmt->execute([$senId,$userId]);
-        if (!$stmt->fetch()) jsonOut(['success'=>false,'error'=>'Sensor tidak ditemukan']);
-        $typeIcons = ['temperature'=>'fa-temperature-half','humidity'=>'fa-droplet','air_quality'=>'fa-wind','presence'=>'fa-user-check','brightness'=>'fa-sun','motion'=>'fa-person-running','smoke'=>'fa-fire','gas'=>'fa-triangle-exclamation'];
-        $icon = $typeIcons[$type] ?? 'fa-microchip';
-        dbWrite("UPDATE sensors SET name=?,type=?,icon=?,unit=?,topic=? WHERE id=? AND user_id=?", [$name,$type,$icon,$unit,$topic,$senId,$userId]);
-        addActivityLog($userId, $name, 'Konfigurasi sensor diperbarui', 'User', 'info');
-        jsonOut(['success'=>true,'message'=>'Sensor berhasil diperbarui']);
+        $name = trim((string)($body['name'] ?? ''));
+        $topic = trim((string)($body['topic'] ?? ''));
+        if ($senId <= 0 || $name === '' || $topic === '') {
+            jsonOut(['success' => false, 'error' => 'Data input tidak lengkap']);
+        }
+
+        $stmt = $db->prepare("SELECT * FROM sensors WHERE id = ? AND user_id = ? LIMIT 1");
+        $stmt->execute([$senId, $userId]);
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$existing) {
+            jsonOut(['success' => false, 'error' => 'Sensor tidak ditemukan']);
+        }
+
+        $template = resolveSensorTemplate(
+            $db,
+            $body['sensor_template_id'] ?? $existing['sensor_template_id'] ?? null,
+            $body['template_slug'] ?? null,
+            $body['type'] ?? $body['sensor_type'] ?? $existing['type'] ?? null
+        );
+
+        $type = trim((string)($body['type'] ?? $body['sensor_type'] ?? $existing['type'] ?? ''));
+        if ($type === '') {
+            $type = $template['sensor_type'] ?? 'temperature';
+        }
+
+        $unit = trim((string)($body['unit'] ?? $existing['unit'] ?? ''));
+        if ($unit === '') {
+            $unit = (string)($template['default_unit'] ?? '');
+        }
+
+        $icon = trim((string)($body['icon'] ?? $existing['icon'] ?? ''));
+        if ($icon === '') {
+            $icon = (string)($template['default_icon'] ?? 'fa-microchip');
+        }
+
+        $deviceId = array_key_exists('device_id', $body)
+            ? (($body['device_id'] !== '' && $body['device_id'] !== null) ? (int)$body['device_id'] : null)
+            : ($existing['device_id'] !== null ? (int)$existing['device_id'] : null);
+        if ($deviceId) {
+            $devStmt = $db->prepare("SELECT id FROM devices WHERE id = ? AND user_id = ? LIMIT 1");
+            $devStmt->execute([$deviceId, $userId]);
+            if (!$devStmt->fetch()) {
+                $deviceId = null;
+            }
+        }
+
+        dbWrite(
+            "UPDATE sensors
+             SET device_id = ?, sensor_template_id = ?, name = ?, type = ?, icon = ?, unit = ?, topic = ?
+             WHERE id = ? AND user_id = ?",
+            [
+                $deviceId,
+                $template['id'] ?? null,
+                $name,
+                $type,
+                $icon,
+                $unit !== '' ? $unit : null,
+                $topic,
+                $senId,
+                $userId,
+            ]
+        );
+
+        addActivityLog(
+            $userId,
+            $name,
+            'Konfigurasi sensor diperbarui',
+            'User',
+            'info',
+            $deviceId,
+            $senId,
+            ['template_slug' => $template['slug'] ?? null, 'type' => $type]
+        );
+
+        jsonOut(['success' => true, 'message' => 'Sensor berhasil diperbarui']);
     }
 
     if ($action === 'delete_sensor') {
         $senId = (int)($body['id'] ?? 0);
-        $stmt  = $db->prepare("SELECT name FROM sensors WHERE id=? AND user_id=?");
-        $stmt->execute([$senId,$userId]);
-        $sen = $stmt->fetch();
-        if ($sen) {
-            dbWrite("DELETE FROM sensors WHERE id=? AND user_id=?", [$senId,$userId]);
-            addActivityLog($userId, $sen['name'], 'Sensor telah dihapus', 'User', 'warning');
+        $stmt = $db->prepare("SELECT name, device_id FROM sensors WHERE id = ? AND user_id = ?");
+        $stmt->execute([$senId, $userId]);
+        $sensor = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($sensor) {
+            dbWrite("DELETE FROM sensors WHERE id = ? AND user_id = ?", [$senId, $userId]);
+            addActivityLog($userId, $sensor['name'], 'Sensor telah dihapus', 'User', 'warning', $sensor['device_id'] ? (int)$sensor['device_id'] : null, $senId);
         }
-        jsonOut(['success'=>true,'message'=>'Sensor berhasil dihapus']);
+        jsonOut(['success' => true, 'message' => 'Sensor berhasil dihapus']);
     }
 
     if ($action === 'update_sensor_value') {
-        $senId = (int)($body['id'] ?? 0);
-        $val   = $body['value'] ?? null;
-        if (!$senId || $val===null) jsonOut(['success'=>false,'error'=>'Parameter data tidak valid']);
-        $stmt = $db->prepare("SELECT id FROM sensors WHERE id=? AND user_id=?");
-        $stmt->execute([$senId,$userId]);
-        if (!$stmt->fetch()) jsonOut(['success'=>false,'error'=>'Sensor tidak ditemukan']);
-        dbWrite("UPDATE sensors SET latest_value=?,last_seen=NOW() WHERE id=?", [(string)$val,$senId]);
-        $s2 = $db->prepare("SELECT recorded_at FROM sensor_readings WHERE sensor_id=? ORDER BY recorded_at DESC LIMIT 1");
+        $senId = (int)($body['id'] ?? $body['sensor_id'] ?? 0);
+        $val = $body['value'] ?? null;
+        if ($senId <= 0 || $val === null || $val === '') {
+            jsonOut(['success' => false, 'error' => 'Parameter data tidak valid']);
+        }
+
+        $stmt = $db->prepare("SELECT id, name, device_id FROM sensors WHERE id = ? AND user_id = ? LIMIT 1");
+        $stmt->execute([$senId, $userId]);
+        $sensor = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$sensor) {
+            jsonOut(['success' => false, 'error' => 'Sensor tidak ditemukan']);
+        }
+
+        dbWrite("UPDATE sensors SET latest_value = ?, last_seen = NOW() WHERE id = ?", [(string)$val, $senId]);
+
+        $s2 = $db->prepare(
+            "SELECT recorded_at
+             FROM sensor_readings
+             WHERE sensor_id = ?
+             ORDER BY recorded_at DESC
+             LIMIT 1"
+        );
         $s2->execute([$senId]);
         $lastRead = $s2->fetchColumn();
-        $lastTs   = ($lastRead && strtotime($lastRead)) ? strtotime($lastRead) : 0;
-        if ($lastTs===0 || (time()-$lastTs)>=10) dbInsert("INSERT INTO sensor_readings (sensor_id,value) VALUES (?,?)", [$senId,(float)$val]);
-        jsonOut(['success'=>true]);
-    }
+        $lastTs = ($lastRead && strtotime($lastRead)) ? strtotime($lastRead) : 0;
 
-    if ($action === 'get_sensor_readings') {
-        $senId = (int)($_GET['sensor_id'] ?? 0);
-        $limit = max(1, min((int)($_GET['limit'] ?? 30), 500));
-        if (!$senId) jsonOut([]);
-        $stmt = $db->prepare("SELECT sr.value,sr.recorded_at FROM sensor_readings sr JOIN sensors s ON s.id=sr.sensor_id WHERE sr.sensor_id=? AND s.user_id=? ORDER BY sr.recorded_at DESC LIMIT ?");
-        $stmt->execute([$senId,$userId,$limit]);
-        jsonOut(array_reverse($stmt->fetchAll()));
+        if ($lastTs === 0 || (time() - $lastTs) >= 10) {
+            dbInsert("INSERT INTO sensor_readings (sensor_id, value) VALUES (?, ?)", [$senId, (float)$val]);
+        }
+
+        jsonOut(['success' => true]);
     }
 }

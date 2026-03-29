@@ -12,7 +12,11 @@
 /**
  * Mendapatkan kategori tipe perangkat berdasarkan icon.
  */
-function getDeviceType(icon) {
+function getDeviceType(input) {
+  const device = (input && typeof input === "object") ? input : null;
+  const explicitType = device ? String(device.type || device.template_device_type || "").toLowerCase() : "";
+  if (explicitType) return explicitType;
+  const icon = device ? String(device.icon || device.template_default_icon || "") : String(input || "");
   if (!icon) return "switch";
   const i = icon.toLowerCase();
   if (i.includes("light") || i.includes("bulb") || i.includes("lamp") || i.includes("sun")) return "light";
@@ -31,7 +35,10 @@ function getDeviceType(icon) {
 /**
  * Mendapatkan nama label tipe perangkat (Bahasa Indonesia).
  */
-function getDeviceTypeName(icon) {
+function getDeviceTypeName(input) {
+  const device = (input && typeof input === "object") ? input : null;
+  if (device?.template_name) return device.template_name;
+  const icon = device ? device.icon : input;
   const map = {
     "fa-lightbulb":  "Lampu",         "fa-wind":       "Kipas Angin",
     "fa-snowflake":  "AC / Pendingin", "fa-tv":         "Televisi",
@@ -40,6 +47,37 @@ function getDeviceTypeName(icon) {
     "fa-plug":       "Stop Kontak",
   };
   return map[icon] || "Perangkat IoT";
+}
+
+async function ensureDeviceTemplatesLoaded() {
+  if (Array.isArray(STATE.deviceTemplates) && STATE.deviceTemplates.length) return STATE.deviceTemplates;
+  const result = await apiPost("get_device_templates", {});
+  STATE.deviceTemplates = result?.templates || [];
+  return STATE.deviceTemplates;
+}
+
+function getDeviceTemplateById(id) {
+  const numericId = Number(id);
+  return (STATE.deviceTemplates || []).find((template) => Number(template.id) === numericId) || null;
+}
+
+async function populateDeviceTemplateSelect(selectId, selectedId = "") {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const templates = await ensureDeviceTemplatesLoaded();
+  select.innerHTML = `<option value="">Manual / tanpa template</option>` + templates.map((template) => {
+    const selected = String(selectedId) === String(template.id) ? " selected" : "";
+    return `<option value="${template.id}"${selected}>${escHtml(template.name)}</option>`;
+  }).join("");
+}
+
+function syncDeviceFormFromTemplate(prefix = "new") {
+  const templateSelect = document.getElementById(prefix === "new" ? "newDeviceTemplate" : "editDeviceTemplate");
+  const iconSelect = document.getElementById(prefix === "new" ? "newDeviceIcon" : "editDeviceIcon");
+  if (!templateSelect || !iconSelect) return;
+  const template = getDeviceTemplateById(templateSelect.value);
+  if (!template) return;
+  if (template.default_icon) iconSelect.value = template.default_icon;
 }
 
 /* ==================== DEVICE UI ==================== */
@@ -53,8 +91,10 @@ function updateDeviceUI(deviceId) {
   if (!device) return;
 
   const isOn = !!STATE.deviceStates[id];
-  const dtype = getDeviceType(device.icon);
+  const dtype = getDeviceType(device);
   const isLock = (dtype === 'lock' || dtype === 'door');
+  const onLabel = device.resolved_state_on_label || device.state_on_label || 'ON';
+  const offLabel = device.resolved_state_off_label || device.state_off_label || 'OFF';
 
   const g = (s) => document.getElementById(s);
   
@@ -66,7 +106,7 @@ function updateDeviceUI(deviceId) {
     const pill = card.querySelector(".device-status-pill");
     if (pill) {
       pill.classList.toggle("on", isOn);
-      pill.textContent = isLock ? (isOn ? 'OPEN' : 'LOCK') : (isOn ? (card.id.startsWith('qc-') ? 'ON' : 'ONLINE') : (card.id.startsWith('qc-') ? 'OFF' : 'OFFLINE'));
+      pill.textContent = isLock ? (isOn ? onLabel : offLabel) : (isOn ? onLabel : offLabel);
     }
 
     const dur = card.querySelector(".device-usage, .device-status");
@@ -119,11 +159,11 @@ function toggleDeviceState(deviceId, newState) {
     .finally(() => { setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000); });
   
   // Logging lokal
-  addLog(STATE.devices[id]?.name, newState ? "Dinyalakan" : "Dimatikan", "Manual", "info");
+  addLog(STATE.devices[id]?.name, newState ? "Dinyalakan" : "Dimatikan", "Manual", "info", { device_id: Number(id) });
   updateDashboardStats();
 
   // Built-in Automation Trigger (Smart Lock)
-  const dtype = getDeviceType(STATE.devices[id]?.icon);
+  const dtype = getDeviceType(STATE.devices[id]);
   if ((dtype === 'lock' || dtype === 'door') && typeof automationEngine !== 'undefined') {
     automationEngine._evaluateBuiltInRules('lock', { id, state: newState });
   }
@@ -136,7 +176,7 @@ function buildDevicePayload(deviceId, state) {
   const id     = String(deviceId);
   const extras = STATE.deviceExtras[id] || {};
   const device = STATE.devices[id];
-  const dtype  = getDeviceType(device?.icon);
+  const dtype  = getDeviceType(device);
   const base   = { state: state ? 1 : 0 };
   
   if (dtype === "fan"     && state) return { ...base, speed: extras.fanSpeed || 50 };
@@ -176,11 +216,11 @@ function applyDeviceState(deviceId, newState, reason = "Automation") {
     setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000);
   }
   
-  addLog(STATE.devices[id]?.name, `${newState ? "ON" : "OFF"} (${reason})`, "Automation", newState ? "success" : "info");
+  addLog(STATE.devices[id]?.name, `${newState ? "ON" : "OFF"} (${reason})`, "Automation", newState ? "success" : "info", { device_id: Number(id) });
   updateDashboardStats();
 
   // Built-in Automation Trigger (Smart Lock)
-  const dtype = getDeviceType(STATE.devices[id]?.icon);
+  const dtype = getDeviceType(STATE.devices[id]);
   if ((dtype === 'lock' || dtype === 'door') && typeof automationEngine !== 'undefined') {
     automationEngine._evaluateBuiltInRules('lock', { id, state: newState });
   }
@@ -201,7 +241,7 @@ function setFanSpeed(deviceId, speed) {
   if (lb) lb.textContent = speed + "%";
   if (sl) sl.value = speed;
   
-  addLog(STATE.devices[id]?.name, `Kipas kecepatan ${speed}%`, "Manual", "info");
+  addLog(STATE.devices[id]?.name, `Kipas kecepatan ${speed}%`, "Manual", "info", { device_id: Number(id) });
 }
 
 function setACMode(deviceId, mode) {
@@ -214,7 +254,7 @@ function setACMode(deviceId, mode) {
   const t = STATE.deviceTopics[id];
   if (t?.pub && STATE.deviceStates[id]) publishMQTT(t.pub, { state: 1, mode, temp: STATE.deviceExtras[id].acTemp || 24 });
   
-  addLog(STATE.devices[id]?.name, `Mode AC: ${mode.toUpperCase()}`, "Manual", "info");
+  addLog(STATE.devices[id]?.name, `Mode AC: ${mode.toUpperCase()}`, "Manual", "info", { device_id: Number(id) });
 }
 
 function adjustACTemp(deviceId, delta) {
@@ -269,7 +309,7 @@ function toggleLock(deviceId) {
 function buildDeviceExtraHTML(id, device) {
   const isOn   = STATE.deviceStates[id];
   const extras = STATE.deviceExtras[id] || {};
-  const dtype  = getDeviceType(device.icon);
+  const dtype  = getDeviceType(device);
   const show   = isOn ? "" : "none";
 
   if (dtype === "fan") {
@@ -335,7 +375,7 @@ function buildDeviceCardHTML(deviceId, context = 'grid') {
   if (!device) return "";
   
   const isOn = !!STATE.deviceStates[id];
-  const dtype = getDeviceType(device.icon);
+  const dtype = getDeviceType(device);
   const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
   const isQC = context === 'quick';
   const prefix = isQC ? 'qc-' : 'card-';
@@ -363,6 +403,7 @@ function buildDeviceCardHTML(deviceId, context = 'grid') {
 
       <div class="device-info">
         <div class="device-name">${escHtml(device.name)}</div>
+        <div class="device-model" style="font-size:11px;color:var(--text-muted);margin-top:2px">${escHtml(device.template_name || getDeviceTypeName(device))}</div>
         <div class="device-usage" id="dur-${id}">${isOn ? 'Aktif' : 'Standby'}</div>
       </div>
       
@@ -371,7 +412,7 @@ function buildDeviceCardHTML(deviceId, context = 'grid') {
       </div>
 
       <div class="device-status-pill ${isOn ? 'on' : ''}">
-        ${isOn ? (isQC ? 'ON' : 'ONLINE') : (isQC ? 'OFF' : 'OFFLINE')}
+        ${isOn ? escHtml(device.resolved_state_on_label || device.state_on_label || 'ON') : escHtml(device.resolved_state_off_label || device.state_off_label || 'OFF')}
       </div>
     </div>
   `;
@@ -385,7 +426,7 @@ function handleDeviceCardClick(id, context = 'grid') {
     const prefix = context === 'quick' ? 'qc-' : 'card-';
     const card = document.getElementById(`${prefix}${id}`);
     const surface = card?.querySelector('.btn-surface');
-    const dtype = getDeviceType(STATE.devices[id]?.icon);
+    const dtype = getDeviceType(STATE.devices[id]);
     const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
     const partsId = context === 'quick' ? `parts-${id}` : `main-parts-${id}`;
     const canvId = context === 'quick' ? `canv-${id}` : `main-canv-${id}`;
@@ -417,7 +458,7 @@ function renderDevices() {
   
   keys.forEach((id) => {
     grid.insertAdjacentHTML('beforeend', buildDeviceCardHTML(id, 'grid'));
-    const dtype = getDeviceType(STATE.devices[id].icon);
+  const dtype = getDeviceType(STATE.devices[id]);
     const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
     setTimeout(() => initDevice3D(`main-canv-${id}`, accent, id), 10);
   });
@@ -586,7 +627,7 @@ function initDevice3D(canvasId, hexColor, deviceId) {
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
   camera.position.z = 3.2;
 
-  const dtype = getDeviceType(STATE.devices[deviceId]?.icon);
+  const dtype = getDeviceType(STATE.devices[deviceId]);
   const iconGroup = create3DIcon(dtype, hexColor);
   scene.add(iconGroup);
 
@@ -697,7 +738,7 @@ function renderQuickControls() {
 
   selected.forEach((id) => {
     container.insertAdjacentHTML('beforeend', buildDeviceCardHTML(id, 'quick'));
-    const dtype = getDeviceType(STATE.devices[id].icon);
+    const dtype = getDeviceType(STATE.devices[id]);
     const accent = (dtype === 'light' ? '#fbbf24' : (dtype === 'fan' || dtype === 'ac' ? '#22d3ee' : '#10b981'));
     setTimeout(() => initDevice3D(`canv-${id}`, accent, id), 10);
   });
@@ -747,7 +788,7 @@ function renderQuickControlPicker() {
       <div class="qc-picker-icon"><i class="fas ${device.icon || 'fa-plug'}"></i></div>
       <div class="qc-picker-meta">
         <strong>${escHtml(device.name)}</strong>
-        <span>${getDeviceTypeName(device.icon)}</span>
+        <span>${getDeviceTypeName(device)}</span>
       </div>
       <div class="qc-picker-state">${selected ? 'Dipilih' : 'Pilih'}</div>`;
     
@@ -788,6 +829,7 @@ function openTopicSettings(deviceId) {
   if (g("topicDeviceName")) g("topicDeviceName").textContent = device.name;
   if (g("editDeviceName"))  g("editDeviceName").value  = device.name    || "";
   if (g("editDeviceIcon"))  g("editDeviceIcon").value  = device.icon    || "fa-plug";
+  populateDeviceTemplateSelect("editDeviceTemplate", device.device_template_id || "");
   if (g("deviceTopic"))  g("deviceTopic").value  = topics.sub || topics.pub || device.topic_sub || device.topic_pub || "";
 
   const modal = document.getElementById("topicModal");
@@ -809,8 +851,10 @@ async function saveDeviceSettings() {
   const id   = String(modal.dataset.deviceId);
   const name = document.getElementById("editDeviceName")?.value.trim();
   const icon = document.getElementById("editDeviceIcon")?.value;
+  const templateId = document.getElementById("editDeviceTemplate")?.value || "";
   const top  = document.getElementById("deviceTopic")?.value.trim();
   const btn  = document.getElementById("btnSaveDeviceEdit");
+  const template = getDeviceTemplateById(templateId);
 
   if (!name) { showToast("Nama perangkat harus diisi!", "warning"); return; }
 
@@ -818,9 +862,31 @@ async function saveDeviceSettings() {
     isDeviceActionBusy = true;
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
 
-    const result = await apiPost("update_device", { id, name, icon, topic_sub: top, topic_pub: top });
+    const result = await apiPost("update_device", {
+      id,
+      name,
+      icon,
+      type: template?.device_type || getDeviceType(icon),
+      device_template_id: templateId || null,
+      state_on_label: template?.state_on_label || null,
+      state_off_label: template?.state_off_label || null,
+      topic_sub: top,
+      topic_pub: top,
+    });
     if (result?.success) {
-      STATE.devices[id]      = { ...STATE.devices[id], name, icon, topic_sub: top, topic_pub: top };
+      STATE.devices[id]      = {
+        ...STATE.devices[id],
+        name,
+        icon,
+        type: template?.device_type || STATE.devices[id]?.type || getDeviceType(icon),
+        device_template_id: templateId || null,
+        template_name: template?.name || null,
+        template_slug: template?.slug || null,
+        resolved_state_on_label: template?.state_on_label || STATE.devices[id]?.resolved_state_on_label || "ON",
+        resolved_state_off_label: template?.state_off_label || STATE.devices[id]?.resolved_state_off_label || "OFF",
+        topic_sub: top,
+        topic_pub: top
+      };
       STATE.deviceTopics[id] = { sub: top, pub: top };
       
       if (STATE.mqtt.connected && top) { 
@@ -846,6 +912,7 @@ function openAddDeviceModal() {
   ["newDeviceName", "newDeviceTopic"].forEach((id) => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
+  populateDeviceTemplateSelect("newDeviceTemplate");
   document.getElementById("addDeviceModal")?.classList.add("active");
 }
 
@@ -855,8 +922,10 @@ async function saveNewDevice() {
   if (isDeviceActionBusy) return;
   const name = document.getElementById("newDeviceName")?.value.trim();
   const icon = document.getElementById("newDeviceIcon")?.value  || "fa-plug";
+  const templateId = document.getElementById("newDeviceTemplate")?.value || "";
   const top  = document.getElementById("newDeviceTopic")?.value.trim();
   const btn  = document.getElementById("btnSaveNewDevice");
+  const template = getDeviceTemplateById(templateId);
 
   if (!name) { showToast("Nama perangkat harus diisi!", "warning"); return; }
 
@@ -864,10 +933,32 @@ async function saveNewDevice() {
     isDeviceActionBusy = true;
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menambahkan...'; }
 
-    const result = await apiPost("add_device", { name, icon, topic_sub: top, topic_pub: top });
+    const result = await apiPost("add_device", {
+      name,
+      icon,
+      type: template?.device_type || getDeviceType(icon),
+      device_template_id: templateId || null,
+      state_on_label: template?.state_on_label || null,
+      state_off_label: template?.state_off_label || null,
+      topic_sub: top,
+      topic_pub: top
+    });
     if (result?.success) {
       const id = String(result.id);
-      STATE.devices[id]      = { id, name, icon, type: "switch", device_key: result.device_key, topic_sub: top, topic_pub: top };
+      STATE.devices[id]      = {
+        id,
+        name,
+        icon,
+        type: template?.device_type || getDeviceType(icon),
+        template_name: template?.name || null,
+        template_slug: template?.slug || null,
+        device_template_id: templateId || null,
+        resolved_state_on_label: template?.state_on_label || "ON",
+        resolved_state_off_label: template?.state_off_label || "OFF",
+        device_key: result.device_key,
+        topic_sub: top,
+        topic_pub: top
+      };
       STATE.deviceTopics[id] = { sub: top || "", pub: top || "" };
       STATE.deviceStates[id] = false;
       STATE.deviceExtras[id] = { fanSpeed: 50, acMode: "cool", acTemp: 24, brightness: 100, volume: 60 };
@@ -882,7 +973,7 @@ async function saveNewDevice() {
 
       closeAddDeviceModal(); 
       showToast("Perangkat berhasil ditambahkan!", "success");
-      addLog(name, "Perangkat baru ditambahkan", "System", "success");
+      addLog(name, "Perangkat baru ditambahkan", "System", "success", { device_id: Number(id) });
       
       if (typeof cvUI !== "undefined" && typeof cvUI.renderAutomationSettings === "function") {
         cvUI.renderAutomationSettings();
@@ -923,7 +1014,7 @@ async function removeDevice(deviceId) {
       updateDashboardStats();
       
       showToast("Perangkat dihapus", "info"); 
-      addLog(name, "Perangkat dihapus", "System", "warning");
+      addLog(name, "Perangkat dihapus", "System", "warning", { device_id: Number(id) });
 
       if (typeof cvUI !== "undefined" && typeof cvUI.renderAutomationSettings === "function") {
         cvUI.renderAutomationSettings();
