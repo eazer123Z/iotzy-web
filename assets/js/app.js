@@ -193,21 +193,30 @@ function updateThemeIcon(theme) {
 /* ============================================================
    API WRAPPER
    ============================================================ */
-async function apiPost(action, data = {}) {
+const ACTIVE_REQ = {};
+async function apiPost(action, data = {}, opts = {}) {
+  const key = opts.key || action;
   try {
+    if (ACTIVE_REQ[key]) {
+      try { ACTIVE_REQ[key].abort(); } catch (_) {}
+    }
+    const controller = new AbortController();
+    ACTIVE_REQ[key] = controller;
     const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/index.php";
     const hdrs = { "Content-Type": "application/json" };
     if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
-
+    const timeoutMs = opts.timeout || 8000;
+    const t = setTimeout(() => { try { controller.abort(); } catch(_) {} }, timeoutMs);
     const res = await fetch(`${base}?action=${action}`, {
-      method:      "POST",
-      headers:     hdrs,
+      method: "POST",
+      headers: hdrs,
       credentials: "include",
-      body:        JSON.stringify(data),
+      body: JSON.stringify(data),
+      signal: controller.signal
     });
-
+    clearTimeout(t);
+    delete ACTIVE_REQ[key];
     if (res.status === 401) {
-      console.warn("Session expired. Redirecting...");
       window.location.href = (typeof APP_BASE !== "undefined" ? APP_BASE : "") + "/?route=login&expired=true";
       return null;
     }
@@ -216,25 +225,22 @@ async function apiPost(action, data = {}) {
       return null;
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    
-    // Pastikan respon adalah JSON sebelum diparsing
     const contentType = res.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
       const text = await res.text();
-      console.error("Respon bukan JSON:", text.substring(0, 200));
-      return { success: false, error: "Server tidak mengirimkan JSON yang valid." };
+      return { success: false, error: "Server tidak mengirimkan JSON yang valid.", raw: text };
     }
-
-    try {
-      return await res.json();
-    } catch (parseError) {
-      console.error("JSON Parse Error:", parseError);
-      return { success: false, error: "Gagal memproses data server (JSON Error)." };
+    const json = await res.json();
+    const isMut = opts.refresh === true || /^(add_|update_|delete_|toggle_|save_|clear_)/.test(action);
+    if (json && json.success !== false && typeof syncAllFromServer === "function" && isMut) {
+      setTimeout(() => { try { syncAllFromServer(true); } catch(_) {} }, 0);
     }
+    return json;
   } catch (e) {
-    console.error("API error:", action, e);
-    if (e.name !== 'AbortError') showToast(`API error: ${action}`, "error");
+    if (e.name !== "AbortError") showToast(`API error: ${action}`, "error");
     return { success: false, error: e.message };
+  } finally {
+    if (ACTIVE_REQ[key]) delete ACTIVE_REQ[key];
   }
 }
 
