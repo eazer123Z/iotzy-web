@@ -54,8 +54,17 @@ function getLocalDB(): ?PDO {
         $pdo->exec("SET NAMES " . DB_CHARSET);
 
     } catch (Throwable $e) {
-        $GLOBALS['DB_LAST_ERROR'] = $e->getMessage();
-        error_log("[IoTzy DB Error] " . $e->getMessage());
+        $errorMsg = $e->getMessage();
+        $GLOBALS['DB_LAST_ERROR'] = $errorMsg;
+        
+        // Detailed log for Vercel/Local logs
+        error_log("[IoTzy DB Error] " . $errorMsg);
+        
+        // If we are on Vercel, maybe the SSL trigger needs to be more explicit
+        if (strpos($errorMsg, 'SSL') !== false || strpos($errorMsg, 'access denied') !== false) {
+             error_log("[IoTzy DB Hint] Check if MYSQL_SSL_CA or port 25145 is correctly handled.");
+        }
+        
         $pdo = false;
     }
 

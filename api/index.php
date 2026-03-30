@@ -32,8 +32,8 @@ if (!$action) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once __DIR__ . '/../controllers/AuthController.php';
             if (!$db) {
-                echo 'Database unavailable';
-                exit;
+                $err = $GLOBALS['DB_LAST_ERROR'] ?? 'Database unavailable';
+                jsonOut(['success' => false, 'error' => $err]);
             }
             handleAuthAction($route, $_POST, $db);
         }
