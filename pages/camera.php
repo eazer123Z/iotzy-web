@@ -37,30 +37,34 @@
     </div>
 
     <div class="cv-stats-panel">
-      <div class="cv-stat-card">
-        <div class="cv-stat-icon" style="color:var(--accent)"><i class="fas fa-users"></i></div>
-        <div class="cv-stat-value" id="cvPersonCount">0</div>
-        <div class="cv-stat-label">Orang Terdeteksi</div>
+      <div class="cv-stat-grid">
+        <div class="cv-stat-card">
+          <div class="cv-stat-icon" style="color:var(--accent)"><i class="fas fa-users"></i></div>
+          <div class="cv-stat-value" id="cvPersonCount">0</div>
+          <div class="cv-stat-label">Orang</div>
+        </div>
+        <div class="cv-stat-card">
+          <div class="cv-stat-icon" style="color:var(--warning)"><i class="fas fa-sun"></i></div>
+          <div class="cv-stat-value" id="cvBrightness">0%</div>
+          <div class="cv-stat-label">Cahaya</div>
+        </div>
+        <div class="cv-stat-card">
+          <div class="cv-stat-icon" style="color:var(--info)"><i class="fas fa-lightbulb"></i></div>
+          <div class="cv-stat-value" id="cvLightCondition">—</div>
+          <div class="cv-stat-label">Kondisi</div>
+        </div>
+        <div class="cv-stat-card">
+          <div class="cv-stat-icon" style="color:var(--success)"><i class="fas fa-microchip"></i></div>
+          <div class="cv-stat-value" id="cvModelStatus">Idle</div>
+          <div class="cv-stat-label">AI Status</div>
+        </div>
       </div>
-      <div class="cv-stat-card">
-        <div class="cv-stat-icon" style="color:var(--warning)"><i class="fas fa-sun"></i></div>
-        <div class="cv-stat-value" id="cvBrightness">0%</div>
-        <div class="cv-stat-label">Kecerahan</div>
-      </div>
-      <div class="cv-stat-card">
-        <div class="cv-stat-icon" style="color:var(--info)"><i class="fas fa-lightbulb"></i></div>
-        <div class="cv-stat-value" id="cvLightCondition">—</div>
-        <div class="cv-stat-label">Kondisi Cahaya</div>
-      </div>
-      <div class="cv-stat-card">
-        <div class="cv-stat-icon" style="color:var(--success)"><i class="fas fa-microchip"></i></div>
-        <div class="cv-stat-value" id="cvModelStatus">Idle</div>
-        <div class="cv-stat-label">Status Model AI</div>
-      </div>
-      <div class="cv-stat-card">
-        <div class="cv-stat-icon" style="color:var(--text-muted)"><i class="fas fa-gauge"></i></div>
-        <div class="cv-stat-value" id="cvFPS">0</div>
-        <div class="cv-stat-label">FPS</div>
+      <div class="cv-stat-card" style="flex-direction:row; justify-content:space-between; padding:10px 20px">
+        <div style="display:flex; align-items:center; gap:10px">
+          <div class="cv-stat-icon" style="color:var(--text-muted); margin:0"><i class="fas fa-gauge"></i></div>
+          <div class="cv-stat-label" style="margin:0">Frame Per Second</div>
+        </div>
+        <div class="cv-stat-value" id="cvFPS" style="font-size:1rem">0</div>
       </div>
 
       <div class="card" style="margin-top:4px">
