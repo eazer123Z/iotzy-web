@@ -222,7 +222,7 @@ document.querySelector('form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button');
     const oldHtml = btn.innerHTML;
-    const endpoint = '<?= rtrim(APP_URL, "/") ?>/api/index.php?action=login';
+    const endpoint = 'api/index.php?action=login';
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghubungkan...';
 

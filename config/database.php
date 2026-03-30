@@ -25,17 +25,28 @@ function getLocalDB(): ?PDO {
             PDO::ATTR_EMULATE_PREPARES   => false,
         ];
 
+        // SSL Handling (Aiven Cloud / Managed DB)
         $sslCa = trim((string)(getenv('MYSQL_SSL_CA') ?: ''));
         $sslVerify = !in_array(strtolower(trim((string)(getenv('MYSQL_SSL_VERIFY') ?: 'true'))), ['0', 'false', 'off', 'no'], true);
-        if ($sslCa !== '') {
+
+        // Auto-enable SSL for Aiven Cloud (Port 25145) if no CA provided
+        if ($sslCa === '' && $port === '25145') {
+            if (defined('PDO::MYSQL_ATTR_SSL_CA')) {
+                $options[PDO::MYSQL_ATTR_SSL_CA] = ''; // Trigger SSL
+                if (defined('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')) {
+                    $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+                }
+            }
+        } elseif ($sslCa !== '') {
             if (defined('PDO::MYSQL_ATTR_SSL_CA')) {
                 $options[PDO::MYSQL_ATTR_SSL_CA] = $sslCa;
                 if (defined('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')) {
                     $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = $sslVerify;
                 }
             } else {
-                $options[1007] = $sslCa;
-                $options[1014] = $sslVerify;
+                // Fallback for older PHP or specific setups
+                $options[1007] = $sslCa; // PDO::MYSQL_ATTR_SSL_CA
+                $options[1014] = $sslVerify; // PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT
             }
         }
 
