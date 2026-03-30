@@ -382,8 +382,21 @@ function clearAllLogs() {
   if (!confirm("Hapus semua riwayat aktivitas?")) return;
   apiPost("clear_logs").then(async (res) => {
     if (res?.success) {
+      // 1. Bersihkan State
       STATE.logs = [];
-      await loadLogs(getAnalyticsDate());
+      STATE.analytics = { ...STATE.analytics, summary: { ...STATE.analytics?.summary, total_logs: 0 }, recent_logs: [] };
+      
+      // 2. Bersihkan Cache agar tidak muncul lagi saat refresh/pindah menu
+      const date = getAnalyticsDate();
+      PerformanceOptimizer.Cache.set(`iotzy_cache_logs_${date}`, []);
+      PerformanceOptimizer.Cache.set(`iotzy_cache_summary_${date}`, null);
+      
+      // 3. Update UI
+      updateLogDisplay();
+      updateDashboardActivityFeed();
+      updateLogStats();
+      renderAnalyticsSummary();
+      
       showToast("Seluruh log telah dihapus.", "success");
     }
   });
