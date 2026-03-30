@@ -30,8 +30,8 @@ const CONFIG = {
   },
   app: {
     maxLogs: 500,
-    liveSyncInterval: 5000,
-    fullSyncInterval: 15000,
+    liveSyncInterval: 2000,
+    fullSyncInterval: 10000,
     analyticsSyncInterval: 30000,
     cameraSettingsSyncInterval: 45000,
     syncBackoffMax: 30000,
@@ -413,10 +413,24 @@ function scheduleNextSync(delayMs = null) {
   }, nextDelay);
 }
 
+/**
+ * Sinkronisasi data utama dari server (Stale-While-Revalidate)
+ */
 async function syncAllFromServer(forceSync = false, options = {}) {
+  const cacheKey = "iotzy_cache_main_sync";
+  
+  // 1. Ambil dari cache dulu untuk responsivitas instan
+  if (typeof PerformanceOptimizer !== "undefined" && PerformanceOptimizer.Cache) {
+    const cached = PerformanceOptimizer.Cache.get(cacheKey);
+    if (cached) {
+      applySyncData(cached);
+    }
+  }
+
   if (typeof document !== "undefined" && document.hidden && !forceSync) return;
   if (syncAllFromServer._inFlight && !forceSync) return;
   syncAllFromServer._inFlight = true;
+
   try {
     const now = Date.now();
     const includeAnalytics = forceSync
@@ -425,116 +439,20 @@ async function syncAllFromServer(forceSync = false, options = {}) {
     const includeCameraSettings = forceSync
       || !!options.includeCameraSettings
       || (now - (STATE.sync.lastCameraSettingsAt || 0)) >= CONFIG.app.cameraSettingsSyncInterval;
+
     const requestBody = {
       include_analytics: includeAnalytics ? 1 : 0,
       include_camera: 1,
       include_camera_settings: includeCameraSettings ? 1 : 0,
     };
+
     const res = await apiPost("get_dashboard_data", requestBody);
-    if (!res || !res.success) return;
-    STATE.sync.failureCount = 0;
-
-    const currentDeviceIds = Object.keys(STATE.devices);
-    const serverDeviceIds  = (res.devices || []).map(d => String(d.id));
-    const currentSensorIds = Object.keys(STATE.sensors);
-    const serverSensorIds  = (res.sensors || []).map(s => String(s.id));
-
-    const hasStructureChanged =
-      currentDeviceIds.length !== serverDeviceIds.length ||
-      currentSensorIds.length !== serverSensorIds.length ||
-      !currentDeviceIds.every(id => serverDeviceIds.includes(id)) ||
-      !currentSensorIds.every(id => serverSensorIds.includes(id));
-
-    if (hasStructureChanged) {
-      await syncDevicesFromServer();
-      await syncSensorsFromServer();
-      await syncAutomationFromServer();
-      return;
-    }
-
-    if (res.devices) {
-      let shouldRenderDevices = false;
-      res.devices.forEach(d => {
-        const id = String(d.id);
-        if (!STATE.devices[id]) return;
-        const before = STATE.devices[id];
-        STATE.devices[id] = { ...before, ...d, id };
-        if (
-          before.name !== STATE.devices[id].name ||
-          before.icon !== STATE.devices[id].icon ||
-          before.type !== STATE.devices[id].type ||
-          before.template_name !== STATE.devices[id].template_name ||
-          before.topic_sub !== STATE.devices[id].topic_sub ||
-          before.topic_pub !== STATE.devices[id].topic_pub
-        ) {
-          shouldRenderDevices = true;
-        }
-        const oldState = STATE.deviceStates[id];
-        const newState = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
-        if (oldState !== newState) {
-          if (STATE.deviceUpdating && STATE.deviceUpdating[id]) return; // Cegah Race-Condition UI Berkedip
-          STATE.deviceStates[id] = newState;
-          if (typeof updateDeviceUI === 'function') updateDeviceUI(id);
-        }
-      });
-      if (shouldRenderDevices) {
-        if (typeof renderDevices === 'function') renderDevices();
-        if (typeof renderQuickControls === 'function') renderQuickControls();
-        if (typeof renderScheduleDeviceOptions === 'function') renderScheduleDeviceOptions();
+    if (res && res.success) {
+      if (typeof PerformanceOptimizer !== "undefined" && PerformanceOptimizer.Cache) {
+        PerformanceOptimizer.Cache.set(cacheKey, res);
       }
+      applySyncData(res, now);
     }
-
-    if (res.sensors) {
-      let shouldRenderSensors = false;
-      res.sensors.forEach(s => {
-        const id = String(s.id);
-        if (STATE.sensors[id]) {
-          const before = STATE.sensors[id];
-          const prevValue = STATE.sensorData[id];
-          STATE.sensors[id] = { ...before, ...s, id };
-          const nextValue = s.latest_value ?? prevValue ?? null;
-          STATE.sensorData[id] = nextValue;
-
-          if (
-            before.name !== STATE.sensors[id].name ||
-            before.icon !== STATE.sensors[id].icon ||
-            before.type !== STATE.sensors[id].type ||
-            before.unit !== STATE.sensors[id].unit ||
-            before.device_name !== STATE.sensors[id].device_name ||
-            before.template_name !== STATE.sensors[id].template_name
-          ) {
-            shouldRenderSensors = true;
-            return;
-          }
-
-          if ((prevValue ?? null) !== nextValue || before.last_seen !== STATE.sensors[id].last_seen) {
-            if (typeof updateSensorValueUI === 'function') updateSensorValueUI(id);
-          }
-        }
-      });
-      if (shouldRenderSensors && typeof renderSensors === 'function') renderSensors();
-    }
-
-    if (res.cv_state && !CV.detecting) {
-      STATE.cv.personCount    = res.cv_state.person_count || 0;
-      STATE.cv.brightness     = res.cv_state.brightness   || 0;
-      STATE.cv.lightCondition = res.cv_state.light_condition || 'unknown';
-    }
-
-    if (res.camera) {
-      STATE.camera.defaultMeta = res.camera;
-    }
-    if (res.camera_settings) {
-      STATE.camera.settings = res.camera_settings;
-      STATE.sync.lastCameraSettingsAt = now;
-    }
-    if (res.analytics_summary) {
-      STATE.analytics = { ...(STATE.analytics || {}), summary: res.analytics_summary };
-      STATE.sync.lastAnalyticsSyncAt = now;
-      if (typeof updateLogStats === 'function') updateLogStats();
-    }
-
-    updateDashboardStats();
   } catch (e) {
     STATE.sync.failureCount += 1;
     console.warn("syncAllFromServer Error:", e);
@@ -544,6 +462,115 @@ async function syncAllFromServer(forceSync = false, options = {}) {
       scheduleNextSync();
     }
   }
+}
+
+/**
+ * Menerapkan data hasil sinkronisasi ke UI dan STATE
+ */
+async function applySyncData(res, timestamp = Date.now()) {
+  STATE.sync.failureCount = 0;
+
+  const currentDeviceIds = Object.keys(STATE.devices);
+  const serverDeviceIds  = (res.devices || []).map(d => String(d.id));
+  const currentSensorIds = Object.keys(STATE.sensors);
+  const serverSensorIds  = (res.sensors || []).map(s => String(s.id));
+
+  const hasStructureChanged =
+    currentDeviceIds.length !== serverDeviceIds.length ||
+    currentSensorIds.length !== serverSensorIds.length ||
+    !currentDeviceIds.every(id => serverDeviceIds.includes(id)) ||
+    !currentSensorIds.every(id => serverSensorIds.includes(id));
+
+  if (hasStructureChanged) {
+    await syncDevicesFromServer();
+    await syncSensorsFromServer();
+    await syncAutomationFromServer();
+    return;
+  }
+
+  if (res.devices) {
+    let shouldRenderDevices = false;
+    res.devices.forEach(d => {
+      const id = String(d.id);
+      if (!STATE.devices[id]) return;
+      const before = STATE.devices[id];
+      STATE.devices[id] = { ...before, ...d, id };
+      if (
+        before.name !== STATE.devices[id].name ||
+        before.icon !== STATE.devices[id].icon ||
+        before.type !== STATE.devices[id].type ||
+        before.template_name !== STATE.devices[id].template_name ||
+        before.topic_sub !== STATE.devices[id].topic_sub ||
+        before.topic_pub !== STATE.devices[id].topic_pub
+      ) {
+        shouldRenderDevices = true;
+      }
+      const oldState = STATE.deviceStates[id];
+      const newState = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
+      if (oldState !== newState) {
+        if (STATE.deviceUpdating && STATE.deviceUpdating[id]) return;
+        STATE.deviceStates[id] = newState;
+        if (typeof updateDeviceUI === 'function') updateDeviceUI(id);
+      }
+    });
+    if (shouldRenderDevices) {
+      if (typeof renderDevices === 'function') renderDevices();
+      if (typeof renderQuickControls === 'function') renderQuickControls();
+      if (typeof renderScheduleDeviceOptions === 'function') renderScheduleDeviceOptions();
+    }
+  }
+
+  if (res.sensors) {
+    let shouldRenderSensors = false;
+    res.sensors.forEach(s => {
+      const id = String(s.id);
+      if (STATE.sensors[id]) {
+        const before = STATE.sensors[id];
+        const prevValue = STATE.sensorData[id];
+        STATE.sensors[id] = { ...before, ...s, id };
+        const nextValue = s.latest_value ?? prevValue ?? null;
+        STATE.sensorData[id] = nextValue;
+
+        if (
+          before.name !== STATE.sensors[id].name ||
+          before.icon !== STATE.sensors[id].icon ||
+          before.type !== STATE.sensors[id].type ||
+          before.unit !== STATE.sensors[id].unit ||
+          before.device_name !== STATE.sensors[id].device_name ||
+          before.template_name !== STATE.sensors[id].template_name
+        ) {
+          shouldRenderSensors = true;
+          return;
+        }
+
+        if ((prevValue ?? null) !== nextValue || before.last_seen !== STATE.sensors[id].last_seen) {
+          if (typeof updateSensorValueUI === 'function') updateSensorValueUI(id);
+        }
+      }
+    });
+    if (shouldRenderSensors && typeof renderSensors === 'function') renderSensors();
+  }
+
+  if (res.cv_state && !CV.detecting) {
+    STATE.cv.personCount    = res.cv_state.person_count || 0;
+    STATE.cv.brightness     = res.cv_state.brightness   || 0;
+    STATE.cv.lightCondition = res.cv_state.light_condition || 'unknown';
+  }
+
+  if (res.camera) {
+    STATE.camera.defaultMeta = res.camera;
+  }
+  if (res.camera_settings) {
+    STATE.camera.settings = res.camera_settings;
+    STATE.sync.lastCameraSettingsAt = timestamp;
+  }
+  if (res.analytics_summary) {
+    STATE.analytics = { ...(STATE.analytics || {}), summary: res.analytics_summary };
+    STATE.sync.lastAnalyticsSyncAt = timestamp;
+    if (typeof updateLogStats === 'function') updateLogStats();
+  }
+
+  updateDashboardStats();
 }
 
 /* ============================================================

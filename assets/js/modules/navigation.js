@@ -82,12 +82,15 @@ function switchPage(page, el) {
     v.classList.remove("entering");
   });
   
-  // Tampilkan view target dengan animasi
+  // Tampilkan view target dengan animasi (Instant UI)
   const targetView = document.getElementById(page) || document.getElementById(`view-${page}`);
   if (targetView) {
     targetView.classList.remove("hidden");
     targetView.classList.add("entering");
-    setTimeout(() => targetView.classList.remove("entering"), 300);
+    // Gunakan requestAnimationFrame untuk transisi yang lebih smooth
+    requestAnimationFrame(() => {
+      setTimeout(() => targetView.classList.remove("entering"), 300);
+    });
   }
   
   _currentPage = page;
@@ -97,7 +100,6 @@ function switchPage(page, el) {
   if (el) {
     el.classList.add("active");
   } else {
-    // Jika el tidak disediakan (misal dari bottom-nav), cari sendiri
     const navEl = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navEl) navEl.classList.add("active");
   }
@@ -111,16 +113,16 @@ function switchPage(page, el) {
     b.classList.toggle("active", b.dataset.page === page);
   });
 
-  // Jalankan inisialisasi modul spesifik halaman
-  if (page === "automation") {
-    renderAutomationView();
-    if (typeof ensureAutomationScheduleUi === "function") {
-      ensureAutomationScheduleUi().catch(() => {});
+  // Jalankan inisialisasi modul spesifik halaman secara Async (Non-blocking)
+  setTimeout(() => {
+    if (page === "automation") {
+      renderAutomationView();
+      if (typeof ensureAutomationScheduleUi === "function") {
+        ensureAutomationScheduleUi().catch(() => {});
+      }
     }
-  }
-  
-  if (page === "camera") {
-    setTimeout(() => {
+    
+    if (page === "camera") {
       const c    = document.getElementById("cvOverlayCanvas");
       const cont = document.getElementById("cameraFocusContainer");
       if (c && cont) { c.width = cont.clientWidth; c.height = cont.clientHeight; }
@@ -128,18 +130,18 @@ function switchPage(page, el) {
         if (typeof cvUI.initialize === "function") cvUI.initialize();
         if (typeof cvUI.renderAutomationSettings === "function") cvUI.renderAutomationSettings();
       }
-    }, 150);
-  }
-  
-  if (page === "analytics") {
-    if (typeof loadLogs === "function") {
-      loadLogs(typeof getAnalyticsDate === "function" ? getAnalyticsDate() : undefined).catch(() => {
-        if (typeof updateLogDisplay === "function") updateLogDisplay();
-      });
-    } else if (typeof updateLogDisplay === "function") {
-      updateLogDisplay();
     }
-  }
+    
+    if (page === "analytics") {
+      if (typeof loadLogs === "function") {
+        loadLogs(typeof getAnalyticsDate === "function" ? getAnalyticsDate() : undefined).catch(() => {
+          if (typeof updateLogDisplay === "function") updateLogDisplay();
+        });
+      } else if (typeof updateLogDisplay === "function") {
+        updateLogDisplay();
+      }
+    }
+  }, 0);
 
   // Tutup sidebar otomatis di mobile setelah klik menu
   document.getElementById("sidebar")?.classList.remove("open");

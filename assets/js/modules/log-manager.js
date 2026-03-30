@@ -44,26 +44,54 @@ async function loadLogs(date = getAnalyticsDate()) {
     dateInput.value = date;
   }
 
-  const [logsResult, summaryResult] = await Promise.all([
-    apiPost("get_logs", { date, limit: 500 }),
-    apiPost("get_logs_daily_summary", { date }),
-  ]);
+  const cacheKey = `iotzy_cache_logs_${date}`;
+  const cacheKeySummary = `iotzy_cache_summary_${date}`;
 
-  if (Array.isArray(logsResult)) {
-    STATE.logs = logsResult.map(normalizeLogRecord).filter(isUserFacingLog);
+  // 1. Tampilkan dari Cache dulu (Instant)
+  const cachedLogs = PerformanceOptimizer.Cache.get(cacheKey);
+  const cachedSummary = PerformanceOptimizer.Cache.get(cacheKeySummary);
+
+  if (cachedLogs) {
+    STATE.logs = cachedLogs.map(normalizeLogRecord).filter(isUserFacingLog);
+    updateLogDisplay();
+    updateDashboardActivityFeed();
   }
 
-  if (summaryResult?.success && summaryResult.data) {
-    STATE.analytics = summaryResult.data;
+  if (cachedSummary) {
+    STATE.analytics = cachedSummary;
+    renderAnalyticsSummary();
+    renderAnalyticsCharts();
+    renderAnalyticsDevices();
+    renderAnalyticsPower();
   }
 
-  updateLogDisplay();
-  updateDashboardActivityFeed();
-  updateLogStats();
-  renderAnalyticsSummary();
-  renderAnalyticsCharts();
-  renderAnalyticsDevices();
-  renderAnalyticsPower();
+  // 2. Fetch Fresh Data in Background (SWR)
+  try {
+    const [logsResult, summaryResult] = await Promise.all([
+      apiPost("get_logs", { date, limit: 500 }),
+      apiPost("get_logs_daily_summary", { date }),
+    ]);
+
+    if (Array.isArray(logsResult)) {
+      STATE.logs = logsResult.map(normalizeLogRecord).filter(isUserFacingLog);
+      PerformanceOptimizer.Cache.set(cacheKey, logsResult);
+    }
+
+    if (summaryResult?.success && summaryResult.data) {
+      STATE.analytics = summaryResult.data;
+      PerformanceOptimizer.Cache.set(cacheKeySummary, summaryResult.data);
+    }
+
+    updateLogDisplay();
+    updateDashboardActivityFeed();
+    updateLogStats();
+    renderAnalyticsSummary();
+    renderAnalyticsCharts();
+    renderAnalyticsDevices();
+    renderAnalyticsPower();
+  } catch (e) {
+    console.error("Load Fresh Logs Error:", e);
+  }
 }
 
 async function addLog(device, activity, trigger, _type = "info", extra = {}) {

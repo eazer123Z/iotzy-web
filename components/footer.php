@@ -54,6 +54,7 @@
 
 <!-- Core Orchestrator -->
 <script src="<?= iotzyAssetUrl('js/app.js') ?>"></script>
+<script src="<?= iotzyAssetUrl('js/modules/performance-optimizer.js') ?>"></script>
 
 <!-- Modul Fungsional -->
 <script src="<?= iotzyAssetUrl('js/modules/navigation.js') ?>"></script>
