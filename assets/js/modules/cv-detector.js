@@ -70,9 +70,14 @@ class CVDetector {
             await this._waitForLibraries();
             await tf.ready();
             
-            // Pilih backend WebGL jika tersedia untuk performa maksimal
+            // Pilih backend: WebGL -> CPU fallback
+            try {
+                if (tf.getBackend() !== 'webgl') {
+                    await tf.setBackend('webgl');
+                }
+            } catch (_) {}
             if (tf.getBackend() !== 'webgl') {
-                try { await tf.setBackend('webgl'); } catch(_) {}
+                try { await tf.setBackend('cpu'); } catch (_) {}
             }
 
             // Muat model COCO-SSD (Objects Detection)

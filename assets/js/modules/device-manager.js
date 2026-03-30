@@ -214,8 +214,8 @@ function toggleDeviceState(deviceId, newState) {
 
   // Built-in Automation Trigger (Smart Lock)
   const dtype = getDeviceType(STATE.devices[id]);
-  if ((dtype === 'lock' || dtype === 'door') && typeof automationEngine !== 'undefined') {
-    automationEngine._evaluateBuiltInRules('lock', { id, state: newState });
+  if ((dtype === 'lock' || dtype === 'door') && typeof automationEngine !== 'undefined' && typeof automationEngine.evaluateBuiltInRules === 'function') {
+    automationEngine.evaluateBuiltInRules('lock', { id, state: newState });
   }
 }
 
@@ -271,8 +271,8 @@ function applyDeviceState(deviceId, newState, reason = "Automation") {
 
   // Built-in Automation Trigger (Smart Lock)
   const dtype = getDeviceType(STATE.devices[id]);
-  if ((dtype === 'lock' || dtype === 'door') && typeof automationEngine !== 'undefined') {
-    automationEngine._evaluateBuiltInRules('lock', { id, state: newState });
+  if ((dtype === 'lock' || dtype === 'door') && typeof automationEngine !== 'undefined' && typeof automationEngine.evaluateBuiltInRules === 'function') {
+    automationEngine.evaluateBuiltInRules('lock', { id, state: newState });
   }
 }
 

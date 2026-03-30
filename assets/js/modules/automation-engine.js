@@ -331,7 +331,8 @@ const automationEngine = (() => {
         
         // 1. Evaluasi 'automation_rules' (Time-only rules)
         Object.keys(rulesMap).forEach(key => {
-            const rules = rulesMap[key];
+            const raw = rulesMap[key];
+            const rules = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? Object.values(raw) : []);
             rules.forEach(rule => {
                 if (!rule.enabled) return;
                 
@@ -477,5 +478,6 @@ const automationEngine = (() => {
 
         onPersonCount(count)               { notifyPersonCount(count); },
         onLightCondition(cond, brightness) { notifyLight(cond, brightness); },
+        evaluateBuiltInRules(type, payload){ try { _evaluateBuiltInRules(type, payload); } catch(_) {} },
     };
 })();
