@@ -39,7 +39,7 @@ function handleAIChatAction(string $action, int $userId, array $body, PDO $db): 
         $stmt->execute([$userId]);
         $set = $stmt->fetch();
         if (!$set || empty($set['telegram_chat_id'])) jsonOut(['success'=>false,'error'=>'Telegram Chat ID belum diatur.']);
-        $token = (!empty($set['telegram_bot_token']) && trim($set['telegram_bot_token'])!=='') ? trim($set['telegram_bot_token']) : null;
+        $token = !empty($set['telegram_bot_token']) ? readStoredSecret($set['telegram_bot_token']) : null;
         $appName = defined('APP_NAME') ? APP_NAME : 'IoTzy';
         $msg = "✅ <b>Testing Koneksi Berhasil!</b>\n\nSistem <b>$appName</b> kini terhubung dengan bot Telegram Anda.\nAnda bisa mengontrol perangkat pintar dari sini.";
         $res = sendTelegramNotification($set['telegram_chat_id'], $msg, $token);

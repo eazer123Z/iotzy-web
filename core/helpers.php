@@ -19,6 +19,19 @@ function decryptSecret(?string $cipherText): string {
     return openssl_decrypt($enc, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv) ?: '';
 }
 
+function encodeStoredSecret(?string $plainText): ?string {
+    $plainText = trim((string)$plainText);
+    if ($plainText === '') return null;
+    return encryptSecret($plainText) ?: $plainText;
+}
+
+function readStoredSecret(?string $storedValue): string {
+    $storedValue = trim((string)$storedValue);
+    if ($storedValue === '') return '';
+    $decrypted = decryptSecret($storedValue);
+    return $decrypted !== '' ? $decrypted : $storedValue;
+}
+
 function jsonOut(mixed $data, int $code = 200): never {
     if ($code !== 200) http_response_code($code);
     while (ob_get_level() > 0) ob_end_clean();

@@ -18,7 +18,8 @@ CREATE TABLE `users` (
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_users_username` (`username`)
+  UNIQUE KEY `uk_users_username` (`username`),
+  KEY `idx_users_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `sessions` (
@@ -87,7 +88,8 @@ CREATE TABLE `user_settings` (
   `cv_human_rules_enabled` tinyint(1) DEFAULT 1,
   `cv_light_rules_enabled` tinyint(1) DEFAULT 1,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_user_settings_user` (`user_id`)
+  UNIQUE KEY `uk_user_settings_user` (`user_id`),
+  KEY `idx_user_settings_telegram_chat_id` (`telegram_chat_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ========================

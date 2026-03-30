@@ -21,27 +21,46 @@ function handleSettingsAction(string $action, int $userId, array $body, PDO $db)
             "INSERT IGNORE INTO user_settings (user_id, mqtt_broker, mqtt_port, mqtt_use_ssl) VALUES (?, ?, ?, ?)",
             [$userId, $mqttDefaults['mqtt_broker'], $mqttDefaults['mqtt_port'], $mqttDefaults['mqtt_use_ssl']]
         );
+        $lampOn = array_key_exists('lamp_on_threshold', $body) ? max(0.0, min(1.0, (float)$body['lamp_on_threshold'])) : null;
+        $lampOff = array_key_exists('lamp_off_threshold', $body) ? max(0.0, min(1.0, (float)$body['lamp_off_threshold'])) : null;
+        if ($lampOn !== null && $lampOff !== null && $lampOn >= $lampOff) {
+            jsonOut(['success' => false, 'error' => 'Threshold lampu ON harus lebih kecil dari OFF'], 422);
+        }
+
+        $fanHigh = array_key_exists('fan_temp_high', $body) ? max(-50.0, min(100.0, (float)$body['fan_temp_high'])) : null;
+        $fanNormal = array_key_exists('fan_temp_normal', $body) ? max(-50.0, min(100.0, (float)$body['fan_temp_normal'])) : null;
+        if ($fanHigh !== null && $fanNormal !== null && $fanNormal >= $fanHigh) {
+            jsonOut(['success' => false, 'error' => 'Suhu kipas normal harus lebih kecil dari suhu tinggi'], 422);
+        }
+
         $fieldCasters = [
             'mqtt_broker'           => fn($v)=>substr(trim((string)$v),0,200),
             'mqtt_port'             => fn($v)=>max(1,min(65535,(int)$v)),
             'mqtt_client_id'        => fn($v)=>substr(trim((string)$v),0,100),
-            'mqtt_path'             => fn($v)=>substr(trim((string)$v),0,100),
+            'mqtt_path'             => fn($v)=>substr('/' . ltrim(trim((string)$v), '/'),0,100),
             'mqtt_use_ssl'          => fn($v)=>(int)(bool)$v,
             'mqtt_username'         => fn($v)=>substr(trim((string)$v),0,100),
             'telegram_chat_id'      => fn($v)=>substr(trim((string)$v),0,100),
             'automation_lamp'       => fn($v)=>(int)(bool)$v,
             'automation_fan'        => fn($v)=>(int)(bool)$v,
             'automation_lock'       => fn($v)=>(int)(bool)$v,
-            'lamp_on_threshold'     => fn($v)=>max(0.0,min(1.0,(float)$v)),
-            'lamp_off_threshold'    => fn($v)=>max(0.0,min(1.0,(float)$v)),
-            'fan_temp_high'         => fn($v)=>max(-50.0,min(100.0,(float)$v)),
-            'fan_temp_normal'       => fn($v)=>max(-50.0,min(100.0,(float)$v)),
+            'lamp_on_threshold'     => fn($v)=>$lampOn ?? max(0.0,min(1.0,(float)$v)),
+            'lamp_off_threshold'    => fn($v)=>$lampOff ?? max(0.0,min(1.0,(float)$v)),
+            'fan_temp_high'         => fn($v)=>$fanHigh ?? max(-50.0,min(100.0,(float)$v)),
+            'fan_temp_normal'       => fn($v)=>$fanNormal ?? max(-50.0,min(100.0,(float)$v)),
             'lock_delay'            => fn($v)=>max(0,min(60000,(int)$v)),
             'theme'                 => fn($v)=>in_array((string)$v,['light','dark'],true)?(string)$v:'light',
-            'quick_control_devices' => fn($v)=>json_encode(array_values(array_filter((array)$v,fn($id)=>is_numeric($id)))),
+            'quick_control_devices' => fn($v)=>json_encode(array_values(array_unique(array_map('intval', array_filter((array)$v,fn($id)=>is_numeric($id)))))),
         ];
         if (isset($body['mqtt_password']) && $body['mqtt_password']!=='') {
-            dbWrite("UPDATE user_settings SET mqtt_password_enc=? WHERE user_id=?", [encryptSecret((string)$body['mqtt_password']),$userId]);
+            dbWrite("UPDATE user_settings SET mqtt_password_enc=? WHERE user_id=?", [encodeStoredSecret((string)$body['mqtt_password']),$userId]);
+        }
+        if (array_key_exists('telegram_bot_token', $body)) {
+            $telegramToken = trim((string)$body['telegram_bot_token']);
+            dbWrite(
+                "UPDATE user_settings SET telegram_bot_token=? WHERE user_id=?",
+                [$telegramToken !== '' ? encodeStoredSecret($telegramToken) : null, $userId]
+            );
         }
         $sets=[]; $vals=[];
         foreach ($fieldCasters as $field=>$caster) {

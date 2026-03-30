@@ -25,13 +25,18 @@ function getLocalDB(): ?PDO {
             PDO::ATTR_EMULATE_PREPARES   => false,
         ];
 
-        if (defined('PDO::MYSQL_ATTR_SSL_CA')) {
-            $options[PDO::MYSQL_ATTR_SSL_CA] = '';
-            $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
-        } else {
-            // Fallback to integer values (1007 = SSL_CA, 1014 = SSL_VERIFY)
-            $options[1007] = '';    
-            $options[1014] = false; 
+        $sslCa = trim((string)(getenv('MYSQL_SSL_CA') ?: ''));
+        $sslVerify = !in_array(strtolower(trim((string)(getenv('MYSQL_SSL_VERIFY') ?: 'true'))), ['0', 'false', 'off', 'no'], true);
+        if ($sslCa !== '') {
+            if (defined('PDO::MYSQL_ATTR_SSL_CA')) {
+                $options[PDO::MYSQL_ATTR_SSL_CA] = $sslCa;
+                if (defined('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')) {
+                    $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = $sslVerify;
+                }
+            } else {
+                $options[1007] = $sslCa;
+                $options[1014] = $sslVerify;
+            }
         }
 
         $pdo = new PDO($dsn, $u, $p, $options);

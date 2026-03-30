@@ -30,9 +30,16 @@ const SENSOR_LABELS = {
 
 async function ensureSensorTemplatesLoaded() {
   if (Array.isArray(STATE.sensorTemplates) && STATE.sensorTemplates.length) return STATE.sensorTemplates;
-  const result = await apiPost("get_sensor_templates", {});
-  STATE.sensorTemplates = result?.templates || [];
-  return STATE.sensorTemplates;
+  if (STATE.sensorTemplatesPromise) return STATE.sensorTemplatesPromise;
+  STATE.sensorTemplatesPromise = apiPost("get_sensor_templates", {})
+    .then((result) => {
+      STATE.sensorTemplates = result?.templates || [];
+      return STATE.sensorTemplates;
+    })
+    .finally(() => {
+      STATE.sensorTemplatesPromise = null;
+    });
+  return STATE.sensorTemplatesPromise;
 }
 
 function getSensorTemplateById(id) {
@@ -43,6 +50,7 @@ function getSensorTemplateById(id) {
 async function populateSensorTemplateSelect(selectId, selectedId = "") {
   const select = document.getElementById(selectId);
   if (!select) return;
+  select.innerHTML = `<option value="">Memuat sensor...</option>`;
   const templates = await ensureSensorTemplatesLoaded();
   select.innerHTML = `<option value="">Pilih sensor</option>` + templates.map((template) => {
     const selected = String(selectedId) === String(template.id) ? " selected" : "";
@@ -247,10 +255,19 @@ async function openAddSensorModal() {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
-  await populateSensorTemplateSelect("newSensorTemplate");
-  populateSensorDeviceSelect("newSensorDevice");
-  syncSensorFormFromTemplate("new");
+  const select = document.getElementById("newSensorTemplate");
+  if (select) {
+    select.disabled = true;
+    select.innerHTML = `<option value="">Memuat sensor...</option>`;
+  }
   document.getElementById("addSensorModal")?.classList.add("active");
+  try {
+    await populateSensorTemplateSelect("newSensorTemplate");
+    populateSensorDeviceSelect("newSensorDevice");
+    syncSensorFormFromTemplate("new");
+  } finally {
+    if (select) select.disabled = false;
+  }
 }
 
 function closeAddSensorModal() {

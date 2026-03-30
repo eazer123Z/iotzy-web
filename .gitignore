@@ -8,3 +8,4 @@ node_modules/
 # Mengabaikan log error
 error_log
 *.log
+.vercel

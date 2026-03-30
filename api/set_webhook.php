@@ -29,7 +29,7 @@ $stmt = $db->prepare("SELECT telegram_bot_token FROM user_settings WHERE user_id
 $stmt->execute([$userId]);
 $userToken = $stmt->fetchColumn();
 
-$botToken = !empty($userToken) ? $userToken : (defined('TELEGRAM_BOT_TOKEN') ? TELEGRAM_BOT_TOKEN : null);
+$botToken = !empty($userToken) ? readStoredSecret($userToken) : (defined('TELEGRAM_BOT_TOKEN') ? TELEGRAM_BOT_TOKEN : null);
 
 if (!$botToken) {
     die("❌ Error: Bot Token belum diatur di Pengaturan maupun Config.");

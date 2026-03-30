@@ -77,7 +77,9 @@ try {
 
         $userId = (int)$userSetting['user_id'];
         
-        $userBotToken = $userSetting['telegram_bot_token'] ?: (defined('TELEGRAM_BOT_TOKEN') ? TELEGRAM_BOT_TOKEN : null);
+        $userBotToken = !empty($userSetting['telegram_bot_token'])
+            ? readStoredSecret($userSetting['telegram_bot_token'])
+            : (defined('TELEGRAM_BOT_TOKEN') ? TELEGRAM_BOT_TOKEN : null);
 
         sendTelegramAction($chatId, 'typing', $userBotToken);
 

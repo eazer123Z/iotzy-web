@@ -1,14 +1,31 @@
-async function loadSchedules() {
+async function ensureSchedulesLoaded(forceRefresh = false) {
+  if (!forceRefresh && STATE.schedulesLoaded) return STATE.schedules || [];
+  if (!forceRefresh && STATE.scheduleLoadPromise) return STATE.scheduleLoadPromise;
+
+  STATE.scheduleLoadPromise = apiPost('get_schedules')
+    .then((res) => {
+      STATE.schedules = Array.isArray(res) ? res : [];
+      STATE.schedulesLoaded = true;
+      return STATE.schedules;
+    })
+    .finally(() => {
+      STATE.scheduleLoadPromise = null;
+    });
+
+  return STATE.scheduleLoadPromise;
+}
+
+async function loadSchedules(forceRefresh = false) {
   const container = document.getElementById('scheduleListContainer');
-  if (!container) return;
-  const res = await apiPost('get_schedules');
-  if (res && Array.isArray(res)) {
-    if (res.length === 0) {
+  const schedules = await ensureSchedulesLoaded(forceRefresh);
+  if (!container) return schedules;
+  if (Array.isArray(schedules)) {
+    if (schedules.length === 0) {
       container.innerHTML = '<div class="empty-state">Belum ada jadwal.</div>';
-      return;
+      return schedules;
     }
     let html = '';
-    res.forEach(s => {
+    schedules.forEach(s => {
       html += `
         <div class="sch-item card mb-2">
           <div style="display:flex; justify-content:space-between; align-items:center">
@@ -22,6 +39,7 @@ async function loadSchedules() {
     });
     container.innerHTML = html;
   }
+  return schedules;
 }
 
 async function saveSchedule() {
@@ -37,8 +55,20 @@ async function saveSchedule() {
   const res = await apiPost('add_schedule', { label, time_hhmm: time, action, devices });
   if (res?.success) {
     showToast("Jadwal disimpan", "success");
-    loadSchedules();
+    STATE.schedulesLoaded = false;
+    loadSchedules(true);
     document.getElementById('addScheduleForm').reset();
+  }
+}
+
+async function deleteSchedule(id) {
+  if (!id) return;
+  const res = await apiPost('delete_schedule', { id });
+  if (res?.success) {
+    STATE.schedules = (STATE.schedules || []).filter((item) => String(item.id) !== String(id));
+    STATE.schedulesLoaded = true;
+    loadSchedules();
+    showToast("Jadwal dihapus", "success");
   }
 }
 
@@ -56,9 +86,7 @@ function renderScheduleDeviceOptions() {
   container.innerHTML = html;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  if (document.getElementById('schedule')) {
-    loadSchedules();
-    renderScheduleDeviceOptions();
-  }
-});
+async function ensureAutomationScheduleUi(forceRefresh = false) {
+  renderScheduleDeviceOptions();
+  return loadSchedules(forceRefresh);
+}

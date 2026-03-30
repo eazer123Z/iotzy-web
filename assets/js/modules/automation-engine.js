@@ -40,6 +40,15 @@ const automationEngine = (() => {
         human: { enabled: true, rules: [], delay: 5000 },
         light: { enabled: true, onDark:   [], onBright: [], delay: 2000 },
     };
+    const _scheduleDayMap = {
+        minggu: 0, sunday: 0, sun: 0,
+        senin: 1, monday: 1, mon: 1,
+        selasa: 2, tuesday: 2, tue: 2, tues: 2,
+        rabu: 3, wednesday: 3, wed: 3,
+        kamis: 4, thursday: 4, thu: 4, thurs: 4,
+        jumat: 5, friday: 5, fri: 5,
+        sabtu: 6, saturday: 6, sat: 6,
+    };
 
     async function _loadCVRules() {
         try {
@@ -273,9 +282,10 @@ const automationEngine = (() => {
     }
 
     function _isInTimeWindow(rule) {
-        if (!rule.startTime || !rule.endTime) return true;
-        
         const now = new Date();
+        if (!_matchesScheduleDay(rule.days, now)) return false;
+        if (!rule.startTime || !rule.endTime) return true;
+
         const currentTime = now.getHours() * 60 + now.getMinutes();
         
         const [startH, startM] = rule.startTime.split(':').map(Number);
@@ -290,6 +300,22 @@ const automationEngine = (() => {
             // Over midnight
             return currentTime >= startTime || currentTime <= endTime;
         }
+    }
+
+    function _normalizeScheduleDay(day) {
+        if (day === null || day === undefined || day === '') return null;
+        const numericDay = Number(day);
+        if (Number.isInteger(numericDay) && numericDay >= 0 && numericDay <= 6) {
+            return numericDay;
+        }
+        const key = String(day).trim().toLowerCase();
+        return Object.prototype.hasOwnProperty.call(_scheduleDayMap, key) ? _scheduleDayMap[key] : null;
+    }
+
+    function _matchesScheduleDay(days, now) {
+        if (!Array.isArray(days) || days.length === 0) return true;
+        const today = now.getDay();
+        return days.some((day) => _normalizeScheduleDay(day) === today);
     }
 
     /**
@@ -310,6 +336,7 @@ const automationEngine = (() => {
                 if (!rule.enabled) return;
                 
                 if (rule.condition === 'time_only') {
+                    if (!_matchesScheduleDay(rule.days, now)) return;
                     if (rule.startTime && rule.startTime.substring(0, 5) === hhmm) {
                         const dedupKey = `time_rule_${rule.dbId}_start_${hhmm}_${now.toDateString()}`;
                         if (_isDeduped(dedupKey)) return;
@@ -326,13 +353,11 @@ const automationEngine = (() => {
 
         // 2. Evaluasi tabel 'Schedules' (Jadwal Terpisah)
         const schedules = window.STATE?.schedules || [];
-        const dayNames  = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-        const todayName = dayNames[now.getDay()];
 
         schedules.forEach(sch => {
             if (!sch.enabled) return;
             if (sch.time !== hhmm) return;
-            if (sch.days && sch.days.length > 0 && !sch.days.includes(todayName)) return;
+            if (!_matchesScheduleDay(sch.days, now)) return;
 
             const dedupKey = `sch_db_${sch.id}_${hhmm}_${now.toDateString()}`;
             if (_isDeduped(dedupKey)) return;
@@ -356,6 +381,7 @@ const automationEngine = (() => {
             case 'gt':       return v >  parseFloat(rule.threshold);
             case 'lt':       return v <  parseFloat(rule.threshold);
             case 'range':    return v <  parseFloat(rule.thresholdMin) || v > parseFloat(rule.thresholdMax);
+            case 'between':  return v >= parseFloat(rule.thresholdMin) && v <= parseFloat(rule.thresholdMax);
             case 'detected': return !!val;
             case 'absent':   return !val;
             default:         return false;
@@ -410,7 +436,14 @@ const automationEngine = (() => {
             await _loadCVRules();
             
             // Sync Schedules into STATE if not already there
-            if (typeof apiPost === 'function') {
+            if (typeof ensureSchedulesLoaded === 'function') {
+                ensureSchedulesLoaded().then((data) => {
+                    if (Array.isArray(data)) {
+                        if (!window.STATE) window.STATE = {};
+                        window.STATE.schedules = data;
+                    }
+                }).catch(() => {});
+            } else if (typeof apiPost === 'function') {
                 apiPost('get_schedules').then(data => {
                     if (Array.isArray(data)) {
                         if (!window.STATE) window.STATE = {};

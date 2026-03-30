@@ -445,7 +445,7 @@ Kontrol langsung:
 {"type":"immediate","action":"on|off|toggle","device_ids":[ID,...]}
 
 Automation rule baru:
-{"type":"automation","sensor_id":ID,"condition_type":"gt|lt|between","threshold":X,"threshold_min":X,"threshold_max":X,"action":"on|off","device_ids":[ID],"start_time":"HH:MM","end_time":"HH:MM","days":[0,1,2,3,4,5,6]}
+{"type":"automation","sensor_id":ID,"condition_type":"gt|lt|range|between","threshold":X,"threshold_min":X,"threshold_max":X,"action":"on|off","device_ids":[ID],"start_time":"HH:MM","end_time":"HH:MM","days":[0,1,2,3,4,5,6]}
 
 Tambah perangkat:
 {"type":"add_device","name":"...","device_type":"...","icon":"fa-...","topic_sub":"iotzy/...","topic_pub":"iotzy/..."}
@@ -586,34 +586,36 @@ function execute_ai_actions(int $userId, array $parsed): array
                     break;
                 case 'schedule':
                     $startTime = $a['time'] ?? ($a['time_hhmm'] ?? '00:00');
-                    $days      = $a['days'] ?? [0, 1, 2, 3, 4, 5, 6];
-                    $action    = $a['action'] ?? 'on';
-                    $delayMs   = (int)($a['delay_ms'] ?? 0);
-
-                    foreach ((array)($a['device_ids'] ?? []) as $dId) {
-                        $db->prepare(
-                            "INSERT INTO automation_rules (user_id,sensor_id,device_id,condition_type,threshold,threshold_min,threshold_max,action,delay_ms,start_time,end_time,days,from_template)
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
-                        )->execute([
-                            $userId,
-                            null, 
-                            $dId,
-                            'time_only',
-                            null, null, null,
-                            $action,
-                            $delayMs,
-                            $startTime,
-                            null,
-                            json_encode($days),
-                            $a['label'] ?? null
-                        ]);
+                    $days = array_values(array_unique(array_map(
+                        'intval',
+                        array_filter((array)($a['days'] ?? [0, 1, 2, 3, 4, 5, 6]), fn($day) => is_numeric($day) && (int)$day >= 0 && (int)$day <= 6)
+                    )));
+                    $deviceIds = array_values(array_unique(array_map(
+                        'intval',
+                        array_filter((array)($a['device_ids'] ?? []), fn($id) => is_numeric($id) && (int)$id > 0)
+                    )));
+                    $action = in_array(($a['action'] ?? 'on'), ['on', 'off', 'toggle'], true) ? $a['action'] : 'on';
+                    if (!$deviceIds) {
+                        break;
                     }
+                    $db->prepare(
+                        "INSERT INTO schedules (user_id,label,time_hhmm,days,action,devices)
+                         VALUES (?,?,?,?,?,?)"
+                    )->execute([
+                        $userId,
+                        $a['label'] ?? null,
+                        $startTime,
+                        json_encode($days ?: [0, 1, 2, 3, 4, 5, 6]),
+                        $action,
+                        json_encode($deviceIds),
+                    ]);
                     $result['executed'][] = 'schedule';
                     break;
                 case 'automation':
                     $stmt = $db->prepare("INSERT INTO automation_rules (user_id,sensor_id,device_id,condition_type,threshold,threshold_min,threshold_max,action,delay_ms,start_time,end_time,days) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+                    $conditionType = $a['condition_type'] ?? 'gt';
                     foreach ((array)($a['device_ids'] ?? []) as $dId)
-                        $stmt->execute([$userId, $a['sensor_id'] ?? null, $dId, $a['condition_type'] ?? 'gt', $a['threshold'] ?? null, $a['threshold_min'] ?? null, $a['threshold_max'] ?? null, $a['action'] ?? 'on', $a['delay_ms'] ?? 0, $a['start_time'] ?? null, $a['end_time'] ?? null, isset($a['days']) ? json_encode($a['days']) : null]);
+                        $stmt->execute([$userId, $a['sensor_id'] ?? null, $dId, $conditionType, $a['threshold'] ?? null, $a['threshold_min'] ?? null, $a['threshold_max'] ?? null, $a['action'] ?? 'on', $a['delay_ms'] ?? 0, $a['start_time'] ?? null, $a['end_time'] ?? null, isset($a['days']) ? json_encode($a['days']) : null]);
                     $result['executed'][] = 'automation';
                     break;
                 case 'add_device':
@@ -711,7 +713,12 @@ function execute_ai_actions(int $userId, array $parsed): array
                     $result['executed'][] = 'mqtt';
                     break;
                 case 'update_telegram':
-                    $db->prepare("UPDATE user_settings SET telegram_chat_id=?,telegram_bot_token=? WHERE user_id=?")->execute([$a['telegram_chat_id'] ?? null, $a['telegram_bot_token'] ?? null, $userId]);
+                    $telegramToken = trim((string)($a['telegram_bot_token'] ?? ''));
+                    $db->prepare("UPDATE user_settings SET telegram_chat_id=?,telegram_bot_token=? WHERE user_id=?")->execute([
+                        $a['telegram_chat_id'] ?? null,
+                        $telegramToken !== '' ? encodeStoredSecret($telegramToken) : null,
+                        $userId
+                    ]);
                     $result['executed'][] = 'telegram';
                     break;
                 case 'update_thresholds':

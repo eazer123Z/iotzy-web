@@ -286,7 +286,7 @@
       <div id="aboutPanel" class="settings-panel">
         <h4><i class="fas fa-info-circle"></i> Tentang IoTzy</h4>
         <div style="display:flex;flex-direction:column;gap:12px;font-size:.88rem;color:var(--text-secondary)">
-          <div><strong>Versi:</strong> <?= APP_VERSION ?></div>
+          <div><strong>Versi:</strong> <?= APP_RELEASE ?> <span style="color:var(--text-muted)">build <?= APP_BUILD ?></span></div>
           <div><strong>Platform:</strong> Vercel Serverless + Supabase MySQL</div>
           <div><strong>AI Engine:</strong> Gemini Pro via Telegram & Web</div>
           <div><strong>MQTT:</strong> Paho WebSocket Client</div>

@@ -39,8 +39,10 @@ function sendTelegramNotification($chatId, $text, $token = null): array {
         CURLOPT_POSTFIELDS     => json_encode($data),
         CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT        => 10,
-        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
     ]);
 
     $response = curl_exec($ch);
@@ -87,11 +89,25 @@ function sendTelegramAction($chatId, $action = 'typing', $token = null): array {
         CURLOPT_POSTFIELDS     => json_encode($data),
         CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT        => 5,
-        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
     ]);
 
     $response = curl_exec($ch);
+    $error    = curl_error($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    if ($error) {
+        error_log("[Telegram] Action CURL Error: $error");
+        return ['success' => false, 'error' => "CURL Error: $error"];
+    }
+    if ($httpCode !== 200) {
+        $resArr = json_decode($response, true);
+        $descr = $resArr['description'] ?? 'Unknown Error';
+        error_log("[Telegram] Action API Error ($httpCode): $descr");
+        return ['success' => false, 'error' => "Telegram API Error ($httpCode): $descr"];
+    }
     return ['success' => true];
 }

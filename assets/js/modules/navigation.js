@@ -112,7 +112,12 @@ function switchPage(page, el) {
   });
 
   // Jalankan inisialisasi modul spesifik halaman
-  if (page === "automation") renderAutomationView();
+  if (page === "automation") {
+    renderAutomationView();
+    if (typeof ensureAutomationScheduleUi === "function") {
+      ensureAutomationScheduleUi().catch(() => {});
+    }
+  }
   
   if (page === "camera") {
     setTimeout(() => {

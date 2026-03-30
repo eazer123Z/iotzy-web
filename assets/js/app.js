@@ -28,7 +28,14 @@ const CONFIG = {
     maxReconnect:   5,
     reconnectDelay: 3000,
   },
-  app: { maxLogs: 500, updateInterval: 1000 },
+  app: {
+    maxLogs: 500,
+    liveSyncInterval: 5000,
+    fullSyncInterval: 15000,
+    analyticsSyncInterval: 30000,
+    cameraSettingsSyncInterval: 45000,
+    syncBackoffMax: 30000,
+  },
 };
 
 /* ============================================================
@@ -41,11 +48,16 @@ const STATE = {
   deviceOnAt:          {},
   deviceExtras:        {},
   deviceTemplates:     [],
+  deviceTemplatesPromise: null,
   sensors:             {},
   sensorData:          {},
   sensorHistory:       {},
   sensorTemplates:     [],
+  sensorTemplatesPromise: null,
   automationRules:     {},
+  schedules:           [],
+  schedulesLoaded:     false,
+  scheduleLoadPromise: null,
   logs:                [],
   logFilter:           "",
   logSearchFilter:     "",
@@ -61,12 +73,20 @@ const STATE = {
     defaultMeta:      null,
     settings:         {},
   },
+  cvAutoStartRequested: false,
   sessionStart: Date.now(),
   cv: {
     personCount:    0,
     personPresent:  false,
     lightCondition: "unknown",
     brightness:     0,
+  },
+  sync: {
+    timer:                 null,
+    failureCount:          0,
+    lastFullSyncAt:        0,
+    lastAnalyticsSyncAt:   0,
+    lastCameraSettingsAt:  0,
   },
 };
 
@@ -332,7 +352,10 @@ async function syncDevicesFromServer() {
       try { STATE.mqtt.client.subscribe(d.topic_sub); } catch(e) { console.warn("MQTT Re-sub:", e); }
     }
   });
-  renderAll();
+  if (typeof renderDevices === 'function') renderDevices();
+  if (typeof renderQuickControls === 'function') renderQuickControls();
+  if (typeof renderScheduleDeviceOptions === 'function') renderScheduleDeviceOptions();
+  updateDashboardStats();
 }
 
 async function syncSensorsFromServer() {
@@ -360,20 +383,56 @@ async function syncSensorsFromServer() {
       STATE.sensorData[id] = s.latest_value ?? STATE.sensorData[id] ?? null;
     }
   });
-  renderAll();
+  if (typeof renderSensors === 'function') renderSensors();
+  updateDashboardStats();
 }
 
 async function syncAutomationFromServer() {
   if (typeof initAutomationRules === 'function') await initAutomationRules();
-  if (typeof renderAutomationView === 'function') renderAutomationView();
+  const automationView = document.getElementById("automation");
+  if (typeof renderAutomationView === 'function' && automationView && !automationView.classList.contains("hidden")) {
+    renderAutomationView();
+  }
 }
 
-async function syncAllFromServer(forceSync = false) {
+function scheduleNextSync(delayMs = null) {
+  if (STATE.sync.timer) {
+    clearTimeout(STATE.sync.timer);
+  }
+
+  const failureDelay = STATE.sync.failureCount > 0
+    ? Math.min(
+        CONFIG.app.liveSyncInterval * Math.pow(2, STATE.sync.failureCount),
+        CONFIG.app.syncBackoffMax
+      )
+    : CONFIG.app.liveSyncInterval;
+
+  const nextDelay = delayMs ?? failureDelay;
+  STATE.sync.timer = setTimeout(() => {
+    syncAllFromServer().catch(() => {});
+  }, nextDelay);
+}
+
+async function syncAllFromServer(forceSync = false, options = {}) {
+  if (typeof document !== "undefined" && document.hidden && !forceSync) return;
   if (syncAllFromServer._inFlight && !forceSync) return;
   syncAllFromServer._inFlight = true;
   try {
-    const res = await apiPost("get_dashboard_data", {});
+    const now = Date.now();
+    const includeAnalytics = forceSync
+      || !!options.includeAnalytics
+      || (now - (STATE.sync.lastAnalyticsSyncAt || 0)) >= CONFIG.app.analyticsSyncInterval;
+    const includeCameraSettings = forceSync
+      || !!options.includeCameraSettings
+      || (now - (STATE.sync.lastCameraSettingsAt || 0)) >= CONFIG.app.cameraSettingsSyncInterval;
+    const requestBody = {
+      include_analytics: includeAnalytics ? 1 : 0,
+      include_camera: 1,
+      include_camera_settings: includeCameraSettings ? 1 : 0,
+    };
+    const res = await apiPost("get_dashboard_data", requestBody);
     if (!res || !res.success) return;
+    STATE.sync.failureCount = 0;
 
     const currentDeviceIds = Object.keys(STATE.devices);
     const serverDeviceIds  = (res.devices || []).map(d => String(d.id));
@@ -394,10 +453,22 @@ async function syncAllFromServer(forceSync = false) {
     }
 
     if (res.devices) {
+      let shouldRenderDevices = false;
       res.devices.forEach(d => {
         const id = String(d.id);
         if (!STATE.devices[id]) return;
-        STATE.devices[id] = { ...STATE.devices[id], ...d, id };
+        const before = STATE.devices[id];
+        STATE.devices[id] = { ...before, ...d, id };
+        if (
+          before.name !== STATE.devices[id].name ||
+          before.icon !== STATE.devices[id].icon ||
+          before.type !== STATE.devices[id].type ||
+          before.template_name !== STATE.devices[id].template_name ||
+          before.topic_sub !== STATE.devices[id].topic_sub ||
+          before.topic_pub !== STATE.devices[id].topic_pub
+        ) {
+          shouldRenderDevices = true;
+        }
         const oldState = STATE.deviceStates[id];
         const newState = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
         if (oldState !== newState) {
@@ -406,17 +477,42 @@ async function syncAllFromServer(forceSync = false) {
           if (typeof updateDeviceUI === 'function') updateDeviceUI(id);
         }
       });
+      if (shouldRenderDevices) {
+        if (typeof renderDevices === 'function') renderDevices();
+        if (typeof renderQuickControls === 'function') renderQuickControls();
+        if (typeof renderScheduleDeviceOptions === 'function') renderScheduleDeviceOptions();
+      }
     }
 
     if (res.sensors) {
+      let shouldRenderSensors = false;
       res.sensors.forEach(s => {
         const id = String(s.id);
         if (STATE.sensors[id]) {
-          STATE.sensors[id] = { ...STATE.sensors[id], ...s, id };
-          STATE.sensorData[id] = s.latest_value;
+          const before = STATE.sensors[id];
+          const prevValue = STATE.sensorData[id];
+          STATE.sensors[id] = { ...before, ...s, id };
+          const nextValue = s.latest_value ?? prevValue ?? null;
+          STATE.sensorData[id] = nextValue;
+
+          if (
+            before.name !== STATE.sensors[id].name ||
+            before.icon !== STATE.sensors[id].icon ||
+            before.type !== STATE.sensors[id].type ||
+            before.unit !== STATE.sensors[id].unit ||
+            before.device_name !== STATE.sensors[id].device_name ||
+            before.template_name !== STATE.sensors[id].template_name
+          ) {
+            shouldRenderSensors = true;
+            return;
+          }
+
+          if ((prevValue ?? null) !== nextValue || before.last_seen !== STATE.sensors[id].last_seen) {
+            if (typeof updateSensorValueUI === 'function') updateSensorValueUI(id);
+          }
         }
       });
-      if (typeof renderSensors === 'function') renderSensors();
+      if (shouldRenderSensors && typeof renderSensors === 'function') renderSensors();
     }
 
     if (res.cv_state && !CV.detecting) {
@@ -430,17 +526,23 @@ async function syncAllFromServer(forceSync = false) {
     }
     if (res.camera_settings) {
       STATE.camera.settings = res.camera_settings;
+      STATE.sync.lastCameraSettingsAt = now;
     }
     if (res.analytics_summary) {
       STATE.analytics = { ...(STATE.analytics || {}), summary: res.analytics_summary };
+      STATE.sync.lastAnalyticsSyncAt = now;
       if (typeof updateLogStats === 'function') updateLogStats();
     }
 
     updateDashboardStats();
   } catch (e) {
+    STATE.sync.failureCount += 1;
     console.warn("syncAllFromServer Error:", e);
   } finally {
     syncAllFromServer._inFlight = false;
+    if (typeof document === "undefined" || !document.hidden) {
+      scheduleNextSync();
+    }
   }
 }
 
@@ -451,7 +553,10 @@ function renderAll() {
   if (typeof renderDevices     === 'function') renderDevices();
   if (typeof renderSensors     === 'function') renderSensors();
   if (typeof renderQuickControls === 'function') renderQuickControls();
-  if (typeof renderAutomationView === 'function') renderAutomationView();
+  const automationView = document.getElementById("automation");
+  if (typeof renderAutomationView === 'function' && automationView && !automationView.classList.contains("hidden")) {
+    renderAutomationView();
+  }
   updateDashboardStats();
 }
 
@@ -525,17 +630,62 @@ function loadFromPHP() {
       STATE.camera.settings = PHP_CAMERA_SETTINGS || {};
     }
 
-    // Auto-start CV jika aktif di DB
-    if (typeof PHP_CV_STATE !== 'undefined' && PHP_CV_STATE && Number(PHP_CV_STATE.is_active) === 1) {
-      if (typeof initializeCV === 'function') {
-        initializeCV().then(() => {
-          if (typeof startCVDetection === 'function') startCVDetection();
-        });
-      }
-    }
+    STATE.cvAutoStartRequested = !!(typeof PHP_CV_STATE !== 'undefined' && PHP_CV_STATE && Number(PHP_CV_STATE.is_active) === 1);
   } catch (e) {
     console.warn("loadFromPHP error:", e);
     STATE.quickControlDevices = [];
+  }
+}
+
+function revealMainApp() {
+  const ls  = document.getElementById("appLoadingScreen");
+  const app = document.getElementById("mainApp");
+  if (app) app.classList.remove("opacity-0");
+  if (ls) {
+    ls.style.opacity = "0";
+    setTimeout(() => { ls.style.display = "none"; }, 220);
+  }
+  const aiBtn = document.getElementById("aiChatBtn");
+  if (aiBtn) aiBtn.classList.add("show");
+}
+
+async function bootstrapDeferredServices() {
+  try {
+    if (typeof ensureDeviceTemplatesLoaded === "function") ensureDeviceTemplatesLoaded().catch(() => {});
+    if (typeof ensureSensorTemplatesLoaded === "function") ensureSensorTemplatesLoaded().catch(() => {});
+    if (typeof ensureSchedulesLoaded === "function") ensureSchedulesLoaded().catch(() => {});
+    if (typeof loadMQTTTemplates === "function") loadMQTTTemplates();
+
+    await Promise.allSettled([
+      typeof loadCVConfig === "function" ? loadCVConfig() : Promise.resolve(),
+      typeof initAutomationRules === "function" ? initAutomationRules() : Promise.resolve(),
+    ]);
+
+    if (typeof automationEngine !== "undefined") automationEngine.initialize();
+    else if (typeof loadCVRules === "function") loadCVRules().catch(() => {});
+
+    if (STATE.cvAutoStartRequested && typeof initializeCV === "function" && !CV.detecting && !CV.modelLoading) {
+      const runAutoCV = () => {
+        initializeCV()
+          .then(() => { if (typeof startCVDetection === "function") startCVDetection(); })
+          .catch(() => {});
+      };
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(runAutoCV, { timeout: 2000 });
+      } else {
+        setTimeout(runAutoCV, 900);
+      }
+    }
+
+    syncAllFromServer(true).catch(() => {});
+
+    setTimeout(() => {
+      if (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS.mqtt_broker) {
+        if (typeof connectMQTT === 'function') connectMQTT();
+      }
+    }, 150);
+  } catch (e) {
+    console.warn("bootstrapDeferredServices error:", e);
   }
 }
 
@@ -551,20 +701,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   initClock();         // navigation.js
   initUptimeCounter(); // navigation.js
 
-  await loadCVConfig();
   loadFromPHP();
-
-  if (typeof initAutomationRules === 'function') await initAutomationRules();
-  if (typeof automationEngine    !== 'undefined') automationEngine.initialize();
-  await loadCVRules();
-  if (typeof loadLogs === 'function') await loadLogs();
-
   renderAll();
+  revealMainApp();
 
-  if (typeof loadMQTTTemplates === 'function') loadMQTTTemplates();
-
-  // Real-time polling setiap 3 detik
-  setInterval(syncAllFromServer, 3000);
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        syncAllFromServer(true, { includeAnalytics: true, includeCameraSettings: true }).catch(() => {});
+      }
+    });
+  }
 
   // Hook light analyzer ke automation engine
   if (typeof lightAnalyzer !== "undefined") {
@@ -576,20 +723,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // Koneksi MQTT (delay agar inisialisasi UI selesai dulu)
-  setTimeout(() => {
-    if (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS.mqtt_broker) {
-      if (typeof connectMQTT === 'function') connectMQTT();
-    }
-  }, 900);
-
-  // Tutup Loading Screen & tampilkan app
-  setTimeout(() => {
-    const ls  = document.getElementById("appLoadingScreen");
-    const app = document.getElementById("mainApp");
-    if (ls) { ls.style.opacity = "0"; setTimeout(() => (ls.style.display = "none"), 500); }
-    if (app) app.classList.remove("opacity-0");
-    const aiBtn = document.getElementById("aiChatBtn");
-    if (aiBtn) aiBtn.classList.add("show");
-  }, 1200);
+  bootstrapDeferredServices();
+  scheduleNextSync(CONFIG.app.liveSyncInterval);
 });

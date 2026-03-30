@@ -273,6 +273,7 @@ function getConditionLabel(rule, sensor, meta) {
     case "gt":       return `> ${rule.threshold}${u}`;
     case "lt":       return `< ${rule.threshold}${u}`;
     case "range":    return `di luar ${rule.thresholdMin}–${rule.thresholdMax}${u}`;
+    case "between":  return `di rentang ${rule.thresholdMin}–${rule.thresholdMax}${u}`;
     case "detected": return "terdeteksi";
     case "absent":   return "tidak ada";
     default:         return rule.condition;

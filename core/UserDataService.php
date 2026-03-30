@@ -151,7 +151,9 @@ function getUserSettings(int $userId): ?array
         $row['quick_control_devices'] = iotzyJsonDecode($row['quick_control_devices'], []);
         $row['cv_config'] = iotzyJsonDecode($row['cv_config'], []);
         $row['cv_rules'] = iotzyJsonDecode($row['cv_rules'], []);
-        unset($row['mqtt_password_enc']);
+        $row['telegram_configured'] = !empty(readStoredSecret($row['telegram_bot_token'] ?? ''))
+            || !empty(defined('TELEGRAM_BOT_TOKEN') ? TELEGRAM_BOT_TOKEN : '');
+        unset($row['mqtt_password_enc'], $row['telegram_bot_token']);
 
         return $row;
     } catch (PDOException $e) {
@@ -545,7 +547,7 @@ function iotzyIsUserFacingLog(array $log): bool
     return trim((string)($log['activity'] ?? '')) !== '';
 }
 
-function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = null): array
+function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = null, ?array $devices = null, ?array $sensors = null): array
 {
     $db = $db ?: getLocalDB();
     $date = iotzyNormalizeAnalyticsDate($date);
@@ -579,8 +581,8 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
     $dayStartTs = strtotime($start);
     $dayEndTs = strtotime($end);
 
-    $devices = getUserDevices($userId);
-    $sensors = getUserSensors($userId);
+    $devices = $devices ?? getUserDevices($userId);
+    $sensors = $sensors ?? getUserSensors($userId);
     $deviceMap = [];
 
     foreach ($devices as $device) {

@@ -10,23 +10,33 @@ function handleDashboardAction(string $action, int $userId, array $body, PDO $db
     }
 
     try {
-        $cameraBundle = getUserCameraBundle($userId, $db);
-        $analytics = getDailyAnalyticsSummary($userId, date('Y-m-d'), $db);
+        $includeAnalytics = array_key_exists('include_analytics', $body) ? (bool)$body['include_analytics'] : true;
+        $includeCameraSettings = array_key_exists('include_camera_settings', $body) ? (bool)$body['include_camera_settings'] : true;
+        $includeCamera = array_key_exists('include_camera', $body) ? (bool)$body['include_camera'] : true;
+
+        $cameraBundle = ($includeCamera || $includeCameraSettings)
+            ? getUserCameraBundle($userId, $db)
+            : ['cv_state' => iotzyDefaultCvState()];
+        $devices = getUserDevices($userId);
+        $sensors = getUserSensors($userId);
+        $analytics = $includeAnalytics
+            ? getDailyAnalyticsSummary($userId, date('Y-m-d'), $db, $devices, $sensors)
+            : null;
 
         jsonOut([
             'success' => true,
-            'devices' => getUserDevices($userId),
-            'sensors' => getUserSensors($userId),
+            'devices' => $devices,
+            'sensors' => $sensors,
             'cv_state' => $cameraBundle['cv_state'] ?? iotzyDefaultCvState(),
-            'camera' => $cameraBundle['camera'] ?? null,
-            'camera_settings' => $cameraBundle['camera_settings'] ?? [],
-            'analytics_summary' => $analytics['summary'] ?? [],
+            'camera' => $includeCamera ? ($cameraBundle['camera'] ?? null) : null,
+            'camera_settings' => $includeCameraSettings ? ($cameraBundle['camera_settings'] ?? []) : null,
+            'analytics_summary' => $analytics['summary'] ?? null,
         ]);
     } catch (PDOException $e) {
-        http_response_code(500);
+        error_log('[IoTzy Dashboard] ' . $e->getMessage());
         jsonOut([
             'success' => false,
-            'error' => 'Database error: ' . $e->getMessage(),
+            'error' => 'Gagal memuat data dashboard',
         ], 500);
     }
 }

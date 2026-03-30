@@ -7,6 +7,8 @@ if (function_exists('registerApiErrorHandler')) {
     registerApiErrorHandler();
 }
 
+$apiOnlyMode = defined('IOTZY_API_ONLY') && IOTZY_API_ONLY === true;
+
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN');
@@ -19,6 +21,10 @@ $action = $_GET['action'] ?? $_POST['action'] ?? '';
 header('Content-Type: ' . ($action ? 'application/json' : 'text/html; charset=UTF-8'));
 
 if (!$action) {
+    if ($apiOnlyMode) {
+        jsonOut(['success' => false, 'error' => 'Action tidak ditentukan'], 400);
+    }
+
     $route = $_GET['route'] ?? 'dashboard';
     $db = getLocalDB();
 
@@ -141,6 +147,10 @@ $routes = [
     'add_automation_rule' => 'AutomationController.php',
     'update_automation_rule' => 'AutomationController.php',
     'delete_automation_rule' => 'AutomationController.php',
+    'get_schedules' => 'AutomationController.php',
+    'add_schedule' => 'AutomationController.php',
+    'toggle_schedule' => 'AutomationController.php',
+    'delete_schedule' => 'AutomationController.php',
 
     'get_cv_rules' => 'CVController.php',
     'save_cv_rules' => 'CVController.php',

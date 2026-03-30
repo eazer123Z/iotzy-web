@@ -51,9 +51,16 @@ function getDeviceTypeName(input) {
 
 async function ensureDeviceTemplatesLoaded() {
   if (Array.isArray(STATE.deviceTemplates) && STATE.deviceTemplates.length) return STATE.deviceTemplates;
-  const result = await apiPost("get_device_templates", {});
-  STATE.deviceTemplates = result?.templates || [];
-  return STATE.deviceTemplates;
+  if (STATE.deviceTemplatesPromise) return STATE.deviceTemplatesPromise;
+  STATE.deviceTemplatesPromise = apiPost("get_device_templates", {})
+    .then((result) => {
+      STATE.deviceTemplates = result?.templates || [];
+      return STATE.deviceTemplates;
+    })
+    .finally(() => {
+      STATE.deviceTemplatesPromise = null;
+    });
+  return STATE.deviceTemplatesPromise;
 }
 
 function getDeviceTemplateById(id) {
@@ -104,6 +111,7 @@ function getDeviceCardIcon(device, isOn = false) {
 async function populateDeviceTemplateSelect(selectId, selectedId = "") {
   const select = document.getElementById(selectId);
   if (!select) return;
+  select.innerHTML = `<option value="">Memuat perangkat...</option>`;
   const templates = await ensureDeviceTemplatesLoaded();
   select.innerHTML = `<option value="">Pilih perangkat</option>` + templates.map((template) => {
     const selected = String(selectedId) === String(template.id) ? " selected" : "";
@@ -682,8 +690,17 @@ function openAddDeviceModal() {
   ["newDeviceName", "newDeviceTopic"].forEach((id) => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
-  populateDeviceTemplateSelect("newDeviceTemplate").then(() => syncDeviceFormFromTemplate("new"));
+  const select = document.getElementById("newDeviceTemplate");
+  if (select) {
+    select.disabled = true;
+    select.innerHTML = `<option value="">Memuat perangkat...</option>`;
+  }
   document.getElementById("addDeviceModal")?.classList.add("active");
+  populateDeviceTemplateSelect("newDeviceTemplate")
+    .then(() => syncDeviceFormFromTemplate("new"))
+    .finally(() => {
+      if (select) select.disabled = false;
+    });
 }
 
 function closeAddDeviceModal() { document.getElementById("addDeviceModal")?.classList.remove("active"); }

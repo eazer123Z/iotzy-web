@@ -46,6 +46,10 @@ require_once $baseDir . '/config/database.php';
 require_once $baseDir . '/config/telegram.php';
 require_once $baseDir . '/core/helpers.php';
 
+if (!headers_sent()) {
+    header('X-IoTzy-Build: ' . APP_VERSION);
+}
+
 // Session Handler — Vercel menggunakan PersistentSession (DB-backed)
 $isVercel = getenv('VERCEL') === "1" || isset($_SERVER['VERCEL']) || isset($_ENV['VERCEL']);
 
