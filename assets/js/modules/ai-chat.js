@@ -33,10 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ── Toggle modal ── */
     chatBtn.addEventListener('click', () => {
         openModal('aiChatModal');
-        if (chatModal.classList.contains('show')) {
-            chatInput.focus();
-            loadChatHistory();
-        }
+        // Pastikan history dimuat sekali dan selalu scroll ke pesan terbaru saat modal dibuka
+        loadChatHistory();
+        chatInput.focus();
+        setTimeout(() => {
+            if (typeof chatBody.scrollHeight === 'number') {
+                chatBody.scrollTop = chatBody.scrollHeight;
+            }
+        }, 0);
     });
 
     chatClose.addEventListener('click', () => {
