@@ -12,10 +12,12 @@ function initClock() {
     const now = new Date();
     const el  = document.getElementById("clock");
     const de  = document.getElementById("date");
+    const ov  = document.getElementById("ovClock");
     if (el) el.textContent = now.toLocaleTimeString("id-ID");
     if (de) de.textContent = now
       .toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" })
       .toUpperCase();
+    if (ov) ov.textContent = now.toLocaleTimeString("id-ID", { hour12: false });
   };
   tick();
   setInterval(tick, 1000);

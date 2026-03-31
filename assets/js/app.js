@@ -158,6 +158,43 @@ function getAdaptiveSyncDelay() {
   return CONFIG.app.fullSyncInterval;
 }
 
+function isConnectionConstrained() {
+  if (typeof navigator === "undefined") return false;
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const effectiveType = String(connection?.effectiveType || "").toLowerCase();
+  return !!connection?.saveData || effectiveType === "slow-2g" || effectiveType === "2g";
+}
+
+function scheduleOptionalWarmups() {
+  if (scheduleOptionalWarmups._scheduled || scheduleOptionalWarmups._done) return;
+  scheduleOptionalWarmups._scheduled = true;
+
+  const run = () => {
+    if (typeof document !== "undefined" && document.hidden) {
+      scheduleOptionalWarmups._scheduled = false;
+      return;
+    }
+    if (isConnectionConstrained()) {
+      scheduleOptionalWarmups._scheduled = false;
+      return;
+    }
+    scheduleOptionalWarmups._done = true;
+
+    const warmups = [];
+    if (typeof ensureDeviceTemplatesLoaded === "function") warmups.push(ensureDeviceTemplatesLoaded().catch(() => {}));
+    if (typeof ensureSensorTemplatesLoaded === "function") warmups.push(ensureSensorTemplatesLoaded().catch(() => {}));
+    if (typeof ensureSchedulesLoaded === "function") warmups.push(ensureSchedulesLoaded().catch(() => {}));
+    if (typeof loadMQTTTemplates === "function") warmups.push(Promise.resolve(loadMQTTTemplates()).catch(() => {}));
+    if (warmups.length) Promise.allSettled(warmups).catch(() => {});
+  };
+
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(run, { timeout: 3500 });
+  } else {
+    setTimeout(run, 2400);
+  }
+}
+
 
 /* ============================================================
    UTILITY FUNCTIONS
@@ -844,11 +881,6 @@ function revealMainApp() {
 
 async function bootstrapDeferredServices() {
   try {
-    if (typeof ensureDeviceTemplatesLoaded === "function") ensureDeviceTemplatesLoaded().catch(() => {});
-    if (typeof ensureSensorTemplatesLoaded === "function") ensureSensorTemplatesLoaded().catch(() => {});
-    if (typeof ensureSchedulesLoaded === "function") ensureSchedulesLoaded().catch(() => {});
-    if (typeof loadMQTTTemplates === "function") loadMQTTTemplates();
-
     await Promise.allSettled([
       typeof loadCVConfig === "function" ? loadCVConfig() : Promise.resolve(),
       typeof initAutomationRules === "function" ? initAutomationRules() : Promise.resolve(),
@@ -870,13 +902,22 @@ async function bootstrapDeferredServices() {
       }
     }
 
-    syncAllFromServer(true).catch(() => {});
-
-    setTimeout(() => {
+    const startRealtimeServices = () => {
+      syncAllFromServer(true).catch(() => {});
       if (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS.mqtt_broker) {
         if (typeof connectMQTT === 'function') connectMQTT();
       }
-    }, 150);
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => {
+        setTimeout(startRealtimeServices, 120);
+      });
+    } else {
+      setTimeout(startRealtimeServices, 120);
+    }
+
+    scheduleOptionalWarmups();
   } catch (e) {
     console.warn("bootstrapDeferredServices error:", e);
   }
@@ -901,6 +942,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
+        scheduleOptionalWarmups();
         const syncContext = getSyncContext();
         syncAllFromServer(true, {
           includeAnalytics: syncContext.needsAnalytics,

@@ -49,31 +49,31 @@
   const PHP_CAMERA_SETTINGS = <?= json_encode($cameraSettings ?? []) ?>;
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
 
 <!-- Core Orchestrator -->
-<script src="<?= iotzyAssetUrl('js/app.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/performance-optimizer.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/app.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/performance-optimizer.js') ?>"></script>
 
 <!-- Modul Fungsional -->
-<script src="<?= iotzyAssetUrl('js/modules/navigation.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/overview-manager.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/mqtt-manager.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/device-manager.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/sensor-manager.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/log-manager.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/schedule-manager.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/automation-engine.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/automation-ui.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/camera-manager.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/cv-config.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/cv-detector.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/light-analyzer.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/cv-manager.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/cv-ui.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/settings-manager.js') ?>"></script>
-<script src="<?= iotzyAssetUrl('js/modules/ai-chat.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/navigation.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/overview-manager.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/mqtt-manager.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/device-manager.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/sensor-manager.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/log-manager.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/schedule-manager.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/automation-engine.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/automation-ui.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/camera-manager.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/cv-config.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/cv-detector.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/light-analyzer.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/cv-manager.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/cv-ui.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/settings-manager.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/ai-chat.js') ?>"></script>
 
 </body>
 </html>

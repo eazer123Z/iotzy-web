@@ -1,10 +1,10 @@
 const Overview = {
   init() {
-    this.startClock();
+    this.refreshClock();
     this.initChartSelect();
     this.updateDashboardRoomSummary();
   },
-  startClock() {
+  refreshClock() {
     const el = document.getElementById('ovClock');
     if (!el) return;
     const upd = () => {
@@ -12,7 +12,6 @@ const Overview = {
       el.textContent = now.toLocaleTimeString('id-ID', { hour12: false });
     };
     upd();
-    setInterval(upd, 1000);
   },
   initChartSelect() {
     const sel = document.getElementById('ovChartSensorSelect');

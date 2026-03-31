@@ -22,6 +22,14 @@ const CACHE_KEYS = {
 const PerformanceOptimizer = {
   _memoryCache: {},
 
+  shouldDeferOptionalWork() {
+    if (typeof document !== "undefined" && document.hidden) return true;
+    if (typeof navigator === "undefined") return false;
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const effectiveType = String(connection?.effectiveType || "").toLowerCase();
+    return !!connection?.saveData || effectiveType === "slow-2g" || effectiveType === "2g";
+  },
+
   /**
    * Caching Manager (Stale-While-Revalidate)
    */
@@ -88,19 +96,19 @@ const PerformanceOptimizer = {
 
     async start() {
       const kickoff = () => {
-        if (document.hidden || navigator.connection?.saveData) return;
+        if (PerformanceOptimizer.shouldDeferOptionalWork()) return;
         this.run();
       };
 
       if (typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(() => kickoff(), { timeout: 2500 });
+        window.requestIdleCallback(() => kickoff(), { timeout: 4000 });
       } else {
-        setTimeout(() => kickoff(), 2000);
+        setTimeout(() => kickoff(), 3200);
       }
     },
 
     async run() {
-      if (document.hidden || navigator.connection?.saveData) return;
+      if (PerformanceOptimizer.shouldDeferOptionalWork()) return;
       const today = new Date().toISOString().slice(0, 10);
       const tasks = [
         { action: "get_logs", data: { date: today, limit: 100 }, key: `iotzy_cache_logs_${today}` },
@@ -111,12 +119,15 @@ const PerformanceOptimizer = {
 
       for (const task of tasks) {
         if (!this._prefetched.has(task.key)) {
-          apiPost(task.action, task.data).then(res => {
+          try {
+            const res = await apiPost(task.action, task.data, { refresh: false });
             if (res) {
               PerformanceOptimizer.Cache.set(task.key, res);
               this._prefetched.add(task.key);
             }
-          }).catch(() => {});
+          } catch (_) {}
+          if (PerformanceOptimizer.shouldDeferOptionalWork()) break;
+          await new Promise((resolve) => setTimeout(resolve, 140));
         }
       }
     }

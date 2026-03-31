@@ -62,9 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
         chatBtn.classList.remove('active');
     });
 
-    // Auto-load history 2 detik setelah halaman siap
-    setTimeout(loadChatHistory, 2000);
-
     /* ════════════════════════════════════════════════════
        LOAD RIWAYAT CHAT DARI SERVER
        ════════════════════════════════════════════════════ */
