@@ -557,10 +557,12 @@ function renderDevices() {
   const keys = Object.keys(STATE.devices || {});
   grid.innerHTML = '';
   if (empty) empty.classList.toggle('hidden', keys.length > 0);
-  
-  keys.forEach((id) => {
-    grid.insertAdjacentHTML('beforeend', buildDeviceCardHTML(id, 'grid'));
-  });
+
+  if (!keys.length) {
+    return;
+  }
+
+  grid.innerHTML = keys.map((id) => buildDeviceCardHTML(id, 'grid')).join('');
 }
 
 

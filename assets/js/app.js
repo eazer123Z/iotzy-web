@@ -30,6 +30,7 @@ const CONFIG = {
   },
   app: {
     maxLogs: 500,
+    maxRenderedLogs: 180,
     liveSyncInterval: 900,
     fullSyncInterval: 2200,
     mqttLiveSyncInterval: 1600,
@@ -623,9 +624,9 @@ function onLightAnalysisUpdate(condition, brightness) {
 async function syncDevicesFromServer() {
   const data = await apiPost('get_devices');
   if (!data || !Array.isArray(data)) return;
-  const newIds = data.map(d => String(d.id));
+  const nextIdSet = new Set(data.map((device) => String(device.id)));
   Object.keys(STATE.devices).forEach(id => {
-    if (!newIds.includes(String(id))) {
+    if (!nextIdSet.has(String(id))) {
       delete STATE.devices[id];
       delete STATE.deviceStates[id];
       delete STATE.deviceTopics[id];
@@ -660,9 +661,9 @@ async function syncDevicesFromServer() {
 async function syncSensorsFromServer() {
   const data = await apiPost('get_sensors');
   if (!data || !Array.isArray(data)) return;
-  const newIds = data.map(s => String(s.id));
+  const nextIdSet = new Set(data.map((sensor) => String(sensor.id)));
   Object.keys(STATE.sensors).forEach(id => {
-    if (!newIds.includes(String(id))) {
+    if (!nextIdSet.has(String(id))) {
       delete STATE.sensors[id];
       delete STATE.sensorData[id];
       delete STATE.sensorHistory[id];
@@ -848,12 +849,14 @@ async function applySyncData(res, timestamp = Date.now()) {
   const serverDeviceIds  = (res.devices || []).map(d => String(d.id));
   const currentSensorIds = Object.keys(STATE.sensors);
   const serverSensorIds  = (res.sensors || []).map(s => String(s.id));
+  const serverDeviceIdSet = new Set(serverDeviceIds);
+  const serverSensorIdSet = new Set(serverSensorIds);
 
   const hasStructureChanged =
     currentDeviceIds.length !== serverDeviceIds.length ||
     currentSensorIds.length !== serverSensorIds.length ||
-    !currentDeviceIds.every(id => serverDeviceIds.includes(id)) ||
-    !currentSensorIds.every(id => serverSensorIds.includes(id));
+    !currentDeviceIds.every(id => serverDeviceIdSet.has(id)) ||
+    !currentSensorIds.every(id => serverSensorIdSet.has(id));
 
   if (hasStructureChanged) {
     replaceDevicesFromSnapshot(res.devices || []);
@@ -945,6 +948,15 @@ async function applySyncData(res, timestamp = Date.now()) {
   }
   if (res.camera_settings) {
     STATE.camera.settings = res.camera_settings;
+    if (typeof applyCVConfigState === "function") {
+      applyCVConfigState(res.camera_settings);
+    }
+    if (res.camera_settings.cv_rules) {
+      CV.cvRules = { ...CV.cvRules, ...res.camera_settings.cv_rules };
+      if (typeof automationEngine !== "undefined" && typeof automationEngine.updateCVRules === "function") {
+        automationEngine.updateCVRules(CV.cvRules);
+      }
+    }
     STATE.sync.lastCameraSettingsAt = timestamp;
   }
   if (res.analytics_summary) {

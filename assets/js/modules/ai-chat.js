@@ -477,7 +477,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleUIAction(action) {
         if (action === 'refresh') {
             if (typeof refreshDeviceData === 'function') refreshDeviceData();
-            if (typeof syncAllFromServer === 'function') syncAllFromServer(true);
             return;
         }
         if (action.startsWith('navigate_')) {
@@ -493,14 +492,23 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ════════════════════════════════════════════════════
        HELPER: Refresh data perangkat setelah aksi AI
        ════════════════════════════════════════════════════ */
-    function refreshDeviceData() {
-        if (typeof syncDevicesFromServer    === 'function') syncDevicesFromServer();
-        if (typeof syncSensorsFromServer    === 'function') syncSensorsFromServer();
-        if (typeof syncAutomationFromServer === 'function') syncAutomationFromServer();
-        if (typeof syncCVConfigFromServer   === 'function') syncCVConfigFromServer();
-        ['fetchOverviewData', 'refreshDevices', 'loadDashboard'].forEach(fn => {
-            if (typeof window[fn] === 'function') { try { window[fn](); } catch {} }
-        });
+    async function refreshDeviceData() {
+        if (typeof syncAllFromServer === 'function') {
+            await syncAllFromServer(true, {
+                includeAnalytics: true,
+                includeCamera: true,
+                includeCameraSettings: true,
+            });
+            if (typeof syncAutomationFromServer === 'function') {
+                await syncAutomationFromServer();
+            }
+            return;
+        }
+
+        if (typeof syncDevicesFromServer === 'function') await syncDevicesFromServer();
+        if (typeof syncSensorsFromServer === 'function') await syncSensorsFromServer();
+        if (typeof syncAutomationFromServer === 'function') await syncAutomationFromServer();
+        if (typeof syncCVConfigFromServer === 'function') await syncCVConfigFromServer();
     }
 
 });

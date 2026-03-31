@@ -6,7 +6,7 @@ require_once __DIR__ . '/../core/UserDataService.php';
 function handleDeviceAction(string $action, int $userId, array $body, PDO $db): void
 {
     if ($action === 'get_devices') {
-        jsonOut(getUserDevices($userId));
+        jsonOut(getUserDevicesClientPayload($userId, $db));
     }
 
     if ($action === 'get_device_templates') {

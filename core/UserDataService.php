@@ -547,9 +547,9 @@ function resolveSensorTemplate(PDO $db, mixed $templateId = null, ?string $templ
     return $inferred ? iotzyFetchTemplateBySlug($db, 'sensor_templates', $inferred) : null;
 }
 
-function getUserDevices(int $userId): array
+function getUserDevices(int $userId, ?PDO $db = null): array
 {
-    $db = getLocalDB();
+    $db = $db ?: getLocalDB();
     if (!$db) {
         return [];
     }
@@ -564,7 +564,7 @@ function getUserDevices(int $userId): array
                 COALESCE(NULLIF(d.state_off_label, ''), dt.state_off_label, 'OFF') AS resolved_state_off_label,
                 d.is_active, d.last_state, d.latest_state, d.last_seen, d.last_state_changed, d.created_at,
                 dt.slug AS template_slug, dt.name AS template_name, dt.device_type AS template_device_type,
-                dt.control_mode, dt.default_icon AS template_default_icon, dt.meta AS template_meta
+                dt.control_mode, dt.default_icon AS template_default_icon
             FROM devices d
             LEFT JOIN device_templates dt ON dt.id = d.device_template_id
             WHERE d.user_id = ?
@@ -582,7 +582,6 @@ function getUserDevices(int $userId): array
             $row['is_active'] = (int)$row['is_active'];
             $row['last_state'] = (int)$row['last_state'];
             $row['latest_state'] = (int)$row['latest_state'];
-            $row['template_meta'] = iotzyJsonDecode($row['template_meta'], []);
             $row['model_label'] = $row['template_name'] ?: ucwords(str_replace('_', ' ', (string)$row['type']));
         }
         unset($row);
@@ -593,9 +592,9 @@ function getUserDevices(int $userId): array
     }
 }
 
-function getUserSensors(int $userId): array
+function getUserSensors(int $userId, ?PDO $db = null): array
 {
-    $db = getLocalDB();
+    $db = $db ?: getLocalDB();
     if (!$db) {
         return [];
     }
@@ -607,9 +606,9 @@ function getUserSensors(int $userId): array
                 COALESCE(NULLIF(s.unit, ''), st.default_unit, '') AS unit,
                 s.topic, s.latest_value, s.last_seen, s.created_at,
                 d.name AS device_name, d.device_key, d.type AS device_type,
-                st.slug AS template_slug, st.family AS template_family, st.metric AS template_metric,
+                st.slug AS template_slug, st.metric AS template_metric,
                 st.name AS template_name, st.sensor_type AS template_sensor_type,
-                st.output_kind, st.supports_device_link, st.is_power_metric
+                st.is_power_metric
             FROM sensors s
             LEFT JOIN devices d ON d.id = s.device_id
             LEFT JOIN sensor_templates st ON st.id = s.sensor_template_id
@@ -626,7 +625,6 @@ function getUserSensors(int $userId): array
             $row['user_id'] = (int)$row['user_id'];
             $row['device_id'] = $row['device_id'] !== null ? (int)$row['device_id'] : null;
             $row['sensor_template_id'] = $row['sensor_template_id'] !== null ? (int)$row['sensor_template_id'] : null;
-            $row['supports_device_link'] = (int)($row['supports_device_link'] ?? 0);
             $row['is_power_metric'] = (int)($row['is_power_metric'] ?? 0);
             $row['latest_value'] = $row['latest_value'] !== null ? (float)$row['latest_value'] : null;
             $row['model_label'] = $row['template_name'] ?: ucwords(str_replace('_', ' ', (string)$row['type']));
@@ -637,6 +635,75 @@ function getUserSensors(int $userId): array
     } catch (PDOException $e) {
         return [];
     }
+}
+
+function iotzyBuildDeviceClientPayload(array $device): array
+{
+    return [
+        'id' => isset($device['id']) ? (int)$device['id'] : 0,
+        'device_template_id' => isset($device['device_template_id']) && $device['device_template_id'] !== null ? (int)$device['device_template_id'] : null,
+        'device_key' => $device['device_key'] ?? null,
+        'name' => $device['name'] ?? '',
+        'icon' => $device['icon'] ?? 'fa-plug',
+        'type' => $device['type'] ?? 'switch',
+        'topic_sub' => $device['topic_sub'] ?? '',
+        'topic_pub' => $device['topic_pub'] ?? '',
+        'control_value' => $device['control_value'] ?? null,
+        'control_text' => $device['control_text'] ?? null,
+        'state_on_label' => $device['state_on_label'] ?? null,
+        'state_off_label' => $device['state_off_label'] ?? null,
+        'resolved_state_on_label' => $device['resolved_state_on_label'] ?? 'ON',
+        'resolved_state_off_label' => $device['resolved_state_off_label'] ?? 'OFF',
+        'is_active' => isset($device['is_active']) ? (int)$device['is_active'] : 0,
+        'last_state' => isset($device['last_state']) ? (int)$device['last_state'] : 0,
+        'latest_state' => isset($device['latest_state']) ? (int)$device['latest_state'] : 0,
+        'last_seen' => $device['last_seen'] ?? null,
+        'last_state_changed' => $device['last_state_changed'] ?? null,
+        'created_at' => $device['created_at'] ?? null,
+        'template_slug' => $device['template_slug'] ?? null,
+        'template_name' => $device['template_name'] ?? null,
+        'template_device_type' => $device['template_device_type'] ?? null,
+        'template_default_icon' => $device['template_default_icon'] ?? null,
+        'control_mode' => $device['control_mode'] ?? 'binary',
+        'model_label' => $device['model_label'] ?? ($device['name'] ?? ''),
+    ];
+}
+
+function getUserDevicesClientPayload(int $userId, ?PDO $db = null): array
+{
+    return array_map('iotzyBuildDeviceClientPayload', getUserDevices($userId, $db));
+}
+
+function iotzyBuildSensorClientPayload(array $sensor): array
+{
+    return [
+        'id' => isset($sensor['id']) ? (int)$sensor['id'] : 0,
+        'device_id' => isset($sensor['device_id']) && $sensor['device_id'] !== null ? (int)$sensor['device_id'] : null,
+        'sensor_template_id' => isset($sensor['sensor_template_id']) && $sensor['sensor_template_id'] !== null ? (int)$sensor['sensor_template_id'] : null,
+        'sensor_key' => $sensor['sensor_key'] ?? null,
+        'name' => $sensor['name'] ?? '',
+        'type' => $sensor['type'] ?? 'sensor',
+        'icon' => $sensor['icon'] ?? 'fa-microchip',
+        'unit' => $sensor['unit'] ?? '',
+        'topic' => $sensor['topic'] ?? '',
+        'latest_value' => array_key_exists('latest_value', $sensor) && $sensor['latest_value'] !== null ? (float)$sensor['latest_value'] : null,
+        'last_seen' => $sensor['last_seen'] ?? null,
+        'created_at' => $sensor['created_at'] ?? null,
+        'device_name' => $sensor['device_name'] ?? null,
+        'device_key' => $sensor['device_key'] ?? null,
+        'device_type' => $sensor['device_type'] ?? null,
+        'template_slug' => $sensor['template_slug'] ?? null,
+        'template_metric' => $sensor['template_metric'] ?? null,
+        'template_name' => $sensor['template_name'] ?? null,
+        'template_sensor_type' => $sensor['template_sensor_type'] ?? null,
+        'is_power_metric' => isset($sensor['is_power_metric']) ? (int)$sensor['is_power_metric'] : 0,
+        'model_label' => $sensor['model_label'] ?? ($sensor['name'] ?? ''),
+    ];
+}
+
+function getUserSensorsClientPayload(int $userId, ?PDO $db = null): array
+{
+    return array_map('iotzyBuildSensorClientPayload', getUserSensors($userId, $db));
 }
 
 function iotzyDefaultCvState(): array
@@ -840,11 +907,9 @@ function iotzyIsUserFacingLog(array $log): bool
     return trim((string)($log['activity'] ?? '')) !== '';
 }
 
-function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = null, ?array $devices = null, ?array $sensors = null): array
+function iotzyBuildAnalyticsDefaults(string $date): array
 {
-    $db = $db ?: getLocalDB();
-    $date = iotzyNormalizeAnalyticsDate($date);
-    $defaults = [
+    return [
         'date' => $date,
         'summary' => [
             'total_logs' => 0,
@@ -864,6 +929,13 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
         'devices' => [],
         'recent_logs' => [],
     ];
+}
+
+function getDailyAnalyticsHeadlineSummary(int $userId, ?string $date = null, ?PDO $db = null, ?array $devices = null, ?array $sensors = null): array
+{
+    $db = $db ?: getLocalDB();
+    $date = iotzyNormalizeAnalyticsDate($date);
+    $defaults = iotzyBuildAnalyticsDefaults($date);
 
     if (!$db) {
         return $defaults;
@@ -874,8 +946,213 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
     $dayStartTs = strtotime($start);
     $dayEndTs = strtotime($end);
 
-    $devices = $devices ?? getUserDevices($userId);
-    $sensors = $sensors ?? getUserSensors($userId);
+    $devices = $devices ?? getUserDevices($userId, $db);
+    $sensors = $sensors ?? getUserSensors($userId, $db);
+    $summary = $defaults['summary'];
+    $summary['devices_total'] = count($devices);
+
+    $deviceMap = [];
+    foreach ($devices as $device) {
+        $deviceMap[(int)$device['id']] = [
+            'active_duration_seconds' => 0,
+            'on_events' => 0,
+            'off_events' => 0,
+            'latest_power_watts' => 0.0,
+            'energy_wh' => 0.0,
+            'has_power_data' => false,
+        ];
+    }
+
+    $logsStmt = $db->prepare(
+        "SELECT device_id, activity
+         FROM activity_logs
+         WHERE user_id = ? AND created_at >= ? AND created_at < ?
+           AND (
+             device_id IS NOT NULL
+             OR sensor_id IS NOT NULL
+             OR (
+               LOWER(device_name) NOT IN ('system', 'mqtt')
+               AND LOWER(trigger_type) <> 'system'
+               AND activity <> ''
+             )
+           )
+         ORDER BY created_at DESC"
+    );
+    $logsStmt->execute([$userId, $start, $end]);
+    foreach ($logsStmt->fetchAll(PDO::FETCH_ASSOC) as $log) {
+        $summary['total_logs']++;
+        $deviceId = $log['device_id'] !== null ? (int)$log['device_id'] : null;
+        if (!$deviceId || !isset($deviceMap[$deviceId])) {
+            continue;
+        }
+        if (preg_match('/\b(on|dinyalakan|nyala|aktif|open)\b/i', (string)$log['activity'])) {
+            $deviceMap[$deviceId]['on_events']++;
+        }
+        if (preg_match('/\b(off|dimatikan|mati|lock|terkunci)\b/i', (string)$log['activity'])) {
+            $deviceMap[$deviceId]['off_events']++;
+        }
+    }
+
+    $sessionsStmt = $db->prepare(
+        "SELECT device_id, turned_on_at, turned_off_at, energy_wh, latest_power_watts
+         FROM device_sessions
+         WHERE user_id = ?
+           AND turned_on_at < ?
+           AND COALESCE(turned_off_at, ?) >= ?
+         ORDER BY turned_on_at ASC"
+    );
+    $sessionsStmt->execute([$userId, $end, $end, $start]);
+    foreach ($sessionsStmt->fetchAll(PDO::FETCH_ASSOC) as $session) {
+        $deviceId = (int)$session['device_id'];
+        if (!isset($deviceMap[$deviceId])) {
+            continue;
+        }
+
+        $onTs = strtotime($session['turned_on_at']);
+        $offTs = $session['turned_off_at'] ? strtotime($session['turned_off_at']) : $dayEndTs;
+        $overlapStart = max($onTs, $dayStartTs);
+        $overlapEnd = min($offTs, $dayEndTs);
+        $duration = max(0, $overlapEnd - $overlapStart);
+
+        $deviceMap[$deviceId]['active_duration_seconds'] += $duration;
+        if ($session['energy_wh'] !== null) {
+            $deviceMap[$deviceId]['energy_wh'] += (float)$session['energy_wh'];
+            $deviceMap[$deviceId]['has_power_data'] = true;
+        }
+        if ($session['latest_power_watts'] !== null) {
+            $deviceMap[$deviceId]['latest_power_watts'] = max(
+                (float)$deviceMap[$deviceId]['latest_power_watts'],
+                (float)$session['latest_power_watts']
+            );
+            $deviceMap[$deviceId]['has_power_data'] = true;
+        }
+    }
+
+    $powerSensors = array_values(array_filter($sensors, static function (array $sensor): bool {
+        return !empty($sensor['device_id'])
+            && (((string)($sensor['template_metric'] ?? '')) === 'power'
+            || ((string)($sensor['template_slug'] ?? '')) === 'ina219_power'
+            || ((string)$sensor['type']) === 'power');
+    }));
+
+    if ($powerSensors) {
+        $sensorIds = array_map(static fn(array $sensor): int => (int)$sensor['id'], $powerSensors);
+        $placeholders = implode(',', array_fill(0, count($sensorIds), '?'));
+        $readingsStmt = $db->prepare(
+            "SELECT sensor_id, value, recorded_at
+             FROM sensor_readings
+             WHERE sensor_id IN ($placeholders) AND recorded_at >= ? AND recorded_at < ?
+             ORDER BY sensor_id ASC, recorded_at ASC"
+        );
+        $readingsStmt->execute(array_merge($sensorIds, [$start, $end]));
+        $grouped = [];
+        $sensorPowerByDevice = [];
+        foreach ($readingsStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $grouped[(int)$row['sensor_id']][] = [
+                'value' => (float)$row['value'],
+                'ts' => strtotime($row['recorded_at']),
+            ];
+        }
+
+        foreach ($powerSensors as $sensor) {
+            $deviceId = (int)$sensor['device_id'];
+            if (!isset($deviceMap[$deviceId])) {
+                continue;
+            }
+
+            $series = $grouped[(int)$sensor['id']] ?? [];
+            if (!$series && $sensor['latest_value'] !== null) {
+                $series[] = [
+                    'value' => (float)$sensor['latest_value'],
+                    'ts' => $dayEndTs,
+                ];
+            }
+            if (!$series) {
+                continue;
+            }
+
+            $latestValue = (float)$series[count($series) - 1]['value'];
+            $energyWh = 0.0;
+            if (count($series) > 1) {
+                for ($i = 1, $len = count($series); $i < $len; $i++) {
+                    $prev = $series[$i - 1];
+                    $curr = $series[$i];
+                    $hours = max(0, $curr['ts'] - $prev['ts']) / 3600;
+                    $energyWh += (($prev['value'] + $curr['value']) / 2) * $hours;
+                }
+            }
+
+            if (!isset($sensorPowerByDevice[$deviceId])) {
+                $sensorPowerByDevice[$deviceId] = [
+                    'latest_power_watts' => 0.0,
+                    'energy_wh' => 0.0,
+                ];
+            }
+            $sensorPowerByDevice[$deviceId]['latest_power_watts'] += $latestValue;
+            if ($energyWh > 0) {
+                $sensorPowerByDevice[$deviceId]['energy_wh'] += $energyWh;
+            }
+        }
+
+        foreach ($sensorPowerByDevice as $deviceId => $powerData) {
+            if (!isset($deviceMap[$deviceId])) {
+                continue;
+            }
+            $deviceMap[$deviceId]['latest_power_watts'] = $powerData['latest_power_watts'];
+            if ($powerData['energy_wh'] > 0) {
+                $deviceMap[$deviceId]['energy_wh'] = $powerData['energy_wh'];
+            }
+            $deviceMap[$deviceId]['has_power_data'] = true;
+        }
+    }
+
+    foreach ($deviceMap as $device) {
+        $summary['device_on_events'] += (int)$device['on_events'];
+        $summary['device_off_events'] += (int)$device['off_events'];
+        $summary['total_duration_seconds'] += (int)$device['active_duration_seconds'];
+        $summary['total_energy_wh'] += (float)$device['energy_wh'];
+
+        if ((int)$device['active_duration_seconds'] > 0) {
+            $summary['devices_active_today']++;
+        }
+        if ($device['has_power_data']) {
+            $summary['power_devices']++;
+            $summary['current_power_watts'] += (float)$device['latest_power_watts'];
+        }
+    }
+
+    $summary['devices_idle_today'] = max(0, $summary['devices_total'] - $summary['devices_active_today']);
+    $summary['total_duration_human'] = iotzyHumanDuration((int)$summary['total_duration_seconds']);
+    $summary['total_energy_wh'] = round((float)$summary['total_energy_wh'], 3);
+    $summary['total_energy_kwh'] = round(((float)$summary['total_energy_wh']) / 1000, 4);
+    $summary['current_power_watts'] = round((float)$summary['current_power_watts'], 3);
+
+    return [
+        'date' => $date,
+        'summary' => $summary,
+        'timeline' => $defaults['timeline'],
+        'devices' => [],
+        'recent_logs' => [],
+    ];
+}
+
+function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = null, ?array $devices = null, ?array $sensors = null): array
+{
+    $db = $db ?: getLocalDB();
+    $date = iotzyNormalizeAnalyticsDate($date);
+    $defaults = iotzyBuildAnalyticsDefaults($date);
+
+    if (!$db) {
+        return $defaults;
+    }
+
+    $start = $date . ' 00:00:00';
+    $end = date('Y-m-d H:i:s', strtotime($start . ' +1 day'));
+    $dayStartTs = strtotime($start);
+    $dayEndTs = strtotime($end);
+
+    $devices = $devices ?? getUserDevices($userId, $db);
+    $sensors = $sensors ?? getUserSensors($userId, $db);
     $deviceMap = [];
 
     foreach ($devices as $device) {
@@ -1004,7 +1281,7 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
         $deviceMap[$deviceId]['active_duration_seconds'] += $duration;
         $deviceMap[$deviceId]['session_count']++;
 
-        if ($deviceMap[$deviceId]['energy_wh'] <= 0 && $session['energy_wh'] !== null) {
+        if ($session['energy_wh'] !== null) {
             $deviceMap[$deviceId]['energy_wh'] += (float)$session['energy_wh'];
         }
         if ($session['latest_power_watts'] !== null) {
@@ -1046,6 +1323,7 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
         $readingsStmt->execute(array_merge($sensorIds, [$start, $end]));
         $rows = $readingsStmt->fetchAll(PDO::FETCH_ASSOC);
         $grouped = [];
+        $sensorPowerByDevice = [];
         foreach ($rows as $row) {
             $grouped[(int)$row['sensor_id']][] = [
                 'value' => (float)$row['value'],
@@ -1077,12 +1355,46 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
             }
 
             if ($values) {
-                $deviceMap[$deviceId]['latest_power_watts'] = end($values);
-                $deviceMap[$deviceId]['avg_power_watts'] = array_sum($values) / count($values);
-                $deviceMap[$deviceId]['peak_power_watts'] = max($values);
+                if (!isset($sensorPowerByDevice[$deviceId])) {
+                    $sensorPowerByDevice[$deviceId] = [
+                        'latest_power_watts' => 0.0,
+                        'avg_power_watts' => 0.0,
+                        'peak_power_watts' => 0.0,
+                        'energy_wh' => 0.0,
+                    ];
+                }
+                $sensorPowerByDevice[$deviceId]['latest_power_watts'] += (float)end($values);
+                $sensorPowerByDevice[$deviceId]['avg_power_watts'] += (array_sum($values) / count($values));
+                $sensorPowerByDevice[$deviceId]['peak_power_watts'] = max(
+                    $sensorPowerByDevice[$deviceId]['peak_power_watts'],
+                    (float)max($values)
+                );
             }
             if ($energyWh > 0) {
-                $deviceMap[$deviceId]['energy_wh'] = $energyWh;
+                if (!isset($sensorPowerByDevice[$deviceId])) {
+                    $sensorPowerByDevice[$deviceId] = [
+                        'latest_power_watts' => 0.0,
+                        'avg_power_watts' => 0.0,
+                        'peak_power_watts' => 0.0,
+                        'energy_wh' => 0.0,
+                    ];
+                }
+                $sensorPowerByDevice[$deviceId]['energy_wh'] += $energyWh;
+            }
+        }
+
+        foreach ($sensorPowerByDevice as $deviceId => $powerData) {
+            if (!isset($deviceMap[$deviceId])) {
+                continue;
+            }
+            $deviceMap[$deviceId]['latest_power_watts'] = $powerData['latest_power_watts'];
+            $deviceMap[$deviceId]['avg_power_watts'] = $powerData['avg_power_watts'];
+            $deviceMap[$deviceId]['peak_power_watts'] = max(
+                (float)($deviceMap[$deviceId]['peak_power_watts'] ?? 0),
+                $powerData['peak_power_watts']
+            );
+            if ($powerData['energy_wh'] > 0) {
+                $deviceMap[$deviceId]['energy_wh'] = $powerData['energy_wh'];
             }
         }
     }

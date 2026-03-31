@@ -153,8 +153,10 @@ function updateLogDisplay() {
     return;
   }
 
+  const maxRows = CONFIG?.app?.maxRenderedLogs || 180;
+  const renderedRows = filtered.slice(0, maxRows);
   let html = '<table class="log-table"><thead><tr><th>Waktu</th><th>Perangkat</th><th>Aktivitas</th></tr></thead><tbody>';
-  filtered.forEach((log) => {
+  renderedRows.forEach((log) => {
     html += `<tr>
       <td class="log-time">${escHtml(log.waktu)}</td>
       <td class="log-dev">${escHtml(log.device)}</td>
@@ -162,6 +164,11 @@ function updateLogDisplay() {
     </tr>`;
   });
   html += '</tbody></table>';
+  if (filtered.length > renderedRows.length) {
+    html += `<div class="muted" style="padding:10px 4px 0; font-size:12px">
+      Menampilkan ${renderedRows.length} dari ${filtered.length} log terbaru agar halaman tetap ringan.
+    </div>`;
+  }
   container.innerHTML = html;
 }
 
@@ -196,57 +203,69 @@ function renderAnalyticsCharts() {
   const deviceCanvas = document.getElementById("analyticsDeviceChart");
   if (!timelineCanvas || !deviceCanvas) return;
 
-  destroyChart("timeline");
-  destroyChart("devices");
-
   const timeline = STATE.analytics.timeline || [];
-  LOG_CHARTS.timeline = new Chart(timelineCanvas.getContext("2d"), {
-    type: "line",
-    data: {
-      labels: Array.from({ length: 24 }, (_, hour) => `${hour}:00`),
-      datasets: [{
-        label: "Aktivitas",
-        data: timeline,
-        borderColor: "#38bdf8",
-        backgroundColor: "rgba(56,189,248,0.18)",
-        borderWidth: 2,
-        fill: true,
-        tension: 0.32,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
-        y: { ticks: { color: "#94a3b8", precision: 0 }, grid: { color: "rgba(148,163,184,0.08)" } },
+  const timelineLabels = Array.from({ length: 24 }, (_, hour) => `${hour}:00`);
+  if (LOG_CHARTS.timeline) {
+    LOG_CHARTS.timeline.data.labels = timelineLabels;
+    LOG_CHARTS.timeline.data.datasets[0].data = timeline;
+    LOG_CHARTS.timeline.update("none");
+  } else {
+    LOG_CHARTS.timeline = new Chart(timelineCanvas.getContext("2d"), {
+      type: "line",
+      data: {
+        labels: timelineLabels,
+        datasets: [{
+          label: "Aktivitas",
+          data: timeline,
+          borderColor: "#38bdf8",
+          backgroundColor: "rgba(56,189,248,0.18)",
+          borderWidth: 2,
+          fill: true,
+          tension: 0.32,
+        }],
       },
-    },
-  });
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,0.08)" } },
+          y: { ticks: { color: "#94a3b8", precision: 0 }, grid: { color: "rgba(148,163,184,0.08)" } },
+        },
+      },
+    });
+  }
 
   const devices = (STATE.analytics.devices || []).slice(0, 8);
-  LOG_CHARTS.devices = new Chart(deviceCanvas.getContext("2d"), {
-    type: "bar",
-    data: {
-      labels: devices.map((device) => device.name),
-      datasets: [{
-        label: "Menit aktif",
-        data: devices.map((device) => Math.round((device.active_duration_seconds || 0) / 60)),
-        backgroundColor: ["#22c55e", "#38bdf8", "#f59e0b", "#60a5fa", "#ef4444", "#14b8a6", "#f97316", "#7dd3fc"],
-        borderRadius: 10,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
-        y: { ticks: { color: "#94a3b8", precision: 0 }, grid: { color: "rgba(148,163,184,0.08)" } },
+  const deviceLabels = devices.map((device) => device.name);
+  const deviceMinutes = devices.map((device) => Math.round((device.active_duration_seconds || 0) / 60));
+  if (LOG_CHARTS.devices) {
+    LOG_CHARTS.devices.data.labels = deviceLabels;
+    LOG_CHARTS.devices.data.datasets[0].data = deviceMinutes;
+    LOG_CHARTS.devices.update("none");
+  } else {
+    LOG_CHARTS.devices = new Chart(deviceCanvas.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: deviceLabels,
+        datasets: [{
+          label: "Menit aktif",
+          data: deviceMinutes,
+          backgroundColor: ["#22c55e", "#38bdf8", "#f59e0b", "#60a5fa", "#ef4444", "#14b8a6", "#f97316", "#7dd3fc"],
+          borderRadius: 10,
+        }],
       },
-    },
-  });
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
+          y: { ticks: { color: "#94a3b8", precision: 0 }, grid: { color: "rgba(148,163,184,0.08)" } },
+        },
+      },
+    });
+  }
 }
 
 function renderAnalyticsDevices() {
