@@ -10,8 +10,8 @@
     <div class="camera-panel">
       
       <div class="camera-controls-top" style="display:flex; gap:10px; margin-bottom:16px; align-items:center; flex-wrap:wrap">
-        <select id="cameraSelect" class="form-select" onchange="switchCamera(this.value)" style="flex:1; min-width:200px; padding:8px 14px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text)">
-          <option value="">Deteksi Kamera...</option>
+        <select id="cameraSelect" class="form-select" onchange="switchCamera(this.value)" style="flex:1 1 260px; min-width:220px; padding:8px 14px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text)">
+          <option value="">Memuat daftar kamera...</option>
         </select>
         <button id="btnStartCam" class="btn-primary btn-sm" onclick="startCamera()">
           <i class="fas fa-play"></i> Mulai Kamera

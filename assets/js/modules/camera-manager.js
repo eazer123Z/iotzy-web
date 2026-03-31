@@ -9,28 +9,64 @@ async function getUserMediaCompat(constraints) {
   throw new Error("Kamera tidak didukung di lingkungan ini");
 }
 
-async function listCameraDevices() {
+function getCameraListHint(error = null) {
+  if (!navigator.mediaDevices?.enumerateDevices) {
+    return "Browser ini belum mendukung daftar kamera";
+  }
+  if (error) {
+    if (!window.isSecureContext) {
+      return "Kamera butuh HTTPS atau localhost";
+    }
+    return "Izinkan akses kamera untuk melihat daftar";
+  }
+  return "Kamera default browser";
+}
+
+async function listCameraDevices(options = {}) {
+  const ensureLabels = !!options.ensureLabels;
+  let tempStream = null;
   try {
-    const tempStream = await getUserMediaCompat({ video: true });
-    const devices = navigator.mediaDevices?.enumerateDevices ? await navigator.mediaDevices.enumerateDevices() : [];
-    STATE.camera.availableDevices = devices.filter((device) => device.kind === "videoinput");
-    tempStream.getTracks().forEach((track) => track.stop());
+    let devices = navigator.mediaDevices?.enumerateDevices ? await navigator.mediaDevices.enumerateDevices() : [];
+    let cameras = devices.filter((device) => device.kind === "videoinput");
+
+    const needsPermissionPass = ensureLabels && cameras.some((device) => !device.label);
+    if (needsPermissionPass) {
+      tempStream = await getUserMediaCompat({ video: true });
+      devices = navigator.mediaDevices?.enumerateDevices ? await navigator.mediaDevices.enumerateDevices() : [];
+      cameras = devices.filter((device) => device.kind === "videoinput");
+    }
+
+    STATE.camera.availableDevices = cameras;
+    STATE.camera.listError = "";
+    if (STATE.camera.selectedDeviceId && !cameras.some((device) => device.deviceId === STATE.camera.selectedDeviceId)) {
+      STATE.camera.selectedDeviceId = cameras[0]?.deviceId || null;
+    }
     renderCameraDeviceSelect();
     return STATE.camera.availableDevices;
   } catch (error) {
     console.error("Gagal list kamera:", error);
+    STATE.camera.availableDevices = [];
+    STATE.camera.listError = error?.message || "unknown";
+    renderCameraDeviceSelect(error);
     return [];
+  } finally {
+    if (tempStream) {
+      tempStream.getTracks().forEach((track) => track.stop());
+    }
   }
 }
 
-function renderCameraDeviceSelect() {
+function renderCameraDeviceSelect(error = null) {
   const select = document.getElementById("cameraSelect");
   if (!select) return;
   const devices = STATE.camera.availableDevices || [];
-  select.innerHTML = `<option value="">Kamera default</option>` + devices.map((device, index) => {
+  const hint = getCameraListHint(error || STATE.camera.listError);
+  const placeholderLabel = devices.length ? "Pilih kamera browser" : hint;
+  select.innerHTML = `<option value="">${escHtml(placeholderLabel)}</option>` + devices.map((device, index) => {
     const selected = device.deviceId === STATE.camera.selectedDeviceId ? " selected" : "";
     return `<option value="${device.deviceId}"${selected}>${escHtml(device.label || `Kamera ${index + 1}`)}</option>`;
   }).join("");
+  select.disabled = !devices.length && !navigator.mediaDevices?.getUserMedia;
 }
 
 async function startCamera() {
@@ -38,19 +74,24 @@ async function startCamera() {
     if (STATE.camera.stream) {
       STATE.camera.stream.getTracks().forEach((track) => track.stop());
     }
-    const constraints = STATE.camera.selectedDeviceId
+    const hasExplicitDevice = !!STATE.camera.selectedDeviceId
+      && (STATE.camera.availableDevices || []).some((device) => device.deviceId === STATE.camera.selectedDeviceId);
+    const constraints = hasExplicitDevice
       ? { video: { deviceId: { exact: STATE.camera.selectedDeviceId } } }
-      : { video: { facingMode: "environment" } };
+      : { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } };
     const stream = await getUserMediaCompat(constraints);
     STATE.camera.stream = stream;
     STATE.camera.active = true;
+    STATE.camera.listError = "";
     updateCameraElements(true);
     toggleCameraButtons(true);
     toggleCVActionButtons();
-    await listCameraDevices();
+    await listCameraDevices({ ensureLabels: true });
     return true;
   } catch (error) {
     showToast(`Gagal akses kamera: ${error.message}`, "error");
+    STATE.camera.listError = error?.message || "unknown";
+    renderCameraDeviceSelect(error);
     return false;
   }
 }
@@ -110,10 +151,10 @@ function openCameraSelector() {
   if (!modal || !list) return;
   modal.classList.add("active");
   list.innerHTML = "<div class='modal-item'>Mencari kamera...</div>";
-  listCameraDevices().then((devices) => {
+  listCameraDevices({ ensureLabels: false }).then((devices) => {
     list.innerHTML = "";
     if (!devices.length) {
-      list.innerHTML = "<div class='modal-item'>Kamera browser default siap dipakai.</div>";
+      list.innerHTML = `<div class='modal-item'>${escHtml(getCameraListHint(STATE.camera.listError))}</div>`;
       return;
     }
     devices.forEach((device, index) => {
@@ -167,3 +208,10 @@ function updateCameraElements(isActive) {
 
   toggleCVActionButtons();
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  renderCameraDeviceSelect();
+  if (window.isSecureContext || /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)) {
+    listCameraDevices({ ensureLabels: false }).catch(() => {});
+  }
+});

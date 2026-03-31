@@ -126,6 +126,9 @@ function switchPage(page, el) {
       const c    = document.getElementById("cvOverlayCanvas");
       const cont = document.getElementById("cameraFocusContainer");
       if (c && cont) { c.width = cont.clientWidth; c.height = cont.clientHeight; }
+      if (typeof listCameraDevices === "function") {
+        listCameraDevices({ ensureLabels: false }).catch(() => {});
+      }
       if (typeof cvUI !== "undefined") {
         if (typeof cvUI.initialize === "function") cvUI.initialize();
         if (typeof cvUI.renderAutomationSettings === "function") cvUI.renderAutomationSettings();

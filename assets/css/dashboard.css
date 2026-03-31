@@ -628,6 +628,19 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
     gap:16px;
 }
 
+.camera-controls-top > *{
+    min-width:0;
+}
+
+.camera-controls-top .form-select{
+    flex:1 1 260px;
+}
+
+.camera-controls-top button{
+    flex:0 0 auto;
+    white-space:nowrap;
+}
+
 .camera-feed{
     position:relative;
     width:100%;
@@ -943,6 +956,8 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
   .topbar{padding:0 16px}
   .ai-chat-btn{bottom:calc(var(--bottom-nav-h) + 16px)}
   .ai-chat-modal{bottom:calc(var(--bottom-nav-h) + 76px);right:12px;left:12px;width:auto}
+  .camera-controls-top .form-select{flex:1 1 100%;min-width:0}
+  .camera-controls-top button{flex:1 1 calc(50% - 5px);justify-content:center}
   
   .stats-grid{grid-template-columns: 1fr 1fr; gap: 12px;}
   .stat-card{padding: 14px; gap: 10px;}
