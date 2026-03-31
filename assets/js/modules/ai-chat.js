@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     brightness: STATE.cv?.brightness || 0,
                     lightCondition: STATE.cv?.lightCondition || 'unknown'
                 } : null
-            });
+            }, { key: `ai_chat_${Date.now()}`, timeout: FETCH_TIMEOUT_MS, refresh: false });
             
             clearTimeout(timeoutId);
             loadingBubble.remove();
@@ -203,9 +203,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (typeof syncAllFromServer === 'function') syncAllFromServer(true);
 
             } else {
-                // Error dari server tapi HTTP OK
-                const errMsg = data.error || 'Terjadi kesalahan yang tidak diketahui.';
-                appendMessage(`⚠️ ${errMsg}`, 'bot error');
+                const raw = String(data && data.error || '');
+                const friendly = /aborted/i.test(raw)
+                  ? '⏳ Koneksi dibatalkan sebelum jawaban selesai. Coba kirim ulang pesan, atau tunggu sebentar.'
+                  : (raw || 'Terjadi kesalahan yang tidak diketahui.');
+                appendMessage(friendly, 'bot error');
             }
 
         } catch (err) {
