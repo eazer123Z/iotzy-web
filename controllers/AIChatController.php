@@ -63,6 +63,17 @@ function iotzyHandleAiControllerFailure(string $action, \Throwable $e, string $m
     jsonOut(['success' => false, 'error' => $message]);
 }
 
+function iotzyDefaultAiTokenMetrics(): array
+{
+    return [
+        'prompt_tokens' => 0,
+        'history_tokens' => 0,
+        'context_tokens' => 0,
+        'response_tokens' => 0,
+        'total_requests' => 0,
+    ];
+}
+
 function handleAIChatAction(string $action, int $userId, array $body, PDO $db): void
 {
     try {
@@ -113,21 +124,27 @@ function handleAIChatAction(string $action, int $userId, array $body, PDO $db): 
         }
 
         if ($action === 'get_ai_token_metrics') {
-            $stmt = $db->prepare("SELECT prompt_tokens,history_tokens,context_tokens,response_tokens,created_at FROM ai_token_metrics WHERE user_id=? ORDER BY created_at DESC LIMIT 100");
-            $stmt->execute([$userId]);
-            $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
-            $summary = [
-                'prompt_tokens' => 0,
-                'history_tokens' => 0,
-                'context_tokens' => 0,
-                'response_tokens' => 0,
-                'total_requests' => count($rows),
-            ];
+            try {
+                $stmt = $db->prepare("SELECT prompt_tokens,history_tokens,context_tokens,response_tokens,created_at FROM ai_token_metrics WHERE user_id=? ORDER BY created_at DESC LIMIT 100");
+                $stmt->execute([$userId]);
+                $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
+            } catch (\PDOException $e) {
+                error_log('[IoTzy AI Controller] get_ai_token_metrics fallback: ' . $e->getMessage());
+                jsonOut([
+                    'success' => true,
+                    'summary' => iotzyDefaultAiTokenMetrics(),
+                    'rows' => [],
+                    'available' => false,
+                ]);
+            }
+
+            $summary = iotzyDefaultAiTokenMetrics();
+            $summary['total_requests'] = count($rows);
             foreach ($rows as $r) {
-                $summary['prompt_tokens'] += (int)$r['prompt_tokens'];
-                $summary['history_tokens'] += (int)$r['history_tokens'];
-                $summary['context_tokens'] += (int)$r['context_tokens'];
-                $summary['response_tokens'] += (int)$r['response_tokens'];
+                $summary['prompt_tokens'] += (int)($r['prompt_tokens'] ?? 0);
+                $summary['history_tokens'] += (int)($r['history_tokens'] ?? 0);
+                $summary['context_tokens'] += (int)($r['context_tokens'] ?? 0);
+                $summary['response_tokens'] += (int)($r['response_tokens'] ?? 0);
             }
             jsonOut(['success' => true, 'summary' => $summary, 'rows' => $rows]);
         }
