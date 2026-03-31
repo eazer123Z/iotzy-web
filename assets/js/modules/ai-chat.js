@@ -107,6 +107,95 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    function normalizeText(v) {
+        return String(v || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function findDeviceByQuery(query) {
+        const q = normalizeText(query);
+        const devices = Object.values((window.STATE && window.STATE.devices) || {});
+        if (!q || !devices.length) return null;
+        const scored = devices.map((d) => {
+            const name = normalizeText(d.name || '');
+            const type = normalizeText(d.type || d.template_device_type || '');
+            let score = 0;
+            if (name === q) score += 100;
+            if (name.includes(q)) score += 70;
+            q.split(' ').forEach(t => { if (t && name.includes(t)) score += 10; });
+            if (q.includes('lamp') && (type.includes('light') || name.includes('lamp'))) score += 20;
+            if (q.includes('kipas') && (type.includes('fan') || name.includes('kipas'))) score += 20;
+            if (q.includes('kunci') && (type.includes('lock') || name.includes('kunci'))) score += 20;
+            return { d, score };
+        }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+        return scored[0]?.d || null;
+    }
+
+    function fastHandleCommand(rawText) {
+        const text = normalizeText(rawText);
+        if (!text) return { handled: false };
+
+        const isOnCmd = /^(nyalakan|hidupkan|turn on|on)\b/.test(text);
+        const isOffCmd = /^(matikan|turn off|off)\b/.test(text);
+        const isStatusCmd = /^(cek status|status|check status)\b/.test(text) || /\bstatus\b/.test(text);
+
+        if (isOnCmd || isOffCmd) {
+            const target = text.replace(/^(nyalakan|hidupkan|matikan|turn on|turn off|on|off)\b/, '').trim();
+            const turnOn = isOnCmd;
+            const allTarget = /\b(semua|all)\b/.test(target);
+            const devicesObj = (window.STATE && window.STATE.devices) || {};
+            const ids = Object.keys(devicesObj);
+
+            if (!ids.length) {
+                return { handled: true, reply: 'Belum ada perangkat yang bisa dikontrol.' };
+            }
+
+            if (allTarget) {
+                const list = Object.values(devicesObj).filter(d => {
+                    const n = normalizeText(d.name || '');
+                    const t = normalizeText(d.type || d.template_device_type || '');
+                    if (target.includes('lamp') || target.includes('lampu')) return t.includes('light') || n.includes('lamp');
+                    if (target.includes('kipas')) return t.includes('fan') || n.includes('kipas');
+                    return true;
+                });
+                list.forEach(d => {
+                    const id = String(d.id);
+                    if (typeof toggleDeviceState === 'function') toggleDeviceState(id, turnOn);
+                });
+                return { handled: true, refresh: true, reply: `${turnOn ? 'Menyalakan' : 'Mematikan'} ${list.length} perangkat secara instan.` };
+            }
+
+            const device = findDeviceByQuery(target);
+            if (!device) {
+                return { handled: true, reply: `Perangkat "${target || 'tersebut'}" tidak ditemukan.` };
+            }
+            const id = String(device.id);
+            if (typeof toggleDeviceState === 'function') toggleDeviceState(id, turnOn);
+            return { handled: true, refresh: true, reply: `${device.name} langsung ${turnOn ? 'dinyalakan' : 'dimatikan'}.` };
+        }
+
+        if (isStatusCmd) {
+            const target = text.replace(/^(cek status|status|check status)\b/, '').trim();
+            const devicesObj = (window.STATE && window.STATE.devices) || {};
+            const states = (window.STATE && window.STATE.deviceStates) || {};
+            const ids = Object.keys(devicesObj);
+            if (!ids.length) return { handled: true, reply: 'Belum ada perangkat terdaftar.' };
+
+            if (!target || /\b(semua|all)\b/.test(target)) {
+                const lines = ids.slice(0, 8).map((id) => {
+                    const d = devicesObj[id];
+                    return `• ${d.name}: ${states[id] ? 'ON' : 'OFF'}`;
+                });
+                return { handled: true, reply: `Status cepat:\n${lines.join('\n')}` };
+            }
+
+            const d = findDeviceByQuery(target);
+            if (!d) return { handled: true, reply: `Perangkat "${target}" tidak ditemukan.` };
+            return { handled: true, reply: `${d.name} saat ini ${states[String(d.id)] ? 'ON' : 'OFF'}.` };
+        }
+
+        return { handled: false };
+    }
+
     /* ════════════════════════════════════════════════════
        KIRIM PESAN KE BACKEND
        ════════════════════════════════════════════════════ */
@@ -120,6 +209,22 @@ document.addEventListener('DOMContentLoaded', () => {
         chatInput.disabled = true;
         chatSend.disabled  = true;
         chatSend.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        const fast = fastHandleCommand(text);
+        if (fast.handled) {
+            appendMessage(fast.reply, 'bot');
+            if (fast.refresh) {
+                setTimeout(() => {
+                    if (typeof refreshDeviceData === 'function') refreshDeviceData();
+                    if (typeof syncAllFromServer === 'function') syncAllFromServer(true);
+                }, 0);
+            }
+            chatInput.disabled = false;
+            chatSend.disabled  = false;
+            chatSend.innerHTML = '<i class="fas fa-paper-plane"></i>';
+            chatInput.focus();
+            return;
+        }
 
         // Bubble loading animasi
         const loadingBubble = createLoadingBubble();
