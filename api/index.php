@@ -172,8 +172,10 @@ $routes = [
     'change_password' => 'ProfileController.php',
 
     'ai_chat_process' => 'AIChatController.php',
+    'ai_chat_fast_track' => 'AIChatController.php',
     'delete_chat_history' => 'AIChatController.php',
     'get_ai_chat_history' => 'AIChatController.php',
+    'get_ai_token_metrics' => 'AIChatController.php',
     'test_telegram' => 'AIChatController.php',
     'db_status' => 'AIChatController.php',
 

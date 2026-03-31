@@ -454,12 +454,13 @@ function updateUserCVState(int $userId, array $data, ?PDO $db = null): array
     }
 
     $cameraId = (int)$bundle['camera']['id'];
+    $allowedLight = ['dark', 'normal', 'bright', 'unknown'];
     $casts = [
         'is_active' => fn($v) => (int)(bool)$v,
         'model_loaded' => fn($v) => (int)(bool)$v,
-        'person_count' => fn($v) => max(0, (int)$v),
+        'person_count' => fn($v) => max(0, min(20, (int)$v)),
         'brightness' => fn($v) => max(0, min(100, (int)$v)),
-        'light_condition' => fn($v) => substr(trim((string)$v), 0, 20),
+        'light_condition' => fn($v) => in_array(strtolower(trim((string)$v)), $allowedLight, true) ? strtolower(trim((string)$v)) : 'unknown',
     ];
 
     $sets = [];

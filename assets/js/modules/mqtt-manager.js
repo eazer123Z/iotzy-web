@@ -193,8 +193,16 @@ function publishMQTT(topic, payload) {
     const msg = new Paho.MQTT.Message(JSON.stringify(payload));
     msg.destinationName = topic;
     STATE.mqtt.client.send(msg);
+    window.dispatchEvent(new CustomEvent('iotzy:mqtt-publish', {
+      detail: { topic, ok: true, payload, timestamp: Date.now() }
+    }));
     return true;
-  } catch { return false; }
+  } catch {
+    window.dispatchEvent(new CustomEvent('iotzy:mqtt-publish', {
+      detail: { topic, ok: false, payload, timestamp: Date.now() }
+    }));
+    return false;
+  }
 }
 
 /**

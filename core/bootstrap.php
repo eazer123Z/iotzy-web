@@ -48,6 +48,10 @@ require_once $baseDir . '/core/helpers.php';
 
 if (!headers_sent()) {
     header('X-IoTzy-Build: ' . APP_VERSION);
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://cdnjs.cloudflare.com; connect-src 'self' ws: wss: https:; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');
+    header('Referrer-Policy: no-referrer');
 }
 
 // Session Handler — Vercel menggunakan PersistentSession (DB-backed)

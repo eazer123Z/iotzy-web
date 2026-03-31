@@ -4,8 +4,7 @@
 <div id="toastContainer"></div>
 
 <!-- AI Chat Floating Action Button & Modal -->
-<div class="ai-chat-btn" id="aiChatBtn" title="Tanya AI untuk Automasi" 
-     onclick="this.classList.toggle('active'); document.getElementById('aiChatModal').classList.toggle('active');">
+<div class="ai-chat-btn" id="aiChatBtn" title="Tanya AI untuk Automasi">
     <i class="fas fa-robot"></i>
 </div>
 
@@ -51,6 +50,7 @@
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
 
 <!-- Core Orchestrator -->
 <script src="<?= iotzyAssetUrl('js/app.js') ?>"></script>

@@ -285,6 +285,38 @@ CREATE TABLE `ai_chat_history` (
   KEY `idx_ai_chat_history_user_time` (`user_id`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE `ai_chat_history_archive` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int UNSIGNED NOT NULL,
+  `sender` enum('user','bot') NOT NULL,
+  `message` text NOT NULL,
+  `platform` varchar(20) DEFAULT 'web',
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ai_chat_history_archive_user_time` (`user_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `ai_rate_limits` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int UNSIGNED NOT NULL,
+  `action_name` varchar(50) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ai_rate_limits_user_time` (`user_id`,`action_name`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `ai_token_metrics` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int UNSIGNED NOT NULL,
+  `prompt_tokens` int UNSIGNED NOT NULL,
+  `history_tokens` int UNSIGNED NOT NULL,
+  `context_tokens` int UNSIGNED NOT NULL,
+  `response_tokens` int UNSIGNED NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ai_token_metrics_user_time` (`user_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ========================
 -- CAMERA MODULE
 -- ========================
