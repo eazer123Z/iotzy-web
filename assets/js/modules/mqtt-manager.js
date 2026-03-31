@@ -7,8 +7,8 @@
  */
 
 let isMqttActionBusy = false;
-const SENSOR_DB_SYNC_MS = 4000;
-const DEVICE_DB_SYNC_MS = 1200;
+const SENSOR_DB_SYNC_MS = 500;
+const DEVICE_DB_SYNC_MS = 150;
 const sensorSyncQueue = {};
 const deviceStateSyncQueue = {};
 

@@ -9,11 +9,36 @@ if (function_exists('registerApiErrorHandler')) {
 
 $apiOnlyMode = defined('IOTZY_API_ONLY') && IOTZY_API_ONLY === true;
 
-header('Access-Control-Allow-Origin: *');
+$requestScheme = (
+    (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443
+    || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
+) ? 'https' : 'http';
+$requestHost = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+$origin = rtrim(trim((string)($_SERVER['HTTP_ORIGIN'] ?? '')), '/');
+$allowedOrigins = [];
+
+if ($requestHost !== '') {
+    $allowedOrigins[] = $requestScheme . '://' . $requestHost;
+}
+
+if (defined('APP_URL') && preg_match('/^https?:\/\//i', APP_URL)) {
+    $allowedOrigins[] = rtrim(APP_URL, '/');
+}
+
+$allowedOrigins = array_values(array_unique(array_filter($allowedOrigins)));
+$isCorsOriginAllowed = $origin === '' || in_array($origin, $allowedOrigins, true);
+
+if ($origin !== '' && $isCorsOriginAllowed) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Access-Control-Allow-Credentials: true');
+    header('Vary: Origin');
+}
+
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
+    http_response_code($isCorsOriginAllowed ? 200 : 403);
     exit;
 }
 

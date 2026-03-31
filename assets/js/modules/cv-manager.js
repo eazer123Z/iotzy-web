@@ -242,7 +242,7 @@ async function runCVLoop() {
     return;
   }
   const now = performance.now();
-  if (now - (_cvLastDetectTime || 0) < 300) {
+  if (now - (_cvLastDetectTime || 0) < 120) {
     if (CV.detecting) requestAnimationFrame(runCVLoop);
     return;
   }

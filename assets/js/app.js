@@ -30,11 +30,12 @@ const CONFIG = {
   },
   app: {
     maxLogs: 500,
-    liveSyncInterval: 2000,
-    fullSyncInterval: 10000,
-    analyticsSyncInterval: 30000,
-    cameraSettingsSyncInterval: 45000,
-    syncBackoffMax: 30000,
+    liveSyncInterval: 900,
+    fullSyncInterval: 2200,
+    mqttLiveSyncInterval: 1600,
+    analyticsSyncInterval: 15000,
+    cameraSettingsSyncInterval: 30000,
+    syncBackoffMax: 12000,
   },
 };
 
@@ -115,6 +116,47 @@ const CV = {
     light: { enabled: true, onDark:   [], onBright: [], delay: 2000 },
   },
 };
+
+function getVisibleViewIds() {
+  if (typeof document === "undefined") return [];
+  return Array.from(document.querySelectorAll(".view"))
+    .filter((view) => !view.classList.contains("hidden"))
+    .map((view) => view.id)
+    .filter(Boolean);
+}
+
+function getSyncContext() {
+  const visibleViews = getVisibleViewIds();
+  const isDashboardView = visibleViews.includes("dashboard");
+  const isCameraView = visibleViews.includes("camera");
+  const isAnalyticsView = visibleViews.includes("analytics");
+  const isSettingsView = visibleViews.includes("settings");
+
+  return {
+    visibleViews,
+    isDashboardView,
+    isCameraView,
+    isAnalyticsView,
+    isSettingsView,
+    needsCameraState: isDashboardView || isCameraView || CV.detecting || STATE.camera.active || STATE.cvAutoStartRequested,
+    needsCameraSettings: isCameraView || isSettingsView,
+    needsAnalytics: isAnalyticsView,
+  };
+}
+
+function getAdaptiveSyncDelay() {
+  const syncContext = getSyncContext();
+  if (syncContext.isCameraView || CV.detecting || STATE.camera.active) {
+    return CONFIG.app.liveSyncInterval;
+  }
+  if (syncContext.isDashboardView && !STATE.mqtt.connected) {
+    return CONFIG.app.liveSyncInterval;
+  }
+  if (STATE.mqtt.connected) {
+    return CONFIG.app.mqttLiveSyncInterval;
+  }
+  return CONFIG.app.fullSyncInterval;
+}
 
 
 /* ============================================================
@@ -319,6 +361,9 @@ function onCVPersonCountUpdate(count) {
   if (g("cvPersonCountBig")) g("cvPersonCountBig").textContent = count;
   if (g("cvHumanCount"))     g("cvHumanCount").textContent     = count;
   if (typeof automationEngine !== "undefined") automationEngine.notifyPersonCount(count);
+  if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
+    Overview.updateDashboardRoomSummary();
+  }
   updateDashboardStats();
 }
 
@@ -335,6 +380,9 @@ function onLightAnalysisUpdate(condition, brightness) {
   if (g("cvBrightnessBar"))   g("cvBrightnessBar").style.width   = pct + "%";
   const condMap = { dark: "Gelap", normal: "Normal", bright: "Terang" };
   if (g("cvLightCondition"))  g("cvLightCondition").textContent  = condMap[condition] || condition;
+  if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
+    Overview.updateDashboardRoomSummary();
+  }
 }
 
 /* ============================================================
@@ -349,6 +397,8 @@ async function syncDevicesFromServer() {
       delete STATE.devices[id];
       delete STATE.deviceStates[id];
       delete STATE.deviceTopics[id];
+      delete STATE.deviceOnAt[id];
+      delete STATE.deviceExtras[id];
     }
   });
   data.forEach(d => {
@@ -359,6 +409,11 @@ async function syncDevicesFromServer() {
       STATE.deviceStates[id] = Boolean(Number(d.last_state ?? 0));
     else
       STATE.deviceStates[id] = Boolean(Number(d.last_state ?? d.latest_state ?? (STATE.deviceStates[id] ? 1 : 0)));
+    if (STATE.deviceStates[id] && !STATE.deviceOnAt[id]) {
+      STATE.deviceOnAt[id] = Date.now();
+    } else if (!STATE.deviceStates[id]) {
+      delete STATE.deviceOnAt[id];
+    }
     STATE.deviceTopics[id] = { sub: d.topic_sub || "", pub: d.topic_pub || "" };
     if (isNew && STATE.mqtt.connected && d.topic_sub) {
       try { STATE.mqtt.client.subscribe(d.topic_sub); } catch(e) { console.warn("MQTT Re-sub:", e); }
@@ -396,6 +451,9 @@ async function syncSensorsFromServer() {
     }
   });
   if (typeof renderSensors === 'function') renderSensors();
+  if (typeof Overview !== "undefined" && typeof Overview.initChartSelect === "function") {
+    Overview.initChartSelect();
+  }
   updateDashboardStats();
 }
 
@@ -407,19 +465,89 @@ async function syncAutomationFromServer() {
   }
 }
 
+function replaceDevicesFromSnapshot(data) {
+  if (!Array.isArray(data)) return;
+  const nextIds = new Set(data.map((device) => String(device.id)));
+
+  Object.keys(STATE.devices).forEach((id) => {
+    if (!nextIds.has(String(id))) {
+      delete STATE.devices[id];
+      delete STATE.deviceStates[id];
+      delete STATE.deviceTopics[id];
+      delete STATE.deviceOnAt[id];
+      delete STATE.deviceExtras[id];
+    }
+  });
+
+  data.forEach((device) => {
+    const id = String(device.id);
+    const isNew = !STATE.devices[id];
+    STATE.devices[id] = { ...(STATE.devices[id] || {}), ...device, id };
+    STATE.deviceStates[id] = Boolean(Number(device.last_state ?? device.latest_state ?? 0));
+    STATE.deviceTopics[id] = { sub: device.topic_sub || "", pub: device.topic_pub || "" };
+
+    if (STATE.deviceStates[id] && !STATE.deviceOnAt[id]) {
+      STATE.deviceOnAt[id] = Date.now();
+    } else if (!STATE.deviceStates[id]) {
+      delete STATE.deviceOnAt[id];
+    }
+
+    if (!STATE.deviceExtras[id]) {
+      STATE.deviceExtras[id] = { fanSpeed: 50, acMode: "cool", acTemp: 24, brightness: 100, volume: 60 };
+    }
+
+    if (isNew && STATE.mqtt.connected && device.topic_sub) {
+      try { STATE.mqtt.client.subscribe(device.topic_sub); } catch (_) {}
+    }
+  });
+
+  if (typeof renderDevices === "function") renderDevices();
+  if (typeof renderQuickControls === "function") renderQuickControls();
+  if (typeof renderScheduleDeviceOptions === "function") renderScheduleDeviceOptions();
+}
+
+function replaceSensorsFromSnapshot(data) {
+  if (!Array.isArray(data)) return;
+  const nextIds = new Set(data.map((sensor) => String(sensor.id)));
+
+  Object.keys(STATE.sensors).forEach((id) => {
+    if (!nextIds.has(String(id))) {
+      delete STATE.sensors[id];
+      delete STATE.sensorData[id];
+      delete STATE.sensorHistory[id];
+    }
+  });
+
+  data.forEach((sensor) => {
+    const id = String(sensor.id);
+    const isNew = !STATE.sensors[id];
+    STATE.sensors[id] = { ...(STATE.sensors[id] || {}), ...sensor, id };
+    STATE.sensorData[id] = sensor.latest_value ?? STATE.sensorData[id] ?? null;
+    if (!STATE.sensorHistory[id]) STATE.sensorHistory[id] = [];
+
+    if (isNew && STATE.mqtt.connected && sensor.topic) {
+      try { STATE.mqtt.client.subscribe(sensor.topic); } catch (_) {}
+    }
+  });
+
+  if (typeof renderSensors === "function") renderSensors();
+  if (typeof Overview !== "undefined" && typeof Overview.initChartSelect === "function") {
+    Overview.initChartSelect();
+  }
+}
+
 function scheduleNextSync(delayMs = null) {
   if (STATE.sync.timer) {
     clearTimeout(STATE.sync.timer);
   }
 
-  const failureDelay = STATE.sync.failureCount > 0
+  const baseDelay = delayMs ?? getAdaptiveSyncDelay();
+  const nextDelay = STATE.sync.failureCount > 0
     ? Math.min(
-        CONFIG.app.liveSyncInterval * Math.pow(2, STATE.sync.failureCount),
+        baseDelay * Math.pow(2, STATE.sync.failureCount),
         CONFIG.app.syncBackoffMax
       )
-    : CONFIG.app.liveSyncInterval;
-
-  const nextDelay = delayMs ?? failureDelay;
+    : baseDelay;
   STATE.sync.timer = setTimeout(() => {
     syncAllFromServer().catch(() => {});
   }, nextDelay);
@@ -445,16 +573,18 @@ async function syncAllFromServer(forceSync = false, options = {}) {
 
   try {
     const now = Date.now();
-    const includeAnalytics = forceSync
-      || !!options.includeAnalytics
-      || (now - (STATE.sync.lastAnalyticsSyncAt || 0)) >= CONFIG.app.analyticsSyncInterval;
-    const includeCameraSettings = forceSync
-      || !!options.includeCameraSettings
-      || (now - (STATE.sync.lastCameraSettingsAt || 0)) >= CONFIG.app.cameraSettingsSyncInterval;
+    const syncContext = getSyncContext();
+    const includeAnalytics = !!options.includeAnalytics
+      || (syncContext.needsAnalytics
+        && (forceSync || (now - (STATE.sync.lastAnalyticsSyncAt || 0)) >= CONFIG.app.analyticsSyncInterval));
+    const includeCameraSettings = !!options.includeCameraSettings
+      || (syncContext.needsCameraSettings
+        && (forceSync || (now - (STATE.sync.lastCameraSettingsAt || 0)) >= CONFIG.app.cameraSettingsSyncInterval));
+    const includeCamera = !!options.includeCamera || syncContext.needsCameraState;
 
     const requestBody = {
       include_analytics: includeAnalytics ? 1 : 0,
-      include_camera: 1,
+      include_camera: includeCamera ? 1 : 0,
       include_camera_settings: includeCameraSettings ? 1 : 0,
     };
 
@@ -494,13 +624,10 @@ async function applySyncData(res, timestamp = Date.now()) {
     !currentSensorIds.every(id => serverSensorIds.includes(id));
 
   if (hasStructureChanged) {
-    await syncDevicesFromServer();
-    await syncSensorsFromServer();
+    replaceDevicesFromSnapshot(res.devices || []);
+    replaceSensorsFromSnapshot(res.sensors || []);
     await syncAutomationFromServer();
-    return;
-  }
-
-  if (res.devices) {
+  } else if (res.devices) {
     let shouldRenderDevices = false;
     res.devices.forEach(d => {
       const id = String(d.id);
@@ -522,6 +649,12 @@ async function applySyncData(res, timestamp = Date.now()) {
       if (oldState !== newState) {
         if (STATE.deviceUpdating && STATE.deviceUpdating[id]) return;
         STATE.deviceStates[id] = newState;
+        if (newState && !STATE.deviceOnAt[id]) {
+          STATE.deviceOnAt[id] = Date.now();
+        }
+        if (!newState) {
+          delete STATE.deviceOnAt[id];
+        }
         if (typeof updateDeviceUI === 'function') updateDeviceUI(id);
       }
     });
@@ -561,12 +694,18 @@ async function applySyncData(res, timestamp = Date.now()) {
       }
     });
     if (shouldRenderSensors && typeof renderSensors === 'function') renderSensors();
+    if (shouldRenderSensors && typeof Overview !== "undefined" && typeof Overview.initChartSelect === "function") {
+      Overview.initChartSelect();
+    }
   }
 
   if (res.cv_state && !CV.detecting) {
     STATE.cv.personCount    = res.cv_state.person_count || 0;
     STATE.cv.brightness     = res.cv_state.brightness   || 0;
     STATE.cv.lightCondition = res.cv_state.light_condition || 'unknown';
+    if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
+      Overview.updateDashboardRoomSummary();
+    }
   }
 
   if (res.camera) {
@@ -582,6 +721,7 @@ async function applySyncData(res, timestamp = Date.now()) {
     if (typeof updateLogStats === 'function') updateLogStats();
   }
 
+  STATE.sync.lastFullSyncAt = timestamp;
   updateDashboardStats();
 }
 
@@ -747,7 +887,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
-        syncAllFromServer(true, { includeAnalytics: true, includeCameraSettings: true }).catch(() => {});
+        const syncContext = getSyncContext();
+        syncAllFromServer(true, {
+          includeAnalytics: syncContext.needsAnalytics,
+          includeCamera: syncContext.needsCameraState,
+          includeCameraSettings: syncContext.needsCameraSettings,
+        }).catch(() => {});
       }
     });
   }
@@ -763,5 +908,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   bootstrapDeferredServices();
-  scheduleNextSync(CONFIG.app.liveSyncInterval);
+  scheduleNextSync();
 });
