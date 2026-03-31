@@ -493,6 +493,40 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
 .ac-temp-val{font-weight:800;color:var(--heading);min-width:54px;text-align:center}
 .ac-temp-unit{font-size:.72rem;color:var(--text-muted);font-weight:700}
 
+/* ==================== QUICK CONTROL (ICON ONLY) ==================== */
+.qc-grid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap:10px;
+}
+@media (max-width: 1024px){
+  .qc-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 640px){
+  .qc-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.qc-btn{
+  height:64px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--text-secondary);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  transition:var(--transition);
+}
+.qc-btn:hover{
+  border-color:var(--border-hover);
+  transform:translateY(-1px);
+}
+.qc-btn.on{
+  background: color-mix(in srgb, var(--surface-solid) 88%, var(--qc-accent) 12%);
+  border-color: var(--qc-accent);
+  color:#fff;
+  box-shadow: 0 6px 18px color-mix(in srgb, transparent, var(--qc-accent) 22%);
+}
 
 /* Toggle Switch */
 .toggle-switch{width:48px;height:26px;border-radius:13px;background:var(--border);position:relative;cursor:pointer;transition:var(--transition);flex-shrink:0}

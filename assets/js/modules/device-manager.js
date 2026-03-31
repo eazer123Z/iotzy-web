@@ -462,6 +462,27 @@ function buildDeviceCardHTML(deviceId, context = 'grid') {
 }
 
 /**
+ * Membangun tombol Quick Control (icon-only) untuk dashboard.
+ */
+function buildQuickControlButtonHTML(deviceId) {
+  const id = String(deviceId);
+  const device = STATE.devices[id];
+  if (!device) return "";
+  const isOn = !!STATE.deviceStates[id];
+  const dtype = getDeviceType(device);
+  const iconClass = getDeviceCardIcon(device, isOn);
+  const accent = getDeviceAccent(dtype);
+  const title = `${device.name} • ${isOn ? 'ON' : 'OFF'}`;
+  return `
+    <button class="qc-btn ${isOn ? 'on' : ''}" title="${escHtml(title)}"
+            onclick="event.preventDefault(); toggleDeviceState('${id}', ${isOn ? 'false' : 'true'});"
+            style="--qc-accent:${accent}">
+      <i class="fas ${iconClass}"></i>
+    </button>
+  `;
+}
+
+/**
  * Handler klik card (Grid Utama & Quick Control).
  */
 function handleDeviceCardClick(id, context = 'grid') {
@@ -506,7 +527,6 @@ function renderQuickControls() {
   container.innerHTML = '';
 
   const selected = (STATE.quickControlDevices || []).map(String).filter((id) => STATE.devices[id]);
-  
   if (!selected.length) {
     container.innerHTML = `<div class="muted">
       <i class="fas fa-hand-pointer" style="font-size:22px;margin-bottom:10px;display:block;opacity:.25"></i>
@@ -516,9 +536,9 @@ function renderQuickControls() {
     return;
   }
 
-  selected.forEach((id) => {
-    container.insertAdjacentHTML('beforeend', buildDeviceCardHTML(id, 'quick'));
-  });
+  container.classList.add('qc-grid');
+  const html = selected.map((id) => buildQuickControlButtonHTML(id)).join('');
+  container.innerHTML = html;
 }
 
 
