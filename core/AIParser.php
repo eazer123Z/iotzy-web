@@ -1295,31 +1295,35 @@ function execute_ai_actions(int $userId, array $parsed): array
                     break;
 
                 case 'update_cv_config':
-                    $db->prepare(
-                        "UPDATE user_settings SET
-                            cv_min_confidence    = COALESCE(?, cv_min_confidence),
-                            cv_dark_threshold    = COALESCE(?, cv_dark_threshold),
-                            cv_bright_threshold  = COALESCE(?, cv_bright_threshold),
-                            cv_human_rules_enabled = COALESCE(?, cv_human_rules_enabled),
-                            cv_light_rules_enabled = COALESCE(?, cv_light_rules_enabled)
-                         WHERE user_id = ?"
-                    )->execute([
-                        $a['min_confidence']  ?? null,
-                        $a['dark_threshold']  ?? null,
-                        $a['bright_threshold'] ?? null,
-                        isset($a['human_enabled']) ? ($a['human_enabled'] ? 1 : 0) : null,
-                        isset($a['light_enabled']) ? ($a['light_enabled'] ? 1 : 0) : null,
+                    $cameraBundle = getUserCameraBundle($userId, $db);
+                    $cameraId = (int)($cameraBundle['camera']['id'] ?? 0);
+                    iotzyPersistCvConfig(
+                        $db,
                         $userId,
-                    ]);
+                        $cameraId,
+                        [
+                            'minConfidence' => $a['min_confidence'] ?? null,
+                            'darkThreshold' => $a['dark_threshold'] ?? null,
+                            'brightThreshold' => $a['bright_threshold'] ?? null,
+                            'humanEnabled' => $a['human_enabled'] ?? null,
+                            'lightEnabled' => $a['light_enabled'] ?? null,
+                        ],
+                        getUserSettings($userId) ?? null,
+                        $cameraBundle['camera_settings'] ?? null
+                    );
                     $result['executed'][] = 'cv_config_updated';
                     break;
 
                 case 'update_cv_rules':
-                    $stmtOld = $db->prepare("SELECT cv_rules FROM user_settings WHERE user_id = ? LIMIT 1");
-                    $stmtOld->execute([$userId]);
-                    $oldR = json_decode((string)$stmtOld->fetchColumn(), true) ?: [];
-                    $newR = array_replace_recursive($oldR, $a['rules'] ?? []);
-                    $db->prepare("UPDATE user_settings SET cv_rules = ? WHERE user_id = ?")->execute([json_encode($newR), $userId]);
+                    $cameraBundle = getUserCameraBundle($userId, $db);
+                    $cameraId = (int)($cameraBundle['camera']['id'] ?? 0);
+                    $oldR = array_replace_recursive(
+                        iotzyDefaultCvRules(),
+                        iotzyJsonDecode($cameraBundle['camera_settings']['cv_rules'] ?? null, []),
+                        iotzyJsonDecode((getUserSettings($userId) ?? [])['cv_rules'] ?? null, [])
+                    );
+                    $newR = array_replace_recursive($oldR, (array)($a['rules'] ?? []));
+                    iotzyPersistCvRules($db, $userId, $cameraId, $newR);
                     $result['executed'][] = 'cv_rules';
                     break;
 

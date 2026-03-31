@@ -178,11 +178,15 @@ function switchSettingsTab(btn) {
   const panelId = btn.dataset.panel;
   const panel = document.getElementById(panelId);
   if (panel) panel.classList.add('active');
+  if (typeof ensureSettingsPanelData === "function") {
+    ensureSettingsPanelData(panelId).catch(() => {});
+  }
 }
 
 /* ── Apply Theme from Settings Dropdown ── */
 function applyThemeFromSettings(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   updateThemeIcon(theme);
+  if (typeof updateThemeChrome === "function") updateThemeChrome(theme);
   apiPost("save_settings", { theme: theme }).catch(e => console.warn("Gagal sinkron tema:", e));
 }

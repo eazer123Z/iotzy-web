@@ -106,16 +106,202 @@ const CV = {
   overlayCtx:    null,
   showBoxes:     true,
   showDebug:     true,
-  confidence:    0.6,
+  confidence:    0.5,
   humanPresent:  false,
   humanTimer:    null,
   lightCondition:"unknown",
   lightTimer:    null,
   cvRules: {
-    human: { enabled: true, onDetect: [], onAbsent: [], delay: 3000 },
+    human: { enabled: true, rules: [], delay: 5000 },
     light: { enabled: true, onDark:   [], onBright: [], delay: 2000 },
   },
 };
+
+function normalizeCVConfigInput(config = {}, base = {}) {
+  const currentBase = {
+    showBoundingBox: base.showBoundingBox ?? CV.showBoxes ?? true,
+    showDebugInfo: base.showDebugInfo ?? CV.showDebug ?? true,
+    minConfidence: base.minConfidence ?? CV.confidence ?? 0.5,
+    darkThreshold: base.darkThreshold ?? (typeof CV_CONFIG !== "undefined" ? CV_CONFIG?.light?.darkThreshold : undefined) ?? 0.3,
+    brightThreshold: base.brightThreshold ?? (typeof CV_CONFIG !== "undefined" ? CV_CONFIG?.light?.brightThreshold : undefined) ?? 0.7,
+    humanEnabled: base.humanEnabled ?? CV.cvRules?.human?.enabled ?? true,
+    lightEnabled: base.lightEnabled ?? CV.cvRules?.light?.enabled ?? true,
+  };
+  const source = (config && typeof config === "object") ? config : {};
+  const boolValue = (value, fallback) => {
+    if (value === undefined || value === null || value === "") return fallback;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (["0", "false", "off", "no"].includes(normalized)) return false;
+      if (["1", "true", "on", "yes"].includes(normalized)) return true;
+    }
+    return Boolean(value);
+  };
+  const numValue = (value, fallback) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : fallback;
+  };
+
+  return {
+    showBoundingBox: boolValue(
+      source.showBoundingBox ?? source.showBoundingBoxes ?? source.show_bounding_box ?? source.ui?.showBoundingBoxes,
+      currentBase.showBoundingBox
+    ),
+    showDebugInfo: boolValue(
+      source.showDebugInfo ?? source.show_debug_info ?? source.ui?.showDebugInfo,
+      currentBase.showDebugInfo
+    ),
+    minConfidence: Math.min(0.99, Math.max(
+      0.1,
+      numValue(
+        source.minConfidence ?? source.min_confidence ?? source.cv_min_confidence ?? source.detection?.minConfidence,
+        currentBase.minConfidence
+      )
+    )),
+    darkThreshold: Math.min(0.99, Math.max(
+      0.01,
+      numValue(
+        source.darkThreshold ?? source.dark_threshold ?? source.cv_dark_threshold ?? source.light?.darkThreshold,
+        currentBase.darkThreshold
+      )
+    )),
+    brightThreshold: Math.min(0.99, Math.max(
+      0.01,
+      numValue(
+        source.brightThreshold ?? source.bright_threshold ?? source.cv_bright_threshold ?? source.light?.brightThreshold,
+        currentBase.brightThreshold
+      )
+    )),
+    humanEnabled: boolValue(
+      source.humanEnabled ?? source.human_rules_enabled ?? source.cv_human_rules_enabled ?? source.automation?.humanEnabled,
+      currentBase.humanEnabled
+    ),
+    lightEnabled: boolValue(
+      source.lightEnabled ?? source.light_rules_enabled ?? source.cv_light_rules_enabled ?? source.automation?.lightEnabled,
+      currentBase.lightEnabled
+    ),
+  };
+}
+
+function buildCurrentCVConfigPayload(overrides = {}) {
+  return normalizeCVConfigInput(overrides, {
+    showBoundingBox: CV.showBoxes,
+    showDebugInfo: CV.showDebug,
+    minConfidence: CV.confidence,
+    darkThreshold: typeof CV_CONFIG !== "undefined" ? CV_CONFIG?.light?.darkThreshold : undefined,
+    brightThreshold: typeof CV_CONFIG !== "undefined" ? CV_CONFIG?.light?.brightThreshold : undefined,
+    humanEnabled: CV.cvRules?.human?.enabled,
+    lightEnabled: CV.cvRules?.light?.enabled,
+  });
+}
+
+function syncCVSettingControl(id, value, formatter = null) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  input.value = value;
+  const display = input.nextElementSibling;
+  if (display && display.tagName === "SPAN") {
+    display.textContent = formatter ? formatter(value) : String(value);
+  }
+}
+
+function applyCVConfigState(config = {}) {
+  const resolved = buildCurrentCVConfigPayload(config);
+
+  CV.showBoxes = resolved.showBoundingBox;
+  CV.showDebug = resolved.showDebugInfo;
+  CV.confidence = resolved.minConfidence;
+
+  CV.cvRules = {
+    ...CV.cvRules,
+    human: { ...(CV.cvRules?.human || {}), enabled: resolved.humanEnabled },
+    light: { ...(CV.cvRules?.light || {}), enabled: resolved.lightEnabled },
+  };
+
+  if (typeof CV_CONFIG !== "undefined") {
+    CV_CONFIG.detection = {
+      ...(CV_CONFIG.detection || {}),
+      minConfidence: resolved.minConfidence,
+    };
+    CV_CONFIG.light = {
+      ...(CV_CONFIG.light || {}),
+      darkThreshold: resolved.darkThreshold,
+      brightThreshold: resolved.brightThreshold,
+    };
+    CV_CONFIG.ui = {
+      ...(CV_CONFIG.ui || {}),
+      showBoundingBoxes: resolved.showBoundingBox,
+      showDebugInfo: resolved.showDebugInfo,
+    };
+    CV_CONFIG.automation = {
+      ...(CV_CONFIG.automation || {}),
+      humanEnabled: resolved.humanEnabled,
+      lightEnabled: resolved.lightEnabled,
+    };
+  }
+
+  if (typeof PHP_SETTINGS !== "undefined") {
+    PHP_SETTINGS.cv_min_confidence = resolved.minConfidence;
+    PHP_SETTINGS.cv_dark_threshold = resolved.darkThreshold;
+    PHP_SETTINGS.cv_bright_threshold = resolved.brightThreshold;
+    PHP_SETTINGS.cv_human_rules_enabled = resolved.humanEnabled ? 1 : 0;
+    PHP_SETTINGS.cv_light_rules_enabled = resolved.lightEnabled ? 1 : 0;
+    PHP_SETTINGS.cv_config = {
+      ...(PHP_SETTINGS.cv_config && typeof PHP_SETTINGS.cv_config === "object" ? PHP_SETTINGS.cv_config : {}),
+      detection: {
+        ...(PHP_SETTINGS.cv_config?.detection || {}),
+        minConfidence: resolved.minConfidence,
+      },
+      light: {
+        ...(PHP_SETTINGS.cv_config?.light || {}),
+        darkThreshold: resolved.darkThreshold,
+        brightThreshold: resolved.brightThreshold,
+      },
+      ui: {
+        ...(PHP_SETTINGS.cv_config?.ui || {}),
+        showBoundingBoxes: resolved.showBoundingBox,
+        showDebugInfo: resolved.showDebugInfo,
+      },
+      automation: {
+        ...(PHP_SETTINGS.cv_config?.automation || {}),
+        humanEnabled: resolved.humanEnabled,
+        lightEnabled: resolved.lightEnabled,
+      },
+    };
+  }
+
+  ["cvShowBoundingBoxCamera", "cvShowBoundingBoxSettings"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = resolved.showBoundingBox;
+  });
+  ["cvShowDebugInfoCamera", "cvShowDebugInfoSettings"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = resolved.showDebugInfo;
+  });
+
+  const confidenceSlider = document.getElementById("cvConfidenceThreshold");
+  if (confidenceSlider) confidenceSlider.value = Math.round(resolved.minConfidence * 100);
+  syncCVSettingControl("settCvConfidence", resolved.minConfidence, (value) => `${Math.round(Number(value) * 100)}%`);
+  syncCVSettingControl("settCvDark", resolved.darkThreshold, (value) => `${Math.round(Number(value) * 100)}%`);
+  syncCVSettingControl("settCvBright", resolved.brightThreshold, (value) => `${Math.round(Number(value) * 100)}%`);
+
+  const hud = document.getElementById("cvDetectionInfo");
+  if (hud) hud.style.display = resolved.showDebugInfo && CV.detecting ? "flex" : "none";
+  if (!resolved.showBoundingBox && CV.overlayCtx && CV.overlayCanvas) {
+    CV.overlayCtx.clearRect(0, 0, CV.overlayCanvas.width, CV.overlayCanvas.height);
+  }
+
+  return resolved;
+}
+
+async function persistCVConfig(config = {}, opts = {}) {
+  const payload = buildCurrentCVConfigPayload(config);
+  const result = await apiPost("save_cv_config", { config: payload }, { key: opts.key || "save_cv_config" });
+  if (result?.success !== false) {
+    applyCVConfigState(result?.config || payload);
+  }
+  return result;
+}
 
 function getVisibleViewIds() {
   if (typeof document === "undefined") return [];
@@ -288,19 +474,30 @@ function updateThemeChrome(theme) {
    ============================================================ */
 const ACTIVE_REQ = {};
 async function apiPost(action, data = {}, opts = {}) {
-  const key = opts.key || action;
+  const defaultDedupeActions = new Set([
+    "save_cv_config",
+    "save_cv_rules",
+    "update_cv_state",
+    "update_device_state",
+    "update_sensor_value",
+    "ai_chat_fast_track",
+  ]);
+  const key = Object.prototype.hasOwnProperty.call(opts, "key")
+    ? opts.key
+    : (/^(get_|db_status$)/.test(action) || defaultDedupeActions.has(action) ? action : null);
   const noAutoRefreshActions = new Set([
     "update_sensor_value",
     "update_device_state",
     "update_cv_state",
     "ai_chat_fast_track",
   ]);
+  let controller = null;
   try {
-    if (ACTIVE_REQ[key]) {
+    if (key && ACTIVE_REQ[key]) {
       try { ACTIVE_REQ[key].abort(); } catch (_) {}
     }
-    const controller = new AbortController();
-    ACTIVE_REQ[key] = controller;
+    controller = new AbortController();
+    if (key) ACTIVE_REQ[key] = controller;
     const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/index.php";
     const hdrs = { "Content-Type": "application/json" };
     if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
@@ -314,7 +511,7 @@ async function apiPost(action, data = {}, opts = {}) {
       signal: controller.signal
     });
     clearTimeout(t);
-    delete ACTIVE_REQ[key];
+    if (key && ACTIVE_REQ[key] === controller) delete ACTIVE_REQ[key];
     if (res.status === 401) {
       window.location.href = (typeof APP_BASE !== "undefined" ? APP_BASE : "") + "/?route=login&expired=true";
       return null;
@@ -339,7 +536,7 @@ async function apiPost(action, data = {}, opts = {}) {
     if (e.name !== "AbortError") showToast(`API error: ${action}`, "error");
     return { success: false, error: e.message };
   } finally {
-    if (ACTIVE_REQ[key]) delete ACTIVE_REQ[key];
+    if (key && controller && ACTIVE_REQ[key] === controller) delete ACTIVE_REQ[key];
   }
 }
 
@@ -349,9 +546,7 @@ async function apiPost(action, data = {}, opts = {}) {
 async function loadCVConfig() {
   const result = await apiPost("get_cv_config", {});
   if (result) {
-    if (result.showBoundingBox !== undefined) CV.showBoxes  = result.showBoundingBox;
-    if (result.showDebugInfo   !== undefined) CV.showDebug  = result.showDebugInfo;
-    if (result.minConfidence   !== undefined) CV.confidence = result.minConfidence;
+    applyCVConfigState(result);
   }
 }
 
@@ -370,36 +565,22 @@ async function saveCVRules() {
 async function syncCVConfigFromServer() {
   await loadCVConfig();
   await loadCVRules();
-  const g = (id) => document.getElementById(id);
-  if (g("cvConfidenceThreshold")) g("cvConfidenceThreshold").value = Math.round(CV.confidence * 100);
-  if (g("cvShowBoundingBoxCamera")) g("cvShowBoundingBoxCamera").checked = CV.showBoxes;
-  if (g("cvShowDebugInfoCamera"))   g("cvShowDebugInfoCamera").checked   = CV.showDebug;
   if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules(CV.cvRules);
 }
 
 function toggleBoundingBox(val) {
-  CV.showBoxes = val;
-  ["cvShowBoundingBoxCamera", "cvShowBoundingBoxSettings"].forEach((id) => {
-    const el = document.getElementById(id); if (el && el.checked !== val) el.checked = val;
-  });
-  if (!val && CV.overlayCtx && CV.overlayCanvas)
-    CV.overlayCtx.clearRect(0, 0, CV.overlayCanvas.width, CV.overlayCanvas.height);
-  apiPost("save_cv_config", { config: { showBoundingBox: val, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
+  applyCVConfigState({ showBoundingBox: val });
+  persistCVConfig({ showBoundingBox: val }).catch(() => {});
 }
 
 function toggleDebugInfo(val) {
-  CV.showDebug = val;
-  ["cvShowDebugInfoCamera", "cvShowDebugInfoSettings"].forEach((id) => {
-    const el = document.getElementById(id); if (el && el.checked !== val) el.checked = val;
-  });
-  const hud = document.getElementById("cvDetectionInfo");
-  if (hud) hud.style.display = val && CV.detecting ? "flex" : "none";
-  apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: val, minConfidence: CV.confidence } }).catch(() => {});
+  applyCVConfigState({ showDebugInfo: val });
+  persistCVConfig({ showDebugInfo: val }).catch(() => {});
 }
 
 function updateCVConfig(val) {
-  CV.confidence = parseFloat(val) / 100;
-  apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
+  applyCVConfigState({ minConfidence: parseFloat(val) / 100 });
+  persistCVConfig({ minConfidence: parseFloat(val) / 100 }).catch(() => {});
 }
 
 /* ============================================================
@@ -824,8 +1005,15 @@ function loadFromPHP() {
       // CV Config dari DB
       if (PHP_SETTINGS.cv_config && typeof PHP_SETTINGS.cv_config === 'object') {
         if (typeof CV_CONFIG !== 'undefined') Object.assign(CV_CONFIG, PHP_SETTINGS.cv_config);
-        if (PHP_SETTINGS.cv_config.detection?.minConfidence) CV.confidence = PHP_SETTINGS.cv_config.detection.minConfidence;
       }
+      applyCVConfigState({
+        ...(PHP_SETTINGS.cv_config && typeof PHP_SETTINGS.cv_config === "object" ? PHP_SETTINGS.cv_config : {}),
+        minConfidence: PHP_SETTINGS.cv_min_confidence,
+        darkThreshold: PHP_SETTINGS.cv_dark_threshold,
+        brightThreshold: PHP_SETTINGS.cv_bright_threshold,
+        humanEnabled: PHP_SETTINGS.cv_human_rules_enabled,
+        lightEnabled: PHP_SETTINGS.cv_light_rules_enabled,
+      });
       if (PHP_SETTINGS.cv_rules && typeof PHP_SETTINGS.cv_rules === 'object') {
         CV.cvRules = PHP_SETTINGS.cv_rules;
         if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules(CV.cvRules);

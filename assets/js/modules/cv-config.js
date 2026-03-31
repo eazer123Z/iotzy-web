@@ -4,7 +4,7 @@ let CV_CONFIG = {
     inputSize: 300,
   },
   detection: {
-    minConfidence: 0.6,
+    minConfidence: 0.5,
     targetClasses: ["person"],
     maxDetections: 20,
     interval: 300,

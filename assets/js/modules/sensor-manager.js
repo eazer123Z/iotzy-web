@@ -28,6 +28,8 @@ const SENSOR_LABELS = {
   distance: "Jarak",
 };
 
+const SENSOR_HISTORY_LOADS = {};
+
 async function ensureSensorTemplatesLoaded() {
   if (Array.isArray(STATE.sensorTemplates) && STATE.sensorTemplates.length) return STATE.sensorTemplates;
   if (STATE.sensorTemplatesPromise) return STATE.sensorTemplatesPromise;
@@ -103,13 +105,27 @@ function findBestSensorTemplateId(sensor) {
 }
 
 async function loadSensorHistory(sensorId, limit = 24) {
-  const result = await apiPost("get_sensor_history", { sensor_id: sensorId, limit });
-  if (!Array.isArray(result)) return;
-  STATE.sensorHistory[String(sensorId)] = result.map((row) => ({
-    val: Number(row.value),
-    t: row.recorded_at,
-  }));
-  drawSparkline(String(sensorId));
+  const id = String(sensorId);
+  if (SENSOR_HISTORY_LOADS[id]) return SENSOR_HISTORY_LOADS[id];
+
+  SENSOR_HISTORY_LOADS[id] = apiPost("get_sensor_history", { sensor_id: sensorId, limit })
+    .then((result) => {
+      if (!Array.isArray(result)) return [];
+      STATE.sensorHistory[id] = result
+        .map((row) => ({
+          val: Number(row.value),
+          t: row.recorded_at,
+        }))
+        .filter((point) => Number.isFinite(point.val))
+        .slice(-30);
+      drawSparkline(id);
+      return STATE.sensorHistory[id];
+    })
+    .finally(() => {
+      delete SENSOR_HISTORY_LOADS[id];
+    });
+
+  return SENSOR_HISTORY_LOADS[id];
 }
 
 function getSensorDisplayValue(sensor, val) {
@@ -117,6 +133,35 @@ function getSensorDisplayValue(sensor, val) {
   const unit = sensor.unit || SENSOR_CONFIG[sensor.type]?.unit || "";
   const precision = ["temperature", "humidity", "voltage", "current", "power", "distance"].includes(sensor.type) ? 2 : 0;
   return `${Number(val).toFixed(precision)}${unit}`;
+}
+
+function formatSensorTime(rawTime) {
+  if (!rawTime) return "—";
+  const parsed = new Date(rawTime);
+  if (Number.isNaN(parsed.getTime())) return String(rawTime);
+  return parsed.toLocaleTimeString("id-ID");
+}
+
+function pushSensorHistoryPoint(sensorId, value, timestamp = null) {
+  const id = String(sensorId);
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return;
+
+  if (!STATE.sensorHistory[id]) {
+    STATE.sensorHistory[id] = [];
+  }
+
+  const pointTime = timestamp || STATE.sensors[id]?.last_seen || new Date().toISOString();
+  const history = STATE.sensorHistory[id];
+  const lastPoint = history[history.length - 1];
+  const lastTime = lastPoint?.t ?? lastPoint?.ts ?? null;
+
+  if (lastPoint && Number(lastPoint.val) === numericValue && String(lastTime || "") === String(pointTime || "")) {
+    return;
+  }
+
+  history.push({ val: numericValue, t: pointTime });
+  if (history.length > 30) history.shift();
 }
 
 function renderSensorCard(sensorId) {
@@ -175,8 +220,8 @@ function renderSensors() {
   keys.forEach((id) => {
     const card = renderSensorCard(id);
     grid.appendChild(card);
-    updateSensorValueUI(id);
-    if (!STATE.sensorHistory[id] || STATE.sensorHistory[id].length < 2) {
+    updateSensorValueUI(id, { recordHistory: (STATE.sensorHistory[id] || []).length === 0 });
+    if ((!STATE.sensorHistory[id] || STATE.sensorHistory[id].length < 2) && !SENSOR_HISTORY_LOADS[id]) {
       loadSensorHistory(id).catch(() => {});
     } else {
       drawSparkline(id);
@@ -184,7 +229,7 @@ function renderSensors() {
   });
 }
 
-function updateSensorValueUI(sensorId) {
+function updateSensorValueUI(sensorId, options = {}) {
   const sensor = STATE.sensors[String(sensorId)];
   if (!sensor) return;
   const val = STATE.sensorData[String(sensorId)];
@@ -192,24 +237,32 @@ function updateSensorValueUI(sensorId) {
   const timeEl = document.getElementById(`time-${sensorId}`);
   const barEl = document.getElementById(`bar-${sensorId}`);
   const cfg = SENSOR_CONFIG[sensor.type] || {};
+  const recordHistory = options.recordHistory !== false;
+  const seenAt = options.seenAt || sensor.last_seen || null;
+  const hasValue = val !== null && val !== undefined && val !== "";
 
   if (valueEl) valueEl.textContent = getSensorDisplayValue(sensor, val);
-  if (timeEl) timeEl.textContent = new Date().toLocaleTimeString("id-ID");
-  if (barEl && val !== null && val !== undefined && cfg.min !== undefined && cfg.max !== undefined) {
+  if (timeEl) timeEl.textContent = formatSensorTime(seenAt);
+  if (barEl && hasValue && cfg.min !== undefined && cfg.max !== undefined) {
     const pct = Math.max(0, Math.min(100, ((Number(val) - cfg.min) / (cfg.max - cfg.min || 1)) * 100));
     barEl.style.width = `${pct}%`;
+  } else if (barEl) {
+    barEl.style.width = "0%";
   }
 
-  if (!STATE.sensorHistory[String(sensorId)]) {
-    STATE.sensorHistory[String(sensorId)] = [];
+  document.getElementById(`sensor-card-${sensorId}`)?.classList.toggle("has-data", hasValue);
+
+  if (recordHistory) {
+    pushSensorHistoryPoint(sensorId, val, seenAt);
   }
-  STATE.sensorHistory[String(sensorId)].push({ val: Number(val), t: new Date().toISOString() });
-  if (STATE.sensorHistory[String(sensorId)].length > 30) STATE.sensorHistory[String(sensorId)].shift();
-  drawSparkline(String(sensorId));
+
+  if ((STATE.sensorHistory[String(sensorId)] || []).length > 1) {
+    drawSparkline(String(sensorId));
+  }
 }
 
-function updateSensorBoolUI(sensorId) {
-  updateSensorValueUI(sensorId);
+function updateSensorBoolUI(sensorId, options = {}) {
+  updateSensorValueUI(sensorId, options);
 }
 
 function drawSparkline(sensorId) {

@@ -304,26 +304,39 @@ function handleMQTTMessage(topic, payload) {
  * Memproses data sensor masuk: update state, history, UI, dan jalankan aturan otomasi.
  */
 function processSensorValue(sensorId, val) {
+  const id = String(sensorId);
+  const seenAt = new Date().toISOString();
   STATE.sensorData[sensorId] = val;
-  
-  // Kelola history untuk grafik sparkline singkat
-  if (!STATE.sensorHistory[sensorId]) STATE.sensorHistory[sensorId] = [];
-  STATE.sensorHistory[sensorId].push({ val, ts: Date.now() });
-  if (STATE.sensorHistory[sensorId].length > 30) STATE.sensorHistory[sensorId].shift();
+  if (STATE.sensors[id]) {
+    STATE.sensors[id].last_seen = seenAt;
+  }
+
+  if (typeof pushSensorHistoryPoint === "function") {
+    pushSensorHistoryPoint(id, val, seenAt);
+  } else {
+    if (!STATE.sensorHistory[id]) STATE.sensorHistory[id] = [];
+    STATE.sensorHistory[id].push({ val, t: seenAt });
+    if (STATE.sensorHistory[id].length > 30) STATE.sensorHistory[id].shift();
+  }
 
   // Update visual sensor berdasarkan tipe
-  const sensor = STATE.sensors[sensorId];
-  if (sensor?.type === "presence" || sensor?.type === "motion") updateSensorBoolUI(sensorId);
-  else updateSensorValueUI(sensorId);
+  const sensor = STATE.sensors[id];
+  const updateOptions = { recordHistory: false, seenAt };
+  if (sensor?.type === "presence" || sensor?.type === "motion") updateSensorBoolUI(id, updateOptions);
+  else updateSensorValueUI(id, updateOptions);
 
   // Trigger evaluasi aturan otomasi di Automation Engine
-  document.getElementById(`sensor-card-${sensorId}`)?.classList.add("has-data");
+  document.getElementById(`sensor-card-${id}`)?.classList.add("has-data");
   if (typeof automationEngine !== "undefined" && automationEngine.isActive) {
-    automationEngine.evaluateSensorRules(sensorId, val);
+    automationEngine.evaluateSensorRules(id, val);
     
     // Built-in Automation Triggers
-    if (sensor?.type === 'temperature') automationEngine._evaluateBuiltInRules('fan', val);
-    if (sensor?.type === 'brightness' || sensor?.type === 'light') automationEngine._evaluateBuiltInRules('lamp', val);
+    if (sensor?.type === 'temperature' && typeof automationEngine.evaluateBuiltInRules === "function") {
+      automationEngine.evaluateBuiltInRules('fan', val);
+    }
+    if ((sensor?.type === 'brightness' || sensor?.type === 'light') && typeof automationEngine.evaluateBuiltInRules === "function") {
+      automationEngine.evaluateBuiltInRules('lamp', val);
+    }
   }
 
   // Sync data ke database

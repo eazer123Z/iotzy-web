@@ -475,6 +475,7 @@ const automationEngine = (() => {
         getCVRules,
         updateCVRules,
         setEnabled,
+        _evaluateBuiltInRules: _evaluateBuiltInRules,
 
         onPersonCount(count)               { notifyPersonCount(count); },
         onLightCondition(cond, brightness) { notifyLight(cond, brightness); },

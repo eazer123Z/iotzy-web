@@ -143,9 +143,13 @@ function stopDetection() {
 async function loadCVConfig() {
   const result = await apiPost("get_cv_config", {});
   if (result) {
-    if (result.showBoundingBox !== undefined) CV.showBoxes  = result.showBoundingBox;
-    if (result.showDebugInfo   !== undefined) CV.showDebug  = result.showDebugInfo;
-    if (result.minConfidence   !== undefined) CV.confidence = result.minConfidence;
+    if (typeof applyCVConfigState === "function") {
+      applyCVConfigState(result);
+    } else {
+      if (result.showBoundingBox !== undefined) CV.showBoxes  = result.showBoundingBox;
+      if (result.showDebugInfo   !== undefined) CV.showDebug  = result.showDebugInfo;
+      if (result.minConfidence   !== undefined) CV.confidence = result.minConfidence;
+    }
   }
 }
 
@@ -164,27 +168,25 @@ async function saveCVRules() {
 }
 
 function toggleBoundingBox(val) {
-  CV.showBoxes = val;
-  ["cvShowBoundingBoxCamera", "cvShowBoundingBoxSettings"].forEach((id) => {
-    const el = document.getElementById(id); if (el && el.checked !== val) el.checked = val;
-  });
-  if (!val && CV.overlayCtx && CV.overlayCanvas) CV.overlayCtx.clearRect(0, 0, CV.overlayCanvas.width, CV.overlayCanvas.height);
-  apiPost("save_cv_config", { config: { showBoundingBox: val, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
+  if (typeof applyCVConfigState === "function") applyCVConfigState({ showBoundingBox: val });
+  else CV.showBoxes = val;
+  if (typeof persistCVConfig === "function") persistCVConfig({ showBoundingBox: val }).catch(() => {});
+  else apiPost("save_cv_config", { config: { showBoundingBox: val, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
 }
 
 function toggleDebugInfo(val) {
-  CV.showDebug = val;
-  ["cvShowDebugInfoCamera", "cvShowDebugInfoSettings"].forEach((id) => {
-    const el = document.getElementById(id); if (el && el.checked !== val) el.checked = val;
-  });
-  const hud = document.getElementById("cvDetectionInfo");
-  if (hud) hud.style.display = val && CV.detecting ? "flex" : "none";
-  apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: val, minConfidence: CV.confidence } }).catch(() => {});
+  if (typeof applyCVConfigState === "function") applyCVConfigState({ showDebugInfo: val });
+  else CV.showDebug = val;
+  if (typeof persistCVConfig === "function") persistCVConfig({ showDebugInfo: val }).catch(() => {});
+  else apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: val, minConfidence: CV.confidence } }).catch(() => {});
 }
 
 function updateCVConfig(val) {
-  CV.confidence = parseFloat(val) / 100;
-  apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
+  const confidence = parseFloat(val) / 100;
+  if (typeof applyCVConfigState === "function") applyCVConfigState({ minConfidence: confidence });
+  else CV.confidence = confidence;
+  if (typeof persistCVConfig === "function") persistCVConfig({ minConfidence: confidence }).catch(() => {});
+  else apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
 }
 
 function onCVPersonCountUpdate(count) {
@@ -195,6 +197,9 @@ function onCVPersonCountUpdate(count) {
   if (g("cvHumanCount"))     g("cvHumanCount").textContent     = count;
   if (typeof automationEngine !== "undefined" && automationEngine.notifyPersonCount) {
       automationEngine.notifyPersonCount(count);
+  }
+  if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
+    Overview.updateDashboardRoomSummary();
   }
   if (typeof updateDashboardStats === 'function') updateDashboardStats();
 }
@@ -209,6 +214,9 @@ function onLightAnalysisUpdate(condition, brightness) {
   if (g("cvBrightnessBar"))   g("cvBrightnessBar").style.width   = pct + "%";
   const condMap = { dark: "Gelap", normal: "Normal", bright: "Terang" };
   if (g("cvLightCondition")) g("cvLightCondition").textContent   = condMap[condition] || condition;
+  if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
+    Overview.updateDashboardRoomSummary();
+  }
 
   // Trigger automation engine for light rules
   if (typeof automationEngine !== "undefined" && automationEngine.onLightCondition) {

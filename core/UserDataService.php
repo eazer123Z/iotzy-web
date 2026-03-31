@@ -40,6 +40,270 @@ function iotzyNormalizeAnalyticsDate(?string $date): string
     return $ts ? date('Y-m-d', $ts) : date('Y-m-d');
 }
 
+function iotzyDefaultCvRules(): array
+{
+    return [
+        'human' => ['enabled' => true, 'rules' => [], 'delay' => 5000],
+        'light' => ['enabled' => true, 'onDark' => [], 'onBright' => [], 'delay' => 2000],
+    ];
+}
+
+function iotzyDefaultCvConfigFlat(): array
+{
+    return [
+        'showBoundingBox' => true,
+        'showDebugInfo' => true,
+        'minConfidence' => 0.5,
+        'darkThreshold' => 0.3,
+        'brightThreshold' => 0.7,
+        'humanEnabled' => true,
+        'lightEnabled' => true,
+    ];
+}
+
+function iotzyResolveNestedValue(array $source, array $paths, mixed $fallback = null): mixed
+{
+    foreach ($paths as $path) {
+        $value = $source;
+        $found = true;
+        foreach ($path as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                $found = false;
+                break;
+            }
+            $value = $value[$segment];
+        }
+        if ($found && $value !== null && $value !== '') {
+            return $value;
+        }
+    }
+
+    return $fallback;
+}
+
+function iotzyNormalizeCvConfigFlat(array $source = [], ?array $defaults = null): array
+{
+    $defaults = array_merge(iotzyDefaultCvConfigFlat(), (array)$defaults);
+    $boolCaster = static fn($value): bool => filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? (bool)$value;
+    $floatCaster = static fn($value): float => is_numeric($value) ? (float)$value : 0.0;
+
+    $showBoundingBox = $boolCaster(iotzyResolveNestedValue(
+        $source,
+        [
+            ['showBoundingBox'],
+            ['showBoundingBoxes'],
+            ['show_bounding_box'],
+            ['ui', 'showBoundingBoxes'],
+            ['cv_config', 'ui', 'showBoundingBoxes'],
+        ],
+        $defaults['showBoundingBox']
+    ));
+    $showDebugInfo = $boolCaster(iotzyResolveNestedValue(
+        $source,
+        [
+            ['showDebugInfo'],
+            ['show_debug_info'],
+            ['ui', 'showDebugInfo'],
+            ['cv_config', 'ui', 'showDebugInfo'],
+        ],
+        $defaults['showDebugInfo']
+    ));
+    $minConfidence = max(0.1, min(0.99, $floatCaster(iotzyResolveNestedValue(
+        $source,
+        [
+            ['minConfidence'],
+            ['min_confidence'],
+            ['cv_min_confidence'],
+            ['detection', 'minConfidence'],
+            ['cv_config', 'detection', 'minConfidence'],
+        ],
+        $defaults['minConfidence']
+    ))));
+    $darkThreshold = max(0.01, min(0.99, $floatCaster(iotzyResolveNestedValue(
+        $source,
+        [
+            ['darkThreshold'],
+            ['dark_threshold'],
+            ['cv_dark_threshold'],
+            ['light', 'darkThreshold'],
+            ['cv_config', 'light', 'darkThreshold'],
+        ],
+        $defaults['darkThreshold']
+    ))));
+    $brightThreshold = max(0.01, min(0.99, $floatCaster(iotzyResolveNestedValue(
+        $source,
+        [
+            ['brightThreshold'],
+            ['bright_threshold'],
+            ['cv_bright_threshold'],
+            ['light', 'brightThreshold'],
+            ['cv_config', 'light', 'brightThreshold'],
+        ],
+        $defaults['brightThreshold']
+    ))));
+    $humanEnabled = $boolCaster(iotzyResolveNestedValue(
+        $source,
+        [
+            ['humanEnabled'],
+            ['human_rules_enabled'],
+            ['cv_human_rules_enabled'],
+            ['automation', 'humanEnabled'],
+            ['cv_config', 'automation', 'humanEnabled'],
+        ],
+        $defaults['humanEnabled']
+    ));
+    $lightEnabled = $boolCaster(iotzyResolveNestedValue(
+        $source,
+        [
+            ['lightEnabled'],
+            ['light_rules_enabled'],
+            ['cv_light_rules_enabled'],
+            ['automation', 'lightEnabled'],
+            ['cv_config', 'automation', 'lightEnabled'],
+        ],
+        $defaults['lightEnabled']
+    ));
+
+    return [
+        'showBoundingBox' => $showBoundingBox,
+        'showDebugInfo' => $showDebugInfo,
+        'minConfidence' => round($minConfidence, 4),
+        'darkThreshold' => round($darkThreshold, 4),
+        'brightThreshold' => round($brightThreshold, 4),
+        'humanEnabled' => $humanEnabled,
+        'lightEnabled' => $lightEnabled,
+    ];
+}
+
+function iotzyBuildCvConfigDocument(array $flat): array
+{
+    $flat = iotzyNormalizeCvConfigFlat($flat);
+
+    return [
+        'detection' => [
+            'minConfidence' => $flat['minConfidence'],
+        ],
+        'light' => [
+            'darkThreshold' => $flat['darkThreshold'],
+            'brightThreshold' => $flat['brightThreshold'],
+        ],
+        'ui' => [
+            'showBoundingBoxes' => $flat['showBoundingBox'],
+            'showDebugInfo' => $flat['showDebugInfo'],
+        ],
+        'automation' => [
+            'humanEnabled' => $flat['humanEnabled'],
+            'lightEnabled' => $flat['lightEnabled'],
+        ],
+    ];
+}
+
+function iotzyEnsureUserSettingsRow(int $userId, ?PDO $db = null): void
+{
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return;
+    }
+
+    $mqttDefaults = [
+        'mqtt_broker' => getenv('MQTT_HOST') ?: 'broker.hivemq.com',
+        'mqtt_port' => (int)(getenv('MQTT_PORT') ?: 8884),
+        'mqtt_use_ssl' => (getenv('MQTT_USE_SSL') === 'true' || getenv('MQTT_USE_SSL') === '1') ? 1 : 0,
+    ];
+
+    $db->prepare(
+        "INSERT IGNORE INTO user_settings (user_id, mqtt_broker, mqtt_port, mqtt_use_ssl)
+         VALUES (?, ?, ?, ?)"
+    )->execute([$userId, $mqttDefaults['mqtt_broker'], $mqttDefaults['mqtt_port'], $mqttDefaults['mqtt_use_ssl']]);
+}
+
+function iotzyPersistCvConfig(
+    PDO $db,
+    int $userId,
+    int $cameraId,
+    array $incomingConfig,
+    ?array $currentUserSettings = null,
+    ?array $currentCameraSettings = null
+): array {
+    $base = iotzyDefaultCvConfigFlat();
+    if (is_array($currentUserSettings) && $currentUserSettings) {
+        $base = iotzyNormalizeCvConfigFlat($currentUserSettings, $base);
+    }
+    if (is_array($currentCameraSettings) && $currentCameraSettings) {
+        $base = iotzyNormalizeCvConfigFlat($currentCameraSettings, $base);
+    }
+
+    $flat = iotzyNormalizeCvConfigFlat($incomingConfig, $base);
+    $configJson = json_encode(iotzyBuildCvConfigDocument($flat), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    iotzyEnsureUserSettingsRow($userId, $db);
+
+    if ($cameraId > 0) {
+        $db->prepare("INSERT IGNORE INTO camera_settings (camera_id) VALUES (?)")->execute([$cameraId]);
+        $db->prepare(
+            "UPDATE camera_settings
+             SET show_bounding_box = ?,
+                 show_debug_info = ?,
+                 min_confidence = ?,
+                 dark_threshold = ?,
+                 bright_threshold = ?,
+                 human_rules_enabled = ?,
+                 light_rules_enabled = ?,
+                 cv_config = ?
+             WHERE camera_id = ?"
+        )->execute([
+            (int)$flat['showBoundingBox'],
+            (int)$flat['showDebugInfo'],
+            $flat['minConfidence'],
+            $flat['darkThreshold'],
+            $flat['brightThreshold'],
+            (int)$flat['humanEnabled'],
+            (int)$flat['lightEnabled'],
+            $configJson,
+            $cameraId,
+        ]);
+    }
+
+    $db->prepare(
+        "UPDATE user_settings
+         SET cv_min_confidence = ?,
+             cv_dark_threshold = ?,
+             cv_bright_threshold = ?,
+             cv_human_rules_enabled = ?,
+             cv_light_rules_enabled = ?,
+             cv_config = ?
+         WHERE user_id = ?"
+    )->execute([
+        $flat['minConfidence'],
+        $flat['darkThreshold'],
+        $flat['brightThreshold'],
+        (int)$flat['humanEnabled'],
+        (int)$flat['lightEnabled'],
+        $configJson,
+        $userId,
+    ]);
+
+    return $flat;
+}
+
+function iotzyPersistCvRules(PDO $db, int $userId, int $cameraId, array $rules): array
+{
+    $currentRules = iotzyJsonDecode($rules, iotzyDefaultCvRules());
+    $normalizedRules = array_replace_recursive(iotzyDefaultCvRules(), is_array($currentRules) ? $currentRules : []);
+    $rulesJson = json_encode($normalizedRules, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    iotzyEnsureUserSettingsRow($userId, $db);
+
+    if ($cameraId > 0) {
+        $db->prepare("INSERT IGNORE INTO camera_settings (camera_id) VALUES (?)")->execute([$cameraId]);
+        $db->prepare("UPDATE camera_settings SET cv_rules = ? WHERE camera_id = ?")->execute([$rulesJson, $cameraId]);
+    }
+
+    $db->prepare("UPDATE user_settings SET cv_rules = ? WHERE user_id = ?")->execute([$rulesJson, $userId]);
+
+    return $normalizedRules;
+}
+
 function iotzyInferDeviceTemplateSlug(?string $type = null, ?string $icon = null): ?string
 {
     $type = strtolower(trim((string)$type));
@@ -135,6 +399,7 @@ function getUserSettings(int $userId): ?array
         $row = $st->fetch();
 
         if (!$row) {
+            $flatCvConfig = iotzyDefaultCvConfigFlat();
             return [
                 'user_id' => $userId,
                 'mqtt_broker' => getenv('MQTT_HOST') ?: 'broker.hivemq.com',
@@ -143,14 +408,29 @@ function getUserSettings(int $userId): ?array
                 'mqtt_path' => getenv('MQTT_PATH') ?: '/mqtt',
                 'theme' => 'light',
                 'quick_control_devices' => [],
-                'cv_config' => [],
-                'cv_rules' => [],
+                'cv_config' => iotzyBuildCvConfigDocument($flatCvConfig),
+                'cv_rules' => iotzyDefaultCvRules(),
+                'cv_min_confidence' => $flatCvConfig['minConfidence'],
+                'cv_dark_threshold' => $flatCvConfig['darkThreshold'],
+                'cv_bright_threshold' => $flatCvConfig['brightThreshold'],
+                'cv_human_rules_enabled' => (int)$flatCvConfig['humanEnabled'],
+                'cv_light_rules_enabled' => (int)$flatCvConfig['lightEnabled'],
             ];
         }
 
         $row['quick_control_devices'] = iotzyJsonDecode($row['quick_control_devices'], []);
         $row['cv_config'] = iotzyJsonDecode($row['cv_config'], []);
-        $row['cv_rules'] = iotzyJsonDecode($row['cv_rules'], []);
+        $row['cv_rules'] = array_replace_recursive(
+            iotzyDefaultCvRules(),
+            iotzyJsonDecode($row['cv_rules'], [])
+        );
+        $flatCvConfig = iotzyNormalizeCvConfigFlat($row);
+        $row['cv_min_confidence'] = $flatCvConfig['minConfidence'];
+        $row['cv_dark_threshold'] = $flatCvConfig['darkThreshold'];
+        $row['cv_bright_threshold'] = $flatCvConfig['brightThreshold'];
+        $row['cv_human_rules_enabled'] = (int)$flatCvConfig['humanEnabled'];
+        $row['cv_light_rules_enabled'] = (int)$flatCvConfig['lightEnabled'];
+        $row['cv_config'] = iotzyBuildCvConfigDocument($flatCvConfig);
         $row['telegram_configured'] = !empty(readStoredSecret($row['telegram_bot_token'] ?? ''))
             || !empty(defined('TELEGRAM_BOT_TOKEN') ? TELEGRAM_BOT_TOKEN : '');
         unset($row['mqtt_password_enc'], $row['telegram_bot_token']);
@@ -420,8 +700,20 @@ function getUserCameraBundle(int $userId, ?PDO $db = null): array
     $settingsStmt->execute([$cameraId]);
     $cameraSettings = $settingsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     $cameraSettings['camera_id'] = $cameraId;
-    $cameraSettings['cv_rules'] = iotzyJsonDecode($cameraSettings['cv_rules'] ?? null, []);
+    $cameraSettings['cv_rules'] = array_replace_recursive(
+        iotzyDefaultCvRules(),
+        iotzyJsonDecode($cameraSettings['cv_rules'] ?? null, [])
+    );
     $cameraSettings['cv_config'] = iotzyJsonDecode($cameraSettings['cv_config'] ?? null, []);
+    $cameraFlatConfig = iotzyNormalizeCvConfigFlat($cameraSettings);
+    $cameraSettings['show_bounding_box'] = (int)$cameraFlatConfig['showBoundingBox'];
+    $cameraSettings['show_debug_info'] = (int)$cameraFlatConfig['showDebugInfo'];
+    $cameraSettings['min_confidence'] = $cameraFlatConfig['minConfidence'];
+    $cameraSettings['dark_threshold'] = $cameraFlatConfig['darkThreshold'];
+    $cameraSettings['bright_threshold'] = $cameraFlatConfig['brightThreshold'];
+    $cameraSettings['human_rules_enabled'] = (int)$cameraFlatConfig['humanEnabled'];
+    $cameraSettings['light_rules_enabled'] = (int)$cameraFlatConfig['lightEnabled'];
+    $cameraSettings['cv_config'] = iotzyBuildCvConfigDocument($cameraFlatConfig);
 
     $cvStmt = $db->prepare("SELECT * FROM cv_state WHERE camera_id = ? LIMIT 1");
     $cvStmt->execute([$cameraId]);
