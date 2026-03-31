@@ -5,26 +5,6 @@ require_once __DIR__ . '/../core/AIParser.php';
 require_once __DIR__ . '/../core/TelegramService.php';
 require_once __DIR__ . '/../core/UserDataService.php';
 
-function iotzyAiRateLimit(PDO $db, int $userId, int $limit = 20, int $windowSec = 60): array
-{
-    $db->prepare("CREATE TABLE IF NOT EXISTS ai_rate_limits (
-        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        user_id INT UNSIGNED NOT NULL,
-        action_name VARCHAR(50) NOT NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_ai_rate_limits_user_time (user_id, action_name, created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")->execute();
-    $db->prepare("DELETE FROM ai_rate_limits WHERE created_at < DATE_SUB(NOW(), INTERVAL 2 DAY)")->execute();
-    $stmt = $db->prepare("SELECT COUNT(*) FROM ai_rate_limits WHERE user_id=? AND action_name='ai_chat_process' AND created_at>=DATE_SUB(NOW(), INTERVAL ? SECOND)");
-    $stmt->execute([$userId, $windowSec]);
-    $count = (int)$stmt->fetchColumn();
-    if ($count >= $limit) {
-        return ['allowed' => false, 'retry_after' => 5];
-    }
-    $db->prepare("INSERT INTO ai_rate_limits (user_id,action_name) VALUES (?, 'ai_chat_process')")->execute([$userId]);
-    return ['allowed' => true, 'retry_after' => 0];
-}
-
 function iotzyCanonicalCvState(?array $raw): ?array
 {
     if (!is_array($raw)) {
@@ -73,10 +53,6 @@ function iotzyValidateMessage(string $msg): ?string
 
 function handleAIChatAction(string $action, int $userId, array $body, PDO $db): void {
     if ($action === 'ai_chat_process') {
-        $rl = iotzyAiRateLimit($db, $userId, 20, 60);
-        if (!$rl['allowed']) {
-            jsonOut(['success' => false, 'error' => 'Terlalu banyak permintaan AI. Coba lagi beberapa detik.', 'retry_after' => $rl['retry_after']], 429);
-        }
         $msg = iotzyValidateMessage((string)($body['message'] ?? ''));
         if (!$msg) jsonOut(['success'=>false,'error'=>'Pesan kosong']);
         $sessionStart = $body['session_start'] ?? null;
@@ -124,16 +100,6 @@ function handleAIChatAction(string $action, int $userId, array $body, PDO $db): 
     }
 
     if ($action === 'get_ai_token_metrics') {
-        $db->prepare("CREATE TABLE IF NOT EXISTS ai_token_metrics (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            user_id INT UNSIGNED NOT NULL,
-            prompt_tokens INT UNSIGNED NOT NULL,
-            history_tokens INT UNSIGNED NOT NULL,
-            context_tokens INT UNSIGNED NOT NULL,
-            response_tokens INT UNSIGNED NOT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            KEY idx_ai_token_metrics_user_time (user_id, created_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")->execute();
         $stmt = $db->prepare("SELECT prompt_tokens,history_tokens,context_tokens,response_tokens,created_at FROM ai_token_metrics WHERE user_id=? ORDER BY created_at DESC LIMIT 100");
         $stmt->execute([$userId]);
         $rows = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));

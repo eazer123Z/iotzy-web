@@ -25,16 +25,19 @@ function handleSensorAction(string $action, int $userId, array $body, PDO $db): 
         }
 
         $stmt = $db->prepare(
-            "SELECT sr.value, sr.recorded_at
-             FROM sensor_readings sr
-             JOIN sensors s ON s.id = sr.sensor_id
-             WHERE sr.sensor_id = ? AND s.user_id = ?
-             ORDER BY sr.recorded_at DESC
-             LIMIT ? OFFSET ?"
+            "SELECT t.value, t.recorded_at
+             FROM (
+                SELECT sr.value, sr.recorded_at
+                FROM sensor_readings sr
+                JOIN sensors s ON s.id = sr.sensor_id
+                WHERE sr.sensor_id = ? AND s.user_id = ?
+                ORDER BY sr.recorded_at DESC
+                LIMIT ? OFFSET ?
+             ) t
+             ORDER BY t.recorded_at ASC"
         );
         $stmt->execute([$senId, $userId, $limit, $offset]);
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        jsonOut(array_reverse($rows));
+        jsonOut($stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
     requireCsrf();
@@ -223,20 +226,18 @@ function handleSensorAction(string $action, int $userId, array $body, PDO $db): 
 
         dbWrite("UPDATE sensors SET latest_value = ?, last_seen = NOW() WHERE id = ?", [(string)$val, $senId]);
 
-        $s2 = $db->prepare(
-            "SELECT recorded_at
-             FROM sensor_readings
-             WHERE sensor_id = ?
-             ORDER BY recorded_at DESC
-             LIMIT 1"
-        );
-        $s2->execute([$senId]);
-        $lastRead = $s2->fetchColumn();
-        $lastTs = ($lastRead && strtotime($lastRead)) ? strtotime($lastRead) : 0;
-
-        if ($lastTs === 0 || (time() - $lastTs) >= 10) {
-            dbInsert("INSERT INTO sensor_readings (sensor_id, value) VALUES (?, ?)", [$senId, (float)$val]);
-        }
+        $db->prepare(
+            "INSERT INTO sensor_readings (sensor_id, value, recorded_at)
+             SELECT ?, ?, NOW()
+             FROM DUAL
+             WHERE NOT EXISTS (
+                SELECT 1
+                FROM sensor_readings
+                WHERE sensor_id = ?
+                  AND recorded_at >= DATE_SUB(NOW(), INTERVAL 10 SECOND)
+                LIMIT 1
+             )"
+        )->execute([$senId, (float)$val, $senId]);
 
         jsonOut(['success' => true]);
     }

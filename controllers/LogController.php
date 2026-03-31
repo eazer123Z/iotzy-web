@@ -17,16 +17,21 @@ function handleLogAction(string $action, int $userId, array $body, PDO $db): voi
              LEFT JOIN devices d ON d.id = l.device_id
              LEFT JOIN sensors s ON s.id = l.sensor_id
              WHERE l.user_id = ? AND l.created_at >= ? AND l.created_at < ?
+               AND (
+                 l.device_id IS NOT NULL
+                 OR l.sensor_id IS NOT NULL
+                 OR (
+                   LOWER(l.device_name) NOT IN ('system', 'mqtt')
+                   AND LOWER(l.trigger_type) <> 'system'
+                   AND l.activity <> ''
+                 )
+               )
              ORDER BY l.created_at DESC
              LIMIT ?"
         );
         $stmt->execute([$userId, $start, $end, $limit]);
         $rows = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $log) {
-            if (!iotzyIsUserFacingLog($log)) {
-                continue;
-            }
-
             $ts = strtotime($log['created_at']);
             $rows[] = [
                 'id' => (int)$log['id'],

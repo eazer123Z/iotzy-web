@@ -196,6 +196,12 @@ function updateThemeIcon(theme) {
 const ACTIVE_REQ = {};
 async function apiPost(action, data = {}, opts = {}) {
   const key = opts.key || action;
+  const noAutoRefreshActions = new Set([
+    "update_sensor_value",
+    "update_device_state",
+    "update_cv_state",
+    "ai_chat_fast_track",
+  ]);
   try {
     if (ACTIVE_REQ[key]) {
       try { ACTIVE_REQ[key].abort(); } catch (_) {}
@@ -231,7 +237,7 @@ async function apiPost(action, data = {}, opts = {}) {
       return { success: false, error: "Server tidak mengirimkan JSON yang valid.", raw: text };
     }
     const json = await res.json();
-    const isMut = opts.refresh === true || /^(add_|update_|delete_|toggle_|save_|clear_)/.test(action);
+    const isMut = opts.refresh === true || (/^(add_|update_|delete_|toggle_|save_|clear_)/.test(action) && !noAutoRefreshActions.has(action));
     if (json && json.success !== false && typeof syncAllFromServer === "function" && isMut) {
       setTimeout(() => { try { syncAllFromServer(true); } catch(_) {} }, 0);
     }

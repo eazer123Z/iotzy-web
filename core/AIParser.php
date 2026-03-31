@@ -52,12 +52,12 @@ if (!defined('AI_MODEL'))
  */
 function iotzy_check_rate_limit(int $userId, PDO $db, string $action = 'ai_chat'): bool
 {
-    // Bersihkan entri lama dulu (rolling window)
-    $db->prepare(
-        "DELETE FROM ai_rate_limits
-         WHERE user_id = ? AND action_name = ?
-           AND created_at < DATE_SUB(NOW(), INTERVAL " . (int)AI_RATE_LIMIT_WINDOW_SEC . " SECOND)"
-    )->execute([$userId, $action]);
+    if (random_int(1, 50) === 1) {
+        $db->prepare(
+            "DELETE FROM ai_rate_limits
+             WHERE created_at < DATE_SUB(NOW(), INTERVAL 2 DAY)"
+        )->execute();
+    }
 
     // Hitung request dalam window aktif
     $stmt = $db->prepare(
@@ -241,7 +241,44 @@ function iotzy_collect_full_context(int $userId, PDO $db): array
     $stmt->execute([$userId]);
     $ctx['activity_logs'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $ctx['daily_analytics'] = getDailyAnalyticsSummary($userId, date('Y-m-d'), $db);
+    $stmt = $db->prepare(
+        "SELECT
+            COUNT(*) AS total_logs,
+            COUNT(DISTINCT CASE WHEN device_id IS NOT NULL THEN device_id END) AS devices_active_today
+         FROM activity_logs
+         WHERE user_id = ? AND DATE(created_at) = CURRENT_DATE"
+    );
+    $stmt->execute([$userId]);
+    $analyticsRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['total_logs' => 0, 'devices_active_today' => 0];
+
+    $stmt = $db->prepare(
+        "SELECT COALESCE(SUM(duration_seconds), 0)
+         FROM device_sessions
+         WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE"
+    );
+    $stmt->execute([$userId]);
+    $totalDurationSeconds = (int)$stmt->fetchColumn();
+
+    $stmt = $db->prepare(
+        "SELECT COALESCE(SUM(energy_wh), 0), COUNT(DISTINCT device_id)
+         FROM device_sessions
+         WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE"
+    );
+    $stmt->execute([$userId]);
+    $energyRow = $stmt->fetch(PDO::FETCH_NUM) ?: [0, 0];
+
+    $devicesTotal = count($ctx['devices'] ?? []);
+    $devicesActiveToday = (int)($analyticsRow['devices_active_today'] ?? 0);
+    $ctx['daily_analytics'] = [
+        'summary' => [
+            'total_logs' => (int)($analyticsRow['total_logs'] ?? 0),
+            'devices_active_today' => $devicesActiveToday,
+            'devices_idle_today' => max(0, $devicesTotal - $devicesActiveToday),
+            'total_duration_human' => iotzyHumanDuration($totalDurationSeconds),
+            'total_energy_kwh' => round(((float)($energyRow[0] ?? 0)) / 1000, 4),
+            'power_devices' => (int)($energyRow[1] ?? 0),
+        ],
+    ];
 
     // Stats (single query lebih efisien daripada N query individual)
     $stmt = $db->prepare(
@@ -282,28 +319,14 @@ function iotzy_collect_full_context(int $userId, PDO $db): array
     $stmt->execute([$userId]);
     $schedStats = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $stmt = $db->prepare(
-        "SELECT COUNT(*) FROM activity_logs
-         WHERE user_id = ? AND DATE(created_at) = CURRENT_DATE"
-    );
-    $stmt->execute([$userId]);
-    $logsToday = (int)$stmt->fetchColumn();
-
-    $stmt = $db->prepare(
-        "SELECT COALESCE(SUM(duration_seconds), 0)
-         FROM device_sessions
-         WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE"
-    );
-    $stmt->execute([$userId]);
-
     $ctx['stats'] = array_merge(
         $devStats  ?: [],
         $senStats  ?: [],
         $ruleStats ?: [],
         $schedStats ?: [],
         [
-            'logs_today'             => $logsToday,
-            'total_on_minutes_today' => round((int)$stmt->fetchColumn() / 60, 1),
+            'logs_today'             => (int)($analyticsRow['total_logs'] ?? 0),
+            'total_on_minutes_today' => round($totalDurationSeconds / 60, 1),
         ]
     );
 

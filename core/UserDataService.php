@@ -641,6 +641,15 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
          LEFT JOIN devices d ON d.id = l.device_id
          LEFT JOIN sensors s ON s.id = l.sensor_id
          WHERE l.user_id = ? AND l.created_at >= ? AND l.created_at < ?
+           AND (
+             l.device_id IS NOT NULL
+             OR l.sensor_id IS NOT NULL
+             OR (
+               LOWER(l.device_name) NOT IN ('system', 'mqtt')
+               AND LOWER(l.trigger_type) <> 'system'
+               AND l.activity <> ''
+             )
+           )
          ORDER BY l.created_at DESC"
     );
     $logsStmt->execute([$userId, $start, $end]);
@@ -649,10 +658,6 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
     $timeline = array_fill(0, 24, 0);
     $recentLogs = [];
     foreach ($logs as $log) {
-        if (!iotzyIsUserFacingLog($log)) {
-            continue;
-        }
-
         $ts = strtotime($log['created_at']);
         $timeline[(int)date('G', $ts)]++;
         $deviceId = $log['device_id'] !== null ? (int)$log['device_id'] : null;

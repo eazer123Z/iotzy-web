@@ -7,6 +7,46 @@
  */
 
 let isMqttActionBusy = false;
+const SENSOR_DB_SYNC_MS = 4000;
+const DEVICE_DB_SYNC_MS = 1200;
+const sensorSyncQueue = {};
+const deviceStateSyncQueue = {};
+
+function flushSensorSync(sensorId) {
+  const slot = sensorSyncQueue[sensorId];
+  if (!slot) return;
+  slot.timer = null;
+  apiPost("update_sensor_value", { id: sensorId, value: slot.value }, {
+    key: `sensor_sync_${sensorId}`,
+    refresh: false,
+  }).catch(() => {});
+}
+
+function queueSensorSync(sensorId, val) {
+  const id = String(sensorId);
+  if (!sensorSyncQueue[id]) sensorSyncQueue[id] = { value: val, timer: null };
+  sensorSyncQueue[id].value = val;
+  if (sensorSyncQueue[id].timer) return;
+  sensorSyncQueue[id].timer = setTimeout(() => flushSensorSync(id), SENSOR_DB_SYNC_MS);
+}
+
+function flushDeviceStateSync(deviceId) {
+  const slot = deviceStateSyncQueue[deviceId];
+  if (!slot) return;
+  slot.timer = null;
+  apiPost("update_device_state", { id: deviceId, state: slot.state ? 1 : 0, trigger: "MQTT" }, {
+    key: `device_state_sync_${deviceId}`,
+    refresh: false,
+  }).catch(() => {});
+}
+
+function queueDeviceStateSync(deviceId, state) {
+  const id = String(deviceId);
+  if (!deviceStateSyncQueue[id]) deviceStateSyncQueue[id] = { state: !!state, timer: null };
+  deviceStateSyncQueue[id].state = !!state;
+  if (deviceStateSyncQueue[id].timer) return;
+  deviceStateSyncQueue[id].timer = setTimeout(() => flushDeviceStateSync(id), DEVICE_DB_SYNC_MS);
+}
 
 /**
  * Memuat daftar template MQTT dari database dan menyimpannya ke state lokal.
@@ -229,7 +269,7 @@ function handleMQTTMessage(topic, payload) {
           if (ns) STATE.deviceOnAt[id] = Date.now();
           else delete STATE.deviceOnAt[id];
           
-          apiPost("update_device_state", { id, state: ns ? 1 : 0, trigger: "MQTT" }).catch(() => {});
+          queueDeviceStateSync(id, ns);
           addLog(STATE.devices[id]?.name, `Status: ${ns ? "ON" : "OFF"}`, "MQTT", "info");
         }
       } catch {
@@ -287,7 +327,7 @@ function processSensorValue(sensorId, val) {
   }
 
   // Sync data ke database
-  apiPost("update_sensor_value", { id: sensorId, value: val }).catch(() => {});
+  queueSensorSync(sensorId, val);
   updateDashboardStats();
 }
 
