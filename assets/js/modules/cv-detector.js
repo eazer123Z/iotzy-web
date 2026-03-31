@@ -11,6 +11,8 @@ class CVDetector {
         this.model             = null;
         this.isLoading         = false;
         this.isReady           = false;
+        this.backend           = null;
+        this.backendLabel      = '';
         this.detectionActive   = false;
         this._detectionLoopReq = null;
         this.lastDetectionTime = 0;
@@ -56,6 +58,57 @@ class CVDetector {
         });
     }
 
+    _supportsWebGL() {
+        if (typeof document === 'undefined' || typeof window === 'undefined') return false;
+        if (!window.WebGLRenderingContext && !window.WebGL2RenderingContext) return false;
+
+        const canvas = document.createElement('canvas');
+        const contexts = ['webgl2', 'webgl', 'experimental-webgl'];
+        return contexts.some((name) => {
+            try {
+                return !!canvas.getContext(name);
+            } catch (_) {
+                return false;
+            }
+        });
+    }
+
+    async _selectBackend() {
+        const candidates = [];
+        const hasWasm = typeof tf !== 'undefined'
+            && tf.wasm
+            && typeof tf.wasm.setWasmPaths === 'function';
+
+        if (this._supportsWebGL()) {
+            candidates.push({ name: 'webgl', label: 'WebGL' });
+        }
+
+        if (hasWasm) {
+            try {
+                tf.wasm.setWasmPaths('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@4.11.0/dist/');
+            } catch (_) {}
+            candidates.push({ name: 'wasm', label: 'WASM' });
+        }
+
+        candidates.push({ name: 'cpu', label: 'CPU' });
+
+        let lastError = null;
+        for (const candidate of candidates) {
+            try {
+                const ok = await tf.setBackend(candidate.name);
+                if (!ok) continue;
+                await tf.ready();
+                this.backend = candidate.name;
+                this.backendLabel = candidate.label;
+                return candidate.name;
+            } catch (err) {
+                lastError = err;
+            }
+        }
+
+        throw lastError || new Error('No supported TensorFlow backend available');
+    }
+
     /**
      * Inisialisasi model Computer Vision.
      */
@@ -68,17 +121,7 @@ class CVDetector {
 
         try {
             await this._waitForLibraries();
-            await tf.ready();
-            
-            // Pilih backend: WebGL -> CPU fallback
-            try {
-                if (tf.getBackend() !== 'webgl') {
-                    await tf.setBackend('webgl');
-                }
-            } catch (_) {}
-            if (tf.getBackend() !== 'webgl') {
-                try { await tf.setBackend('cpu'); } catch (_) {}
-            }
+            await this._selectBackend();
 
             // Muat model COCO-SSD (Objects Detection)
             this.model = await cocoSsd.load({
@@ -99,6 +142,8 @@ class CVDetector {
             this.isLoading = false;
             this.model     = null;
             this.isReady   = false;
+            this.backend   = null;
+            this.backendLabel = '';
             this._emit('onError', err.message || String(err));
             return false;
         }

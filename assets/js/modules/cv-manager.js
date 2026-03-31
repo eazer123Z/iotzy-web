@@ -3,6 +3,11 @@ function setCVModelStatus(label) {
   if (el) el.textContent = label;
 }
 
+function getCVBackendSuffix() {
+  if (typeof cvDetector === "undefined" || !cvDetector.backendLabel) return "";
+  return ` (${cvDetector.backendLabel})`;
+}
+
 function startCVFpsMonitor() {
   stopCVFpsMonitor();
   CV.frameCount = 0;
@@ -50,10 +55,10 @@ async function initializeCV() {
     CV.modelLoaded = true;
     CV.model = cvDetector.model || CV.model;
     updateCVBadge("ready", "Siap");
-    setCVModelStatus("Siap");
+    setCVModelStatus(`Siap${getCVBackendSuffix()}`);
     if (document.getElementById("cvLoadingStatus")) document.getElementById("cvLoadingStatus").classList.add("hidden");
     if (document.getElementById("cvSystemStatus")) {
-      document.getElementById("cvSystemStatus").textContent = "Model siap";
+      document.getElementById("cvSystemStatus").textContent = `Model siap${getCVBackendSuffix()}`;
       document.getElementById("cvSystemStatus").className   = "status-val ok";
     }
     if (document.getElementById("btnStartCV"))   document.getElementById("btnStartCV").disabled   = false;
@@ -97,7 +102,7 @@ function startCVDetection() {
   if (document.getElementById("cvDetectionInfo")) document.getElementById("cvDetectionInfo").style.display = "flex";
   
   updateCVBadge("active", "Aktif");
-  setCVModelStatus("Aktif");
+  setCVModelStatus(`Aktif${getCVBackendSuffix()}`);
   if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
   showToast("Deteksi CV dimulai", "info");
 }
@@ -113,7 +118,7 @@ function stopCVDetection() {
   if (document.getElementById("cvDetectionInfo")) document.getElementById("cvDetectionInfo").style.display = "none";
   
   updateCVBadge("ready", "Siap");
-  setCVModelStatus(CV.modelLoaded ? "Siap" : "Idle");
+  setCVModelStatus(CV.modelLoaded ? `Siap${getCVBackendSuffix()}` : "Idle");
   if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
   showToast("Deteksi CV dihentikan", "info");
 }
@@ -230,6 +235,7 @@ async function loadCVLibraries() {
     document.head.appendChild(s);
   });
   await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0');
+  await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@4.11.0/dist/tf-backend-wasm.min.js');
   await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3');
   return !!(window.tf && window.cocoSsd);
 }

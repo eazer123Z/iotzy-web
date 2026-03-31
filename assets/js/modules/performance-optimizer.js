@@ -101,8 +101,6 @@ const PerformanceOptimizer = {
 
     async run() {
       if (document.hidden || navigator.connection?.saveData) return;
-      console.log("🚀 Starting Prefetching...");
-      
       const today = new Date().toISOString().slice(0, 10);
       const tasks = [
         { action: "get_logs", data: { date: today, limit: 100 }, key: `iotzy_cache_logs_${today}` },
