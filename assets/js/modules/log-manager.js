@@ -233,7 +233,7 @@ function renderAnalyticsCharts() {
       datasets: [{
         label: "Menit aktif",
         data: devices.map((device) => Math.round((device.active_duration_seconds || 0) / 60)),
-        backgroundColor: ["#22c55e", "#38bdf8", "#f59e0b", "#a855f7", "#ef4444", "#14b8a6", "#f97316", "#6366f1"],
+        backgroundColor: ["#22c55e", "#38bdf8", "#f59e0b", "#60a5fa", "#ef4444", "#14b8a6", "#f97316", "#7dd3fc"],
         borderRadius: 10,
       }],
     },

@@ -91,7 +91,7 @@ const cvUI = (() => {
         _overlayCanvas.height = video.videoHeight || video.offsetHeight || 480;
         _overlayCtx.clearRect(0, 0, _overlayCanvas.width, _overlayCanvas.height);
 
-        const color = CV_CONFIG?.ui?.overlayColor || '#6366f1';
+        const color = CV_CONFIG?.ui?.overlayColor || '#38bdf8';
         detections.forEach(d => {
             const [x, y, w, h] = d.bbox;
             // Gambar kotak luar

@@ -205,9 +205,15 @@ function closeModal(id) {
 /* ============================================================
    THEME
    ============================================================ */
+const THEME_META_COLORS = {
+  light: "#edf8ff",
+  dark: "#06111f",
+};
+
 function initTheme() {
-  const t = (typeof PHP_SETTINGS !== 'undefined' ? (PHP_SETTINGS.theme || 'dark') : 'dark');
+  const t = (typeof PHP_SETTINGS !== 'undefined' ? (PHP_SETTINGS.theme || 'light') : 'light');
   document.documentElement.setAttribute('data-theme', t);
+  updateThemeChrome(t);
   updateThemeIcon(t);
 }
 
@@ -215,6 +221,7 @@ function toggleTheme() {
   const cur = document.documentElement.getAttribute('data-theme');
   const next = cur === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
+  updateThemeChrome(next);
   updateThemeIcon(next);
   
   // Sync settings dropdown jika ada
@@ -230,6 +237,13 @@ function updateThemeIcon(theme) {
   if (!btn) return;
   const icon = btn.querySelector('i');
   if (icon) icon.className = theme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+}
+
+function updateThemeChrome(theme) {
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) {
+    metaTheme.setAttribute("content", THEME_META_COLORS[theme] || THEME_META_COLORS.light);
+  }
 }
 
 /* ============================================================
