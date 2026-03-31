@@ -127,6 +127,9 @@ function renderSensorCard(sensorId) {
   const linked = sensor.device_name ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${escHtml(sensor.device_name)}</div>` : "";
   const latest = getSensorDisplayValue(sensor, val);
   const hasValue = val !== null && val !== undefined;
+  const iconClass = typeof normalizeFaIcon === "function"
+    ? normalizeFaIcon(sensor.icon || cfg.icon || "fa-microchip", cfg.icon || "fa-microchip")
+    : (sensor.icon || cfg.icon || "fa-microchip");
 
   const card = document.createElement("div");
   card.id = `sensor-card-${sensorId}`;
@@ -135,7 +138,7 @@ function renderSensorCard(sensorId) {
     <div class="sensor-card-top">
       <div class="sensor-card-info">
         <div class="sensor-big-icon" style="background:${cfg.color ? `color-mix(in srgb, ${cfg.color} 16%, transparent)` : 'var(--surface-hover)'}">
-          <i class="fas ${sensor.icon || cfg.icon || "fa-microchip"}" style="color:${cfg.color || "var(--text-secondary)"}"></i>
+          <i class="fas ${iconClass}" style="color:${cfg.color || "var(--text-secondary)"}"></i>
         </div>
         <div>
           <div class="sensor-name">${escHtml(sensor.name)}</div>

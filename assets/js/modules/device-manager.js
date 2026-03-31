@@ -16,7 +16,9 @@ function getDeviceType(input) {
   const device = (input && typeof input === "object") ? input : null;
   const explicitType = device ? String(device.type || device.template_device_type || "").toLowerCase() : "";
   if (explicitType) return explicitType;
-  const icon = device ? String(device.icon || device.template_default_icon || "") : String(input || "");
+  const icon = device
+    ? normalizeFaIcon(device.icon || device.template_default_icon || "", "")
+    : normalizeFaIcon(input || "", "");
   if (!icon) return "switch";
   const i = icon.toLowerCase();
   if (i.includes("light") || i.includes("bulb") || i.includes("lamp") || i.includes("sun")) return "light";
@@ -38,15 +40,66 @@ function getDeviceType(input) {
 function getDeviceTypeName(input) {
   const device = (input && typeof input === "object") ? input : null;
   if (device?.template_name) return device.template_name;
-  const icon = device ? device.icon : input;
+  const icon = device
+    ? normalizeFaIcon(device.icon || device.template_default_icon || "", getDefaultDeviceIcon(getDeviceType(device)))
+    : normalizeFaIcon(input || "", "fa-plug");
   const map = {
     "fa-lightbulb":  "Lampu",         "fa-wind":       "Kipas Angin",
     "fa-snowflake":  "AC / Pendingin", "fa-tv":         "Televisi",
     "fa-lock":       "Kunci Pintu",    "fa-door-open":  "Pintu",
     "fa-video":      "Kamera CCTV",    "fa-volume-up":  "Speaker / Alarm",
+    "fa-volume-high":"Speaker / Alarm",
     "fa-plug":       "Stop Kontak",
   };
   return map[icon] || "Perangkat IoT";
+}
+
+function normalizeFaIcon(input, fallback = "fa-plug") {
+  const styleTokens = new Set(["fa", "fas", "far", "fal", "fat", "fab", "fa-solid", "fa-regular", "fa-light", "fa-thin", "fa-brands"]);
+  const aliases = {
+    "volume-up": "fa-volume-high",
+    "fa-volume-up": "fa-volume-high",
+    "volume-down": "fa-volume-low",
+    "fa-volume-down": "fa-volume-low",
+    "speaker": "fa-volume-high",
+    "alarm": "fa-volume-high",
+    "lamp": "fa-lightbulb",
+    "lampu": "fa-lightbulb",
+    "lightbulb": "fa-lightbulb",
+    "bulb": "fa-lightbulb",
+    "kipas": "fa-wind",
+    "fan": "fa-wind",
+    "camera": "fa-video",
+    "cctv": "fa-video",
+    "kunci": "fa-lock",
+    "lock": "fa-lock",
+    "door": "fa-door-open",
+    "pintu": "fa-door-open",
+    "plug": "fa-plug",
+    "switch": "fa-plug",
+    "sensor": "fa-microchip",
+    "temperature": "fa-temperature-half",
+  };
+  const raw = String(input || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-\s]/g, " ")
+    .trim();
+  if (!raw) return fallback;
+
+  const faToken = raw
+    .split(/\s+/)
+    .find((token) => token.startsWith("fa-") && !styleTokens.has(token));
+  if (faToken) {
+    return aliases[faToken] || faToken;
+  }
+
+  const compact = raw.replace(/\s+/g, "-").replace(/^-+|-+$/g, "");
+  if (aliases[compact]) return aliases[compact];
+  if (compact.startsWith("fa-")) return aliases[compact] || compact;
+
+  const withPrefix = `fa-${compact}`;
+  return aliases[withPrefix] || withPrefix || fallback;
 }
 
 async function ensureDeviceTemplatesLoaded() {
@@ -105,7 +158,10 @@ function getDeviceCardIcon(device, isOn = false) {
   if ((dtype === "lock" || dtype === "door") && isOn) {
     return "fa-lock-open";
   }
-  return String(device?.icon || device?.template_default_icon || getDefaultDeviceIcon(dtype) || "fa-plug");
+  return normalizeFaIcon(
+    device?.icon || device?.template_default_icon || getDefaultDeviceIcon(dtype) || "fa-plug",
+    getDefaultDeviceIcon(dtype)
+  );
 }
 
 async function populateDeviceTemplateSelect(selectId, selectedId = "") {
@@ -582,7 +638,7 @@ function renderQuickControlPicker() {
     item.type = 'button';
     item.className = `qc-picker-card${selected ? ' active' : ''}`;
     item.innerHTML = `
-      <div class="qc-picker-icon"><i class="fas ${device.icon || 'fa-plug'}"></i></div>
+      <div class="qc-picker-icon"><i class="fas ${normalizeFaIcon(device.icon || device.template_default_icon || '', getDefaultDeviceIcon(getDeviceType(device)))}"></i></div>
       <div class="qc-picker-meta">
         <strong>${escHtml(device.name)}</strong>
         <span>${getDeviceTypeName(device)}</span>
