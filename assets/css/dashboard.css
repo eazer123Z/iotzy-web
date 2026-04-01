@@ -1827,13 +1827,14 @@ body {
 
 .sidebar {
   background: #f5f9fd;
-  border-right: 1px solid var(--border);
+  border-right: none;
   box-shadow: none;
 }
 
 .sidebar-header,
 .sidebar-footer {
   background: transparent;
+  border: none;
 }
 
 .brand-copy {
@@ -1861,8 +1862,8 @@ body {
 }
 
 .nav-cluster + .nav-cluster {
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  border-top: none;
 }
 
 .nav-group-head {
@@ -1893,7 +1894,7 @@ body {
 }
 
 .nav-item.active {
-  background: #e6f1fa;
+  background: transparent;
   color: var(--accent-strong);
 }
 
@@ -1933,6 +1934,32 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+.user-pill,
+.mqtt-badge,
+.mqtt-pill,
+.topbar-user-chip,
+.sidebar-bottom-row .icon-btn,
+.topbar .icon-btn {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.sidebar-bottom-row {
+  padding-top: 4px;
+}
+
+.user-pill {
+  padding: 6px 2px 4px;
+  border-radius: 0;
+}
+
+.mqtt-badge,
+.mqtt-pill {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .card,
 .stat-card,
 .camera-panel,
@@ -1966,7 +1993,7 @@ body {
   height: auto;
   padding: 14px 24px;
   background: rgba(255, 255, 255, 0.95);
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
   box-shadow: 0 2px 12px rgba(66, 89, 110, 0.05);
   backdrop-filter: blur(8px);
 }
@@ -2332,7 +2359,7 @@ body {
 }
 
 [data-theme="dark"] .nav-item.active {
-  background: #18374f;
+  background: transparent;
 }
 
 [data-theme="dark"] .nav-badge,
