@@ -2,10 +2,15 @@
     <header class="topbar">
       <div class="topbar-left">
         <button onclick="toggleSidebar()" class="menu-btn"><i class="fas fa-bars"></i></button>
-        <div class="breadcrumb">
-          <span class="breadcrumb-app">IoTzy</span>
-          <i class="fas fa-chevron-right breadcrumb-sep"></i>
-          <span id="pageTitle" class="breadcrumb-page">Overview</span>
+        <div class="topbar-context">
+          <div class="topbar-context-meta">
+            <span id="pageSectionBadge" class="page-section-badge">Dashboard IoT</span>
+            <span class="topbar-app-label">IoTzy Smart Home Panel</span>
+          </div>
+          <div class="topbar-context-copy">
+            <div id="pageTitle" class="topbar-page-title">Overview</div>
+            <div id="pageDescription" class="topbar-page-description">Ringkasan operasional perangkat, sensor, dan kondisi sistem.</div>
+          </div>
         </div>
       </div>
       <div class="topbar-right">
@@ -16,12 +21,18 @@
           <span class="mqtt-dot" id="mqttStatusDot"></span>
           <span id="mqttStatusText" class="mqtt-label">Disconnected</span>
         </div>
-        <div style="text-align:right">
+        <div class="topbar-clock">
           <span id="clock" class="clock-time">00:00:00</span>
-          <span id="date" class="clock-date">—</span>
+          <span id="date" class="clock-date">-</span>
         </div>
-        <div class="user-avatar" style="width:32px;height:32px;font-size:.75rem;border-radius:8px" title="<?= htmlspecialchars($user['username']) ?>">
-          <?= htmlspecialchars(strtoupper(substr($user['username'], 0, 1))) ?>
+        <div class="topbar-user-chip" title="<?= htmlspecialchars($user['username']) ?>">
+          <div class="user-avatar topbar-user-avatar">
+            <?= htmlspecialchars(strtoupper(substr($user['username'], 0, 1))) ?>
+          </div>
+          <div class="topbar-user-copy">
+            <span class="topbar-user-name"><?= htmlspecialchars($user['full_name'] ?: $user['username']) ?></span>
+            <span class="topbar-user-role"><?= htmlspecialchars($user['role']) ?></span>
+          </div>
         </div>
       </div>
     </header>

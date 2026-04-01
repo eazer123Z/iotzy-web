@@ -57,16 +57,46 @@ function updateAllDurations() {
   });
 }
 
-/* ── Page Titles Mapping ── */
-const PAGE_TITLES = {
-  dashboard:  "Overview",
-  devices:    "Perangkat",
-  sensors:    "Sensor",
-  automation: "Rules Engine",
-  camera:     "Computer Vision",
-  analytics:  "Log & Analytics",
-  settings:   "Pengaturan",
+/* ── Page Meta Mapping ── */
+const PAGE_META = {
+  dashboard: {
+    title: "Overview",
+    section: "Dashboard IoT",
+    description: "Ringkasan operasional perangkat, sensor, dan kondisi rumah pintar."
+  },
+  devices: {
+    title: "Perangkat",
+    section: "Dashboard IoT",
+    description: "Kontrol dan status perangkat aktif dalam satu panel yang mudah dibaca."
+  },
+  sensors: {
+    title: "Sensor",
+    section: "Dashboard IoT",
+    description: "Pemantauan data sensor lingkungan secara real-time dan rapi."
+  },
+  automation: {
+    title: "Rules Engine",
+    section: "Dashboard IoT",
+    description: "Atur alur otomatisasi berbasis kondisi, jadwal, dan status perangkat."
+  },
+  camera: {
+    title: "Computer Vision",
+    section: "Dashboard IoT",
+    description: "Pantau kamera, deteksi orang, dan analisis cahaya dari browser."
+  },
+  analytics: {
+    title: "Log & Analitik",
+    section: "Halaman Informasi",
+    description: "Lihat histori, statistik harian, dan ringkasan energi sistem."
+  },
+  settings: {
+    title: "Pengaturan",
+    section: "Halaman Informasi",
+    description: "Kelola profil, koneksi, keamanan, dan konfigurasi sistem."
+  },
 };
+
+const MOBILE_HUB_PAGES = new Set(["automation", "analytics", "settings"]);
 
 /* ── Variabel state halaman aktif ── */
 let _currentPage = 'dashboard';
@@ -106,14 +136,32 @@ function switchPage(page, el) {
     if (navEl) navEl.classList.add("active");
   }
   
-  // Update judul di Topbar
+  // Update konteks halaman di Topbar
+  const meta = PAGE_META[page] || {
+    title: page,
+    section: "Dashboard IoT",
+    description: "Halaman sistem IoT."
+  };
   const pt = document.getElementById("pageTitle");
-  if (pt) pt.textContent = PAGE_TITLES[page] || page;
+  const pd = document.getElementById("pageDescription");
+  const ps = document.getElementById("pageSectionBadge");
+  if (pt) pt.textContent = meta.title;
+  if (pd) pd.textContent = meta.description;
+  if (ps) ps.textContent = meta.section;
+  if (typeof document !== "undefined") {
+    document.title = `${meta.title} | IoTzy`;
+  }
 
   // Sync dengan bottom-nav mobile
   document.querySelectorAll(".bn-item").forEach((b) => {
+    const isMore = b.dataset.page === "more";
+    const shouldActive = isMore ? MOBILE_HUB_PAGES.has(page) : b.dataset.page === page;
+    b.classList.toggle("active", shouldActive);
+  });
+  document.querySelectorAll(".mobile-nav-link").forEach((b) => {
     b.classList.toggle("active", b.dataset.page === page);
   });
+  closeMobileHub();
 
   // Jalankan inisialisasi modul spesifik halaman secara Async (Non-blocking)
   setTimeout(() => {
@@ -162,8 +210,25 @@ function switchPageMobile(page, btn) {
   switchPage(page, navItem);
 }
 
+function toggleMobileHub(forceOpen) {
+  const hub = document.getElementById("mobileNavHub");
+  const overlay = document.getElementById("mobileNavOverlay");
+  const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !hub?.classList.contains("open");
+  hub?.classList.toggle("open", shouldOpen);
+  overlay?.classList.toggle("show", shouldOpen);
+  if (hub) hub.setAttribute("aria-hidden", shouldOpen ? "false" : "true");
+}
+
+function closeMobileHub() {
+  toggleMobileHub(false);
+}
+
 /* ── Toggle Sidebar Mobile ── */
 function toggleSidebar() {
+  if (window.innerWidth <= 768) {
+    toggleMobileHub(true);
+    return;
+  }
   document.getElementById("sidebar")?.classList.toggle("open");
   document.getElementById("overlay")?.classList.toggle("show");
 }

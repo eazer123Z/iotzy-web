@@ -1,6 +1,7 @@
 <div id="dashboard" class="view app-section">
   <div class="overview-header">
     <div class="ov-title">
+      <span class="view-kicker">Dashboard IoT</span>
       <h1>Selamat Datang, <?= htmlspecialchars($user['username']) ?></h1>
       <p>Ringkasan kondisi rumah pintar Anda saat ini.</p>
     </div>

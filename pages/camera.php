@@ -1,6 +1,7 @@
 <div id="camera" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
+      <span class="view-kicker">Dashboard IoT</span>
       <h3><i class="fas fa-eye"></i> Computer Vision</h3>
       <p>Deteksi orang dan analisis cahaya real-time langsung dari kamera browser dengan tampilan yang lebih informatif.</p>
     </div>

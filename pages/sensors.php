@@ -1,6 +1,7 @@
 <div id="sensors" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
+      <span class="view-kicker">Dashboard IoT</span>
       <h3><i class="fas fa-signal"></i> Monitoring Sensor</h3>
       <p>Data sensor lingkungan dan threshold real-time.</p>
     </div>
