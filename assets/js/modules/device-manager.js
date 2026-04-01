@@ -576,6 +576,31 @@ function filterDevices(q) {
 
 /* ==================== QUICK CONTROLS ==================== */
 
+function normalizeQuickControlSelection(list) {
+  return Array.from(new Set((Array.isArray(list) ? list : []).map(String)))
+    .filter((id) => !!STATE.devices[id])
+    .slice(0, 4);
+}
+
+function getQuickControlSelection() {
+  return Array.isArray(STATE.quickControlDevicesDraft)
+    ? normalizeQuickControlSelection(STATE.quickControlDevicesDraft)
+    : normalizeQuickControlSelection(STATE.quickControlDevices);
+}
+
+function updateQuickControlSelectionSummary() {
+  const counter = document.getElementById('quickControlSelectionCount');
+  if (!counter) return;
+  const count = getQuickControlSelection().length;
+  counter.textContent = `${count} / 4 dipilih`;
+}
+
+function isQuickControlSelectionUnchanged(selection) {
+  const next = normalizeQuickControlSelection(selection);
+  const current = normalizeQuickControlSelection(STATE.quickControlDevices);
+  return next.length === current.length && next.every((id, index) => id === current[index]);
+}
+
 /**
  * Merender Quick Control Card ke Dashboard.
  */
@@ -583,6 +608,7 @@ function renderQuickControls() {
   const container = document.getElementById('quickControlsContainer');
   if (!container) return;
   container.innerHTML = '';
+  container.classList.remove('qc-grid');
 
   const selected = (STATE.quickControlDevices || []).map(String).filter((id) => STATE.devices[id]);
   if (!selected.length) {
@@ -604,7 +630,7 @@ function renderQuickControls() {
  * Memilih perangkat yang akan tampil di Quick Control Modal.
  */
 function toggleQuickControlPick(id) {
-  const current = (STATE.quickControlDevices || []).map(String);
+  const current = getQuickControlSelection();
   const idx = current.indexOf(String(id));
   
   if (idx >= 0) {
@@ -614,7 +640,7 @@ function toggleQuickControlPick(id) {
     current.push(String(id));
   }
   
-  STATE.quickControlDevices = current;
+  STATE.quickControlDevicesDraft = current;
   renderQuickControlPicker();
 }
 
@@ -626,7 +652,19 @@ function renderQuickControlPicker() {
   if (!list) return;
   list.innerHTML = '';
 
-  const keys = Object.keys(STATE.devices || {});
+  const selectedIds = getQuickControlSelection();
+  const selectedSet = new Set(selectedIds);
+  const keys = Object.keys(STATE.devices || {}).sort((a, b) => {
+    const aSelected = selectedSet.has(String(a)) ? 0 : 1;
+    const bSelected = selectedSet.has(String(b)) ? 0 : 1;
+    if (aSelected !== bSelected) return aSelected - bSelected;
+    const aName = String(STATE.devices[a]?.name || '').toLowerCase();
+    const bName = String(STATE.devices[b]?.name || '').toLowerCase();
+    return aName.localeCompare(bName, 'id');
+  });
+
+  updateQuickControlSelectionSummary();
+
   if (!keys.length) {
     list.innerHTML = '<p class="modal-loading">Belum ada perangkat.</p>';
     return;
@@ -634,18 +672,27 @@ function renderQuickControlPicker() {
 
   keys.forEach((id) => {
     const device = STATE.devices[id];
-    const selected = (STATE.quickControlDevices || []).map(String).includes(String(id));
+    const selected = selectedSet.has(String(id));
+    const isOn = !!STATE.deviceStates[id];
+    const dtype = getDeviceType(device);
+    const accent = getDeviceAccent(dtype);
     
     const item = document.createElement('button');
     item.type = 'button';
     item.className = `qc-picker-card${selected ? ' active' : ''}`;
+    item.style.setProperty('--qc-picker-accent', accent);
     item.innerHTML = `
-      <div class="qc-picker-icon"><i class="fas ${normalizeFaIcon(device.icon || device.template_default_icon || '', getDefaultDeviceIcon(getDeviceType(device)))}"></i></div>
-      <div class="qc-picker-meta">
-        <strong>${escHtml(device.name)}</strong>
-        <span>${getDeviceTypeName(device)}</span>
+      <div class="qc-picker-main">
+        <div class="qc-picker-icon"><i class="fas ${normalizeFaIcon(device.icon || device.template_default_icon || '', getDefaultDeviceIcon(dtype))}"></i></div>
+        <div class="qc-picker-meta">
+          <strong>${escHtml(device.name)}</strong>
+          <span>${escHtml(device.template_name || getDeviceTypeName(device))}</span>
+        </div>
       </div>
-      <div class="qc-picker-state">${selected ? 'Dipilih' : 'Pilih'}</div>`;
+      <div class="qc-picker-side">
+        <span class="qc-picker-status${isOn ? ' on' : ''}">${isOn ? 'Aktif' : 'Mati'}</span>
+        <span class="qc-picker-badge">${selected ? 'Dipilih' : 'Pilih'}</span>
+      </div>`;
     
     item.onclick = () => toggleQuickControlPick(id);
     list.appendChild(item);
@@ -653,20 +700,67 @@ function renderQuickControlPicker() {
 }
 
 function openQuickControlSettings() {
+  STATE.quickControlDevicesDraft = normalizeQuickControlSelection(STATE.quickControlDevices);
   renderQuickControlPicker();
   document.getElementById('quickControlModal')?.classList.add('active');
 }
 
 function closeQuickControlSettings() {
+  delete STATE.quickControlDevicesDraft;
   document.getElementById('quickControlModal')?.classList.remove('active');
 }
 
 async function saveQuickControlSettings() {
-  STATE.quickControlDevices = (STATE.quickControlDevices || []).map(String).slice(0, 4);
-  await apiPost('save_settings', { quick_control_devices: STATE.quickControlDevices });
+  if (STATE.quickControlSaveBusy) return;
+
+  const btn = document.getElementById('btnSaveQuickControl');
+  const previous = normalizeQuickControlSelection(STATE.quickControlDevices);
+  const next = getQuickControlSelection();
+
+  if (isQuickControlSelectionUnchanged(next)) {
+    closeQuickControlSettings();
+    return;
+  }
+
+  STATE.quickControlDevices = next;
   renderQuickControls();
-  closeQuickControlSettings();
-  showToast('Quick Control diperbarui!', 'success');
+
+  try {
+    STATE.quickControlSaveBusy = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+    }
+
+    const result = await apiPost(
+      'save_settings',
+      { quick_control_devices: next },
+      { refresh: false, key: 'save_quick_controls' }
+    );
+
+    if (!result || result.success === false) {
+      throw new Error(result?.error || 'Gagal menyimpan quick control.');
+    }
+
+    if (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS) {
+      PHP_SETTINGS.quick_control_devices = [...next];
+    }
+
+    closeQuickControlSettings();
+    showToast('Kontrol cepat diperbarui.', 'success');
+  } catch (error) {
+    STATE.quickControlDevices = previous;
+    renderQuickControls();
+    STATE.quickControlDevicesDraft = [...next];
+    renderQuickControlPicker();
+    showToast(error?.message || 'Gagal menyimpan quick control.', 'error');
+  } finally {
+    STATE.quickControlSaveBusy = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = 'Simpan';
+    }
+  }
 }
 
 /* ==================== DEVICE SETTINGS & CRUD ==================== */
