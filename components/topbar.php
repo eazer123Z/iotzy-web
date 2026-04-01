@@ -22,11 +22,6 @@
         <div class="topbar-clock">
           <span id="clock" class="clock-time">00:00:00</span>
         </div>
-        <div class="topbar-user-chip" title="<?= htmlspecialchars($user['username']) ?>">
-          <div class="user-avatar topbar-user-avatar">
-            <?= htmlspecialchars(strtoupper(substr($user['username'], 0, 1))) ?>
-          </div>
-        </div>
       </div>
     </header>
 

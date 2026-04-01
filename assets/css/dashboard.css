@@ -2139,7 +2139,6 @@ body {
 .user-pill,
 .mqtt-badge,
 .mqtt-pill,
-.topbar-user-chip,
 .search-box,
 .settings-layout,
 .card,
@@ -2165,7 +2164,6 @@ body {
 .user-pill,
 .mqtt-badge,
 .mqtt-pill,
-.topbar-user-chip,
 .sidebar-bottom-row .icon-btn,
 .topbar .icon-btn {
   background: transparent !important;
@@ -2243,7 +2241,7 @@ body {
 
 .topbar-right {
   justify-content: flex-end;
-  gap: 8px;
+  gap: 10px;
 }
 
 .topbar-context {
@@ -2300,6 +2298,8 @@ body {
 .topbar-clock {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  min-width: 64px;
   text-align: right;
   line-height: 1.1;
 }
@@ -2307,14 +2307,6 @@ body {
 .clock-time {
   font-size: 0.76rem;
   font-weight: 700;
-}
-
-.topbar-user-chip {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 0;
-  border-radius: 0;
 }
 
 .mqtt-badge {
@@ -2332,13 +2324,6 @@ body {
   flex: 0 0 36px;
   width: 32px;
   height: 32px;
-}
-
-.topbar-user-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  font-size: 0.72rem;
 }
 
 .sr-only {
