@@ -141,6 +141,9 @@ function loginUser(string $login, string $password): mixed
     if (!$db)
         return 'Database tidak tersedia.';
 
+    $isVercel = getenv('VERCEL') === "1" || isset($_SERVER['VERCEL']) || isset($_ENV['VERCEL']);
+    $isSecure = $isVercel || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['SERVER_PORT'] ?? null) == 443);
+
     $login = trim($login);
     if (!$login || !$password)
         return 'Username dan password harus diisi.';
@@ -193,12 +196,14 @@ function loginUser(string $login, string $password): mixed
         $_SESSION['user_id'] = $userId;
         $_SESSION['session_token'] = $token;
         
-        setcookie('iotzy_remember', $token, [
+        $rememberCookieOptions = [
             'expires' => time() + (30 * 86400),
             'path' => '/',
             'httponly' => true,
-            'samesite' => 'Lax'
-        ]);
+            'samesite' => 'Lax',
+            'secure' => $isSecure,
+        ];
+        setcookie('iotzy_remember', $token, $rememberCookieOptions);
 
         $mqttBroker = getenv('MQTT_HOST') ?: 'broker.hivemq.com';
         $mqttPort   = (int)(getenv('MQTT_PORT') ?: 8884);
@@ -213,7 +218,7 @@ function loginUser(string $login, string $password): mixed
     catch (PDOException $e) {
         $msg = '[IoTzy] loginUser error: ' . $e->getMessage();
         error_log($msg);
-        return 'Terjadi kesalahan server: ' . $e->getMessage();
+        return 'Terjadi kesalahan server. Silakan coba lagi.';
     }
 }
 

@@ -60,7 +60,8 @@ if (!function_exists('iotzyAssetUrl')) {
 $appSecret = getenv('APP_SECRET');
 if (!$appSecret) {
     error_log('[IoTzy FATAL] APP_SECRET tidak diset di environment');
-    die('Server configuration error: APP_SECRET missing');
+    http_response_code(500);
+    exit('Server configuration error.');
 }
 define('APP_SECRET', $appSecret);
 

@@ -9,7 +9,21 @@ if (function_exists('registerApiErrorHandler')) {
 
 $apiOnlyMode = defined('IOTZY_API_ONLY') && IOTZY_API_ONLY === true;
 
-header('Access-Control-Allow-Origin: *');
+$origin = trim((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
+$appUrl = rtrim((string)(defined('APP_URL') ? APP_URL : ''), '/');
+$allowedOrigins = array_values(array_filter(array_unique([
+    $appUrl,
+    rtrim((string)(getenv('APP_URL') ?: ''), '/'),
+    rtrim((string)(getenv('ALLOWED_ORIGIN') ?: ''), '/'),
+])));
+
+if ($origin !== '' && in_array(rtrim($origin, '/'), $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Vary: Origin');
+} elseif ($origin === '' && !$apiOnlyMode && $appUrl !== '') {
+    header('Access-Control-Allow-Origin: ' . $appUrl);
+}
+
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {

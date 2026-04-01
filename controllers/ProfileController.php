@@ -14,6 +14,7 @@ function handleProfileAction(string $action, int $userId, array $body, PDO $db):
     }
 
     if ($action === 'update_profile') {
+        requireCsrf();
         $fn = trim($body['full_name'] ?? '');
         $e  = trim($body['email'] ?? '');
         if (!$e || !filter_var($e,FILTER_VALIDATE_EMAIL)) jsonOut(['success'=>false,'error'=>'Format email tidak valid']);
@@ -25,6 +26,7 @@ function handleProfileAction(string $action, int $userId, array $body, PDO $db):
     }
 
     if ($action === 'change_password') {
+        requireCsrf();
         $curr = $body['current_password'] ?? '';
         $new  = $body['new_password'] ?? '';
         if (!$curr || !$new || strlen($new)<8) jsonOut(['success'=>false,'error'=>'Password baru minimal 8 karakter']);
