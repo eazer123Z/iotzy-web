@@ -99,6 +99,9 @@ function startCVDetection() {
 
   CV.detecting = true;
   cvDetector.startDetection(video);
+  if (typeof automationEngine !== "undefined" && typeof automationEngine.startCV === "function") {
+    automationEngine.startCV();
+  }
   startCVFpsMonitor();
 
   if (typeof lightAnalyzer !== 'undefined') {
@@ -118,6 +121,9 @@ function startCVDetection() {
 function stopCVDetection() {
   CV.detecting = false;
   cvDetector.stopDetection();
+  if (typeof automationEngine !== "undefined" && typeof automationEngine.stopCV === "function") {
+    automationEngine.stopCV();
+  }
   stopCVFpsMonitor();
   if (typeof lightAnalyzer !== 'undefined') lightAnalyzer.stopAnalysis();
 

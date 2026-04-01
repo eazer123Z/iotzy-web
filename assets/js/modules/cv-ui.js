@@ -190,6 +190,45 @@ const cvUI = (() => {
         el.className   = 'status-val ' + cls;
     }
 
+    function _humanConditionLabel(condition, count) {
+        const numericCount = Number.isFinite(Number(count)) ? Number(count) : 0;
+        switch (condition) {
+            case 'eq': return `Sama ${numericCount}`;
+            case 'neq': return `Tidak sama ${numericCount}`;
+            case 'gt': return `Lebih dari ${numericCount}`;
+            case 'lt': return `Kurang dari ${numericCount}`;
+            case 'gte': return `Lebih dari / sama ${numericCount}`;
+            case 'lte': return `Kurang dari / sama ${numericCount}`;
+            case 'any': return 'Ada orang';
+            case 'none': return 'Tidak ada orang';
+            default: return `${condition || 'Kondisi'} ${numericCount}`.trim();
+        }
+    }
+
+    function _humanActionLabel(action) {
+        if (action === 'on') return 'Nyalakan';
+        if (action === 'off') return 'Matikan';
+        if (action === 'speed_high') return 'Kipas 75%';
+        if (action === 'speed_mid') return 'Kipas 50%';
+        if (action === 'speed_low') return 'Kipas 25%';
+        return '-';
+    }
+
+    function _renderHumanRuleDeviceChoices(devices, selectedList = [], name = 'ahr_dev') {
+        const selected = new Set((selectedList || []).map(String));
+        return Object.keys(devices).map((id) => {
+            const dev = devices[id];
+            const checked = selected.has(String(id));
+            return `<label class="cv-dev-cb-item ${checked ? 'checked' : ''}" style="margin-bottom:8px">
+                <input type="checkbox" name="${name}" value="${id}" ${checked ? 'checked' : ''}
+                    onchange="this.closest('label').classList.toggle('checked', this.checked)"
+                    style="width:14px;height:14px;accent-color:var(--a);flex-shrink:0">
+                <i class="fas ${dev.icon || 'fa-plug'}"></i>
+                <span>${_esc(dev.name)}</span>
+            </label>`;
+        }).join('');
+    }
+
     /**
      * Merender panel konfigurasi otomasi CV secara dinamis.
      * Membuat daftar perangkat dengan checkbox untuk memicu aksi.
@@ -236,24 +275,14 @@ const cvUI = (() => {
         if (Array.isArray(humanR.rules) && humanR.rules.length > 0) {
             humanRulesHtml = humanR.rules.map((r, i) => {
                 const devsText = (r.devices || []).map(id => devices[id]?.name || id).join(', ');
-                let condTxt = '';
-                switch(r.condition) {
-                    case 'eq': condTxt = `= ${r.count}`; break;
-                    case 'gt': condTxt = `> ${r.count}`; break;
-                    case 'gte': condTxt = `≥ ${r.count}`; break;
-                    case 'lt': condTxt = `< ${r.count}`; break;
-                    case 'lte': condTxt = `≤ ${r.count}`; break;
-                    case 'any': condTxt = `Terdeteksi (Berapapun)`; break;
-                    case 'none': condTxt = `Tidak Ada (0)`; break;
-                }
-                
-                let onTrueTxt = r.onTrue === 'on' ? 'Nyalakan' : r.onTrue === 'off' ? 'Matikan' : r.onTrue === 'speed_high' ? 'Kipas 75%' : r.onTrue === 'speed_mid' ? 'Kipas 50%' : r.onTrue === 'speed_low' ? 'Kipas 25%' : '';
-                let onFalseTxt = r.onFalse === 'on' ? 'Nyalakan' : r.onFalse === 'off' ? 'Matikan' : r.onFalse === 'speed_high' ? 'Kipas 75%' : r.onFalse === 'speed_mid' ? 'Kipas 50%' : r.onFalse === 'speed_low' ? 'Kipas 25%' : '';
+                const condTxt = _humanConditionLabel(r.condition, r.count);
+                const onTrueTxt = _humanActionLabel(r.onTrue);
+                const onFalseTxt = _humanActionLabel(r.onFalse);
                 
                 return `
                 <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:12px;margin-bottom:10px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                        <b>Jika Orang ${condTxt}</b>
+                        <b>Jika jumlah orang ${condTxt}</b>
                         <button onclick="cvUI.deleteHumanRule(${i})" style="color:var(--red);background:none;border:none;cursor:pointer"><i class="fas fa-trash"></i></button>
                     </div>
                     <div style="font-size:12px;color:var(--ink-4);margin-bottom:8px">
@@ -466,20 +495,13 @@ const cvUI = (() => {
         const ld = document.getElementById('cvLightDelay');
         if (ld) rules.light.delay = parseInt(ld.value) * 1000;
 
-        if (typeof automationEngine !== 'undefined') {
-            automationEngine.updateCVRules(rules);
-        }
+        const persistPromise = typeof automationEngine !== 'undefined'
+            ? automationEngine.updateCVRules(rules)
+            : (typeof apiPost === 'function' ? apiPost('save_cv_rules', { rules }) : Promise.resolve({ success: true }));
         if (window.CV) window.CV.cvRules = rules;
-        if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules(rules);
-
-        // 🔥 Persist to DB (Dedicated CV Rules API)
-        if (typeof apiPost === 'function') {
-            apiPost('save_cv_rules', { rules: rules })
-                .then(() => { if (typeof showToast === 'function') showToast('Pengaturan CV disimpan!', 'success'); })
-                .catch(e => { if (typeof showToast === 'function') showToast('Gagal simpan ke database', 'error'); });
-        } else {
-            if (typeof showToast === 'function') showToast('Pengaturan CV disimpan lokal!', 'success');
-        }
+        Promise.resolve(persistPromise)
+            .then(() => { if (typeof showToast === 'function') showToast('Pengaturan CV disimpan!', 'success'); })
+            .catch(() => { if (typeof showToast === 'function') showToast('Gagal simpan ke database', 'error'); });
     }
 
     /**
@@ -508,8 +530,6 @@ const cvUI = (() => {
         const stateRef = (typeof STATE !== 'undefined' ? STATE : null) || (typeof window !== 'undefined' ? window.STATE : null) || {};
         const devices  = stateRef.devices || {};
         const devKeys  = Object.keys(devices);
-        
-        const devOpts = devKeys.map(k => `<option value="${k}">${_esc(devices[k].name)}</option>`).join('');
 
         const html = `
         <div id="${_id}" class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;opacity:1;pointer-events:all">
@@ -519,22 +539,18 @@ const cvUI = (() => {
                 <label style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Kondisi Jumlah Orang</label>
                 <div style="display:flex;gap:8px;margin-bottom:16px">
                     <select id="ahr_cond" class="fi-input" style="flex:1">
-                        <option value="gte">Lebih dari / Sama (≥)</option>
-                        <option value="gt">Lebih dari (>)</option>
-                        <option value="eq">Tepat (=)</option>
-                        <option value="lt">Kurang dari (<)</option>
-                        <option value="lte">Kurang / Sama (≤)</option>
-                        <option value="any">Berapa saja (>0)</option>
-                        <option value="none">Tidak Ada (0)</option>
+                        <option value="eq">Sama</option>
+                        <option value="gt">Lebih dari</option>
+                        <option value="lt">Kurang dari</option>
+                        <option value="neq">Tidak sama</option>
                     </select>
                     <input type="number" id="ahr_count" class="fi-input" style="width:70px" value="1" min="0" max="20">
                 </div>
 
                 <label style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Target Perangkat</label>
-                <select id="ahr_dev" class="fi-input" style="width:100%;margin-bottom:16px" multiple size="3">
-                    ${devOpts}
-                </select>
-                <div style="font-size:11px;color:var(--ink-4);margin-top:-12px;margin-bottom:16px">Tahan Ctrl/Cmd untuk pilih multiple</div>
+                <div id="ahr_dev" class="cv-device-list" style="margin-bottom:16px;max-height:180px;overflow:auto">
+                    ${devKeys.length ? _renderHumanRuleDeviceChoices(devices, [], 'ahr_dev') : '<div class="muted" style="font-size:12px">Belum ada perangkat tersedia.</div>'}
+                </div>
 
                 <label style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Terpenuhi -> Aksi</label>
                 <select id="ahr_true" class="fi-input" style="width:100%;margin-bottom:16px">
@@ -572,13 +588,16 @@ const cvUI = (() => {
     function addHumanRuleSubmit() {
         const cond = document.getElementById('ahr_cond').value;
         const count = parseInt(document.getElementById('ahr_count').value);
-        const devSelect = document.getElementById('ahr_dev');
-        const devs = Array.from(devSelect.selectedOptions).map(o => o.value);
+        const devs = Array.from(document.querySelectorAll('#ahr_dev input[type=checkbox]:checked')).map((input) => input.value);
         const onTrue = document.getElementById('ahr_true').value;
         const onFalse = document.getElementById('ahr_false').value;
 
         if (devs.length === 0) {
             if (typeof showToast === 'function') showToast('Pilih minimal 1 perangkat!', 'error');
+            return;
+        }
+        if (!Number.isFinite(count) || count < 0) {
+            if (typeof showToast === 'function') showToast('Jumlah orang harus angka 0 atau lebih.', 'error');
             return;
         }
 

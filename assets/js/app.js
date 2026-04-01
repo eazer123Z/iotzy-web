@@ -1128,8 +1128,7 @@ async function bootstrapDeferredServices() {
 
     if (STATE.cvAutoStartRequested && typeof initializeCV === "function" && !CV.detecting && !CV.modelLoading) {
       const runAutoCV = () => {
-        initializeCV()
-          .then(() => { if (typeof startCVDetection === "function") startCVDetection(); })
+        Promise.resolve(typeof startDetection === "function" ? startDetection() : initializeCV())
           .catch(() => {});
       };
       if (typeof window.requestIdleCallback === "function") {
