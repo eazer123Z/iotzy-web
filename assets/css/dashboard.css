@@ -577,10 +577,10 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
   box-shadow: 0 6px 18px color-mix(in srgb, transparent, var(--qc-accent) 22%);
 }
 .qc-btn.is-pending{
-  opacity:.8;
+  opacity:1;
 }
 .qc-btn:disabled{
-  cursor:wait;
+  cursor:pointer;
 }
 .qc-btn-icon{
   width:48px;

@@ -213,8 +213,9 @@ function updateDeviceUI(deviceId) {
     card.classList.toggle("active", isOn);
     card.classList.toggle("is-pending", isUpdating);
     if (card.tagName === "BUTTON") {
-      card.disabled = isUpdating;
+      card.disabled = false;
       card.setAttribute("aria-pressed", isOn ? "true" : "false");
+      card.setAttribute("aria-busy", isUpdating ? "true" : "false");
       card.title = title;
     }
     
@@ -252,7 +253,7 @@ function updateDeviceUI(deviceId) {
 
     const qcState = card.querySelector(".qc-btn-state");
     if (qcState) {
-      qcState.textContent = isUpdating ? "Menyimpan..." : (isOn ? (onLabel || "ON") : (offLabel || "OFF"));
+      qcState.textContent = isOn ? (onLabel || "ON") : (offLabel || "OFF");
     }
     
     // Update Extra Controls visibility within this card
@@ -263,6 +264,84 @@ function updateDeviceUI(deviceId) {
 
 }
 
+function captureDeviceLocalState(deviceId) {
+  const id = String(deviceId);
+  return {
+    state: !!STATE.deviceStates[id],
+    onAt: STATE.deviceOnAt[id]
+  };
+}
+
+function applyLocalDeviceState(deviceId, nextState) {
+  const id = String(deviceId);
+  const normalized = !!nextState;
+  STATE.deviceStates[id] = normalized;
+  if (normalized) {
+    if (!STATE.deviceOnAt[id]) STATE.deviceOnAt[id] = Date.now();
+  } else {
+    delete STATE.deviceOnAt[id];
+  }
+  updateDeviceUI(id);
+}
+
+function restoreLocalDeviceState(deviceId, snapshot) {
+  const id = String(deviceId);
+  STATE.deviceStates[id] = !!snapshot?.state;
+  if (snapshot && typeof snapshot.onAt !== "undefined") STATE.deviceOnAt[id] = snapshot.onAt;
+  else delete STATE.deviceOnAt[id];
+  updateDeviceUI(id);
+}
+
+function publishDeviceState(deviceId, nextState) {
+  const id = String(deviceId);
+  const topic = STATE.deviceTopics[id];
+  if (topic?.pub) publishMQTT(topic.pub, buildDevicePayload(id, nextState));
+}
+
+function syncDeviceStateToServer(deviceId, nextState, trigger, snapshot, onFailure) {
+  const id = String(deviceId);
+  STATE.deviceUpdating = STATE.deviceUpdating || {};
+  STATE.deviceQueuedState = STATE.deviceQueuedState || {};
+
+  STATE.deviceUpdating[id] = true;
+  updateDeviceUI(id);
+
+  return apiPost(
+    "update_device_state",
+    { id, state: nextState ? 1 : 0, trigger },
+    { key: `update_device_state:${id}` }
+  )
+    .then((result) => {
+      if (!result || result.success === false) {
+        throw new Error(result?.error || "Gagal memperbarui status perangkat.");
+      }
+    })
+    .catch((error) => {
+      const hasQueuedState = Object.prototype.hasOwnProperty.call(STATE.deviceQueuedState || {}, id);
+      const queuedState = hasQueuedState ? !!STATE.deviceQueuedState[id] : nextState;
+      if (!hasQueuedState || queuedState === nextState) {
+        onFailure?.(error);
+      }
+    })
+    .finally(() => {
+      STATE.deviceUpdating[id] = false;
+      updateDeviceUI(id);
+
+      if (Object.prototype.hasOwnProperty.call(STATE.deviceQueuedState || {}, id)) {
+        const queuedState = !!STATE.deviceQueuedState[id];
+        delete STATE.deviceQueuedState[id];
+        if (queuedState !== nextState) {
+          const queuedSnapshot = captureDeviceLocalState(id);
+          syncDeviceStateToServer(id, queuedState, trigger, queuedSnapshot, (error) => {
+            restoreLocalDeviceState(id, queuedSnapshot);
+            updateDashboardStats();
+            showToast(error?.message || "Gagal memperbarui status perangkat.", "error");
+          });
+        }
+      }
+    });
+}
+
 /**
  * Mengubah status perangkat secara manual dari UI.
  * Melakukan Publish MQTT dan Update DB backend.
@@ -271,48 +350,23 @@ function toggleDeviceState(deviceId, newState) {
   const id   = String(deviceId);
   if (!STATE.devices[id]) return;
   STATE.deviceUpdating = STATE.deviceUpdating || {};
-  if (STATE.deviceUpdating[id]) return;
+  STATE.deviceQueuedState = STATE.deviceQueuedState || {};
 
   const nextState = !!newState;
-  const prev = !!STATE.deviceStates[id];
-  const previousOnAt = STATE.deviceOnAt[id];
-  STATE.deviceStates[id] = nextState;
+  const previousSnapshot = captureDeviceLocalState(id);
 
-  // Track durasi penggunaan
-  if (nextState && !prev) STATE.deviceOnAt[id] = Date.now();
-  else if (!nextState)    delete STATE.deviceOnAt[id];
+  applyLocalDeviceState(id, nextState);
+  publishDeviceState(id, nextState);
 
-  updateDeviceUI(id);
-
-  // Komunikasi MQTT
-  const t = STATE.deviceTopics[id];
-  if (t?.pub) publishMQTT(t.pub, buildDevicePayload(id, nextState));
-
-  // Optimistic UI Lock
-  STATE.deviceUpdating[id] = true;
-  updateDeviceUI(id);
-
-  // Update Database Backend (Tidak blocking)
-  apiPost("update_device_state", { id, state: nextState ? 1 : 0, trigger: "Manual" }, { key: `update_device_state:${id}` })
-    .then((result) => {
-      if (!result || result.success === false) {
-        throw new Error(result?.error || "Gagal memperbarui status perangkat.");
-      }
-    })
-    .catch((error) => {
-      STATE.deviceStates[id] = prev;
-      if (typeof previousOnAt !== "undefined") STATE.deviceOnAt[id] = previousOnAt;
-      else delete STATE.deviceOnAt[id];
-      updateDeviceUI(id);
+  if (STATE.deviceUpdating[id]) {
+    STATE.deviceQueuedState[id] = nextState;
+  } else {
+    syncDeviceStateToServer(id, nextState, "Manual", previousSnapshot, (error) => {
+      restoreLocalDeviceState(id, previousSnapshot);
       updateDashboardStats();
       showToast(error?.message || "Gagal memperbarui status perangkat.", "error");
-    })
-    .finally(() => {
-      setTimeout(() => {
-        STATE.deviceUpdating[id] = false;
-        updateDeviceUI(id);
-      }, 180);
     });
+  }
   
   // Logging lokal
   addLog(STATE.devices[id]?.name, nextState ? "Dinyalakan" : "Dimatikan", "Manual", "info", { device_id: Number(id) });
@@ -352,14 +406,9 @@ function applyDeviceState(deviceId, newState, reason = "Automation") {
   const nextState = !!newState;
   if (!!STATE.deviceStates[id] === nextState) return;
 
-  STATE.deviceStates[id] = nextState;
-  if (nextState) STATE.deviceOnAt[id] = Date.now();
-  else delete STATE.deviceOnAt[id];
-
-  updateDeviceUI(id);
-
-  const t = STATE.deviceTopics[id];
-  if (t?.pub) publishMQTT(t.pub, buildDevicePayload(id, nextState));
+  const previousSnapshot = captureDeviceLocalState(id);
+  applyLocalDeviceState(id, nextState);
+  publishDeviceState(id, nextState);
 
   // Optimistic UI Lock
   STATE.deviceUpdating = STATE.deviceUpdating || {};
@@ -369,18 +418,16 @@ function applyDeviceState(deviceId, newState, reason = "Automation") {
   // Update Database Backend (Skip jika sudah diupdate server AI)
   if (reason !== "AI Assistant (Sync)") {
     apiPost("update_device_state", { id, state: nextState ? 1 : 0, trigger: reason }, { key: `update_device_state:${id}` })
-      .catch(() => {})
+      .catch(() => {
+        restoreLocalDeviceState(id, previousSnapshot);
+      })
       .finally(() => {
-        setTimeout(() => {
-          STATE.deviceUpdating[id] = false;
-          updateDeviceUI(id);
-        }, 180);
+        STATE.deviceUpdating[id] = false;
+        updateDeviceUI(id);
       });
   } else {
-    setTimeout(() => {
-      STATE.deviceUpdating[id] = false;
-      updateDeviceUI(id);
-    }, 180);
+    STATE.deviceUpdating[id] = false;
+    updateDeviceUI(id);
   }
   
   addLog(STATE.devices[id]?.name, `${nextState ? "ON" : "OFF"} (${reason})`, "Automation", nextState ? "success" : "info", { device_id: Number(id) });
