@@ -10,13 +10,18 @@ const cameraLive = (() => {
   const state = {
     featureReady: true,
     sessions: [],
+    initialized: false,
     refreshTimer: null,
+    refreshPromise: null,
     publisher: {
       pc: null,
       streamKey: "",
       lastCandidateId: 0,
       answerApplied: false,
       pollTimer: null,
+      starting: false,
+      startPromise: null,
+      stopping: false,
     },
     viewer: {
       pc: null,
@@ -24,6 +29,9 @@ const cameraLive = (() => {
       lastCandidateId: 0,
       pollTimer: null,
       remoteStream: null,
+      joining: false,
+      joinPromise: null,
+      stopping: false,
     },
   };
 
@@ -61,33 +69,71 @@ const cameraLive = (() => {
       video.style.display = "";
       placeholder.style.display = "none";
       video.play().catch(() => {});
-    } else {
-      try {
-        if (video.srcObject && video.srcObject.getTracks) {
-          video.srcObject.getTracks().forEach((track) => track.stop());
-        }
-      } catch (_) {}
-      video.srcObject = null;
-      video.style.display = "none";
-      placeholder.style.display = "";
+      return;
     }
+
+    try {
+      if (video.srcObject && video.srcObject.getTracks) {
+        video.srcObject.getTracks().forEach((track) => track.stop());
+      }
+    } catch (_) {}
+
+    video.srcObject = null;
+    video.style.display = "none";
+    placeholder.style.display = "";
   }
 
   function updateButtons() {
     const startBtn = document.getElementById("btnStartLiveCamera");
     const stopBtn = document.getElementById("btnStopLiveCamera");
     const stopWatchBtn = document.getElementById("btnStopWatchingLive");
+    const publisherBusy = state.publisher.starting || state.publisher.stopping;
+    const viewerBusy = state.viewer.joining || state.viewer.stopping;
 
     if (startBtn) {
-      startBtn.disabled = !state.featureReady || !STATE.camera.active || !!state.publisher.streamKey;
+      startBtn.disabled = !state.featureReady || !STATE.camera.active || !!state.publisher.streamKey || publisherBusy || viewerBusy;
       startBtn.style.display = state.publisher.streamKey ? "none" : "";
     }
     if (stopBtn) {
       stopBtn.style.display = state.publisher.streamKey ? "" : "none";
+      stopBtn.disabled = publisherBusy;
     }
     if (stopWatchBtn) {
       stopWatchBtn.style.display = state.viewer.streamKey ? "" : "none";
+      stopWatchBtn.disabled = viewerBusy;
     }
+  }
+
+  function syncSessionSummary(session) {
+    if (!session || !session.stream_key) return;
+    const streamKey = String(session.stream_key);
+    const nextSessions = Array.isArray(state.sessions) ? [...state.sessions] : [];
+    const existingIndex = nextSessions.findIndex((item) => String(item?.stream_key || "") === streamKey);
+
+    if (session.status === "ended") {
+      if (existingIndex >= 0) {
+        nextSessions.splice(existingIndex, 1);
+      }
+    } else if (existingIndex >= 0) {
+      nextSessions[existingIndex] = { ...nextSessions[existingIndex], ...session };
+    } else {
+      nextSessions.unshift(session);
+    }
+
+    state.sessions = nextSessions.slice(0, 12);
+    STATE.camera.live.sessions = state.sessions;
+    renderSessionList();
+    updateButtons();
+  }
+
+  function removeSessionSummary(streamKey) {
+    const normalizedKey = String(streamKey || "").trim();
+    if (!normalizedKey) return;
+    state.sessions = (Array.isArray(state.sessions) ? state.sessions : [])
+      .filter((session) => String(session?.stream_key || "") !== normalizedKey);
+    STATE.camera.live.sessions = state.sessions;
+    renderSessionList();
+    updateButtons();
   }
 
   function renderSessionList(message = "") {
@@ -117,8 +163,9 @@ const cameraLive = (() => {
         ended: "Berakhir",
         idle: "Idle",
       };
+      const actionBusy = state.publisher.starting || state.publisher.stopping || state.viewer.joining || state.viewer.stopping;
       let actionLabel = "Pantau Live";
-      let actionDisabled = false;
+      let actionDisabled = actionBusy;
       let action = `cameraLive.watchSession('${String(session.stream_key).replace(/'/g, "\\'")}')`;
 
       if (session.is_owner) {
@@ -157,6 +204,7 @@ const cameraLive = (() => {
   function buildPublisherPeer() {
     const pc = new RTCPeerConnection(RTC_CONFIG);
     const localStream = STATE.camera.stream;
+
     if (localStream) {
       localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
     }
@@ -179,7 +227,7 @@ const cameraLive = (() => {
       const conn = pc.connectionState;
       if (conn === "connected") {
         setStatusChip("Live Tersambung", "ok");
-        setPublisherMeta("Monitor berhasil tersambung. Saat ini satu sesi viewer aktif didukung untuk tiap siaran.");
+        setPublisherMeta("Monitor berhasil tersambung. Saat ini satu viewer aktif didukung untuk tiap siaran.");
       } else if (["failed", "disconnected"].includes(conn)) {
         setPublisherMeta("Koneksi monitor terputus. Klik Siarkan Live lagi jika ingin menyambung ulang.");
       }
@@ -215,7 +263,7 @@ const cameraLive = (() => {
     pc.onconnectionstatechange = () => {
       const conn = pc.connectionState;
       if (conn === "connected") {
-        setViewerMeta("Viewer live tersambung. Anda sedang memantau stream device lain pada akun ini.", "ok");
+        setViewerMeta("Viewer live tersambung. Device ini sedang memantau stream device lain pada akun yang sama.", "ok");
       } else if (["failed", "disconnected"].includes(conn)) {
         setViewerMeta("Koneksi viewer terputus. Pilih sesi live lagi jika perlu.", "warn");
       }
@@ -225,17 +273,15 @@ const cameraLive = (() => {
   }
 
   function clearPublisherPoll() {
-    if (state.publisher.pollTimer) {
-      clearTimeout(state.publisher.pollTimer);
-      state.publisher.pollTimer = null;
-    }
+    if (!state.publisher.pollTimer) return;
+    clearTimeout(state.publisher.pollTimer);
+    state.publisher.pollTimer = null;
   }
 
   function clearViewerPoll() {
-    if (state.viewer.pollTimer) {
-      clearTimeout(state.viewer.pollTimer);
-      state.viewer.pollTimer = null;
-    }
+    if (!state.viewer.pollTimer) return;
+    clearTimeout(state.viewer.pollTimer);
+    state.viewer.pollTimer = null;
   }
 
   function schedulePublisherPoll() {
@@ -256,131 +302,165 @@ const cameraLive = (() => {
 
   async function refreshSessions(options = {}) {
     if (!options.force && !isCameraViewVisible() && !state.publisher.streamKey && !state.viewer.streamKey) {
-      return;
+      return null;
     }
 
-    const result = await apiPost("get_camera_stream_sessions", {}, {
-      key: "get_camera_stream_sessions",
+    if (state.refreshPromise) {
+      return state.refreshPromise;
+    }
+
+    state.refreshPromise = apiPost("get_camera_stream_sessions", {}, {
+      key: null,
       refresh: false,
       timeout: 6000,
       silentError: true,
+    }).then((result) => {
+      if (!result) return result;
+
+      state.featureReady = result.feature_ready !== false;
+      STATE.camera.live.featureReady = state.featureReady;
+      state.sessions = Array.isArray(result.sessions) ? result.sessions : [];
+      STATE.camera.live.sessions = state.sessions;
+
+      if (result.error && !state.featureReady) {
+        setStatusChip("Butuh SQL", "warn");
+        renderSessionList(result.error);
+        updateButtons();
+        return result;
+      }
+
+      if (!state.publisher.streamKey && !state.viewer.streamKey) {
+        setStatusChip("Siap", "muted");
+      }
+
+      renderSessionList();
+      updateButtons();
+      return result;
+    }).finally(() => {
+      state.refreshPromise = null;
     });
 
-    if (!result) return;
-
-    state.featureReady = result.feature_ready !== false;
-    STATE.camera.live.featureReady = state.featureReady;
-    state.sessions = Array.isArray(result.sessions) ? result.sessions : [];
-    STATE.camera.live.sessions = state.sessions;
-
-    if (result.error && !state.featureReady) {
-      setStatusChip("Butuh SQL", "warn");
-      renderSessionList(result.error);
-      updateButtons();
-      return;
-    }
-
-    if (!state.publisher.streamKey && !state.viewer.streamKey) {
-      setStatusChip("Siap", "muted");
-    }
-
-    renderSessionList();
-    updateButtons();
+    return state.refreshPromise;
   }
 
   async function stopPublishing(options = {}) {
+    if (state.publisher.stopping) return;
+
     const notifyServer = options.notifyServer !== false;
     const silent = options.silent === true;
     const streamKey = state.publisher.streamKey;
 
-    clearPublisherPoll();
-    if (state.publisher.pc) {
-      try { state.publisher.pc.close(); } catch (_) {}
-    }
-
-    state.publisher.pc = null;
-    state.publisher.streamKey = "";
-    state.publisher.lastCandidateId = 0;
-    state.publisher.answerApplied = false;
-    STATE.camera.live.publishedStreamKey = "";
-
-    if (notifyServer && streamKey) {
-      await apiPost("stop_camera_stream", { stream_key: streamKey }, {
-        key: "stop_camera_stream_publisher",
-        refresh: false,
-        timeout: 5000,
-        silentError: true,
-      }).catch(() => {});
-    }
-
-    setStatusChip("Siap", "muted");
-    setPublisherMeta("Gunakan tombol ini agar device lain pada akun yang sama bisa memantau stream browser ini.");
+    state.publisher.stopping = true;
     updateButtons();
-    await refreshSessions({ force: true });
 
-    if (!silent) {
-      showToast("Siaran live dihentikan", "info");
+    try {
+      clearPublisherPoll();
+      if (state.publisher.pc) {
+        try { state.publisher.pc.close(); } catch (_) {}
+      }
+
+      state.publisher.pc = null;
+      state.publisher.streamKey = "";
+      state.publisher.lastCandidateId = 0;
+      state.publisher.answerApplied = false;
+      state.publisher.starting = false;
+      state.publisher.startPromise = null;
+      STATE.camera.live.publishedStreamKey = "";
+
+      if (notifyServer && streamKey) {
+        await apiPost("stop_camera_stream", { stream_key: streamKey }, {
+          key: "stop_camera_stream_publisher",
+          refresh: false,
+          timeout: 5000,
+          silentError: true,
+        }).catch(() => {});
+      }
+
+      removeSessionSummary(streamKey);
+      setStatusChip("Siap", "muted");
+      setPublisherMeta("Gunakan tombol ini agar device lain pada akun yang sama bisa memantau stream browser ini.");
+
+      if (!silent) {
+        showToast("Siaran live dihentikan", "info");
+      }
+    } finally {
+      state.publisher.stopping = false;
+      updateButtons();
     }
   }
 
   async function startPublishing() {
-    await refreshSessions({ force: true });
-    if (!state.featureReady) {
-      showToast("Fitur live camera belum aktif. Jalankan migrasi SQL terlebih dahulu.", "error");
-      return false;
-    }
+    if (state.publisher.streamKey) return true;
+    if (state.publisher.startPromise) return state.publisher.startPromise;
 
-    if (!STATE.camera.active || !STATE.camera.stream) {
-      if (typeof startCamera !== "function") return false;
-      const ok = await startCamera();
-      if (!ok) return false;
-    }
+    state.publisher.starting = true;
+    updateButtons();
+    setStatusChip("Menyiapkan Live", "warn");
+    setPublisherMeta("Menyiapkan sesi live kamera untuk device lain pada akun yang sama...");
 
-    if (state.publisher.streamKey) {
-      return true;
-    }
+    const startTask = (async () => {
+      try {
+        await refreshSessions({ force: true });
+        if (!state.featureReady) {
+          showToast("Fitur live camera belum aktif. Jalankan migrasi SQL terlebih dahulu.", "error");
+          return false;
+        }
 
-    const pc = buildPublisherPeer();
-    state.publisher.pc = pc;
-    state.publisher.lastCandidateId = 0;
-    state.publisher.answerApplied = false;
+        if (!STATE.camera.active || !STATE.camera.stream) {
+          if (typeof startCamera !== "function") return false;
+          const ok = await startCamera();
+          if (!ok) return false;
+        }
 
-    try {
-      const offer = await pc.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: true });
-      await pc.setLocalDescription(offer);
+        const pc = buildPublisherPeer();
+        state.publisher.pc = pc;
+        state.publisher.lastCandidateId = 0;
+        state.publisher.answerApplied = false;
 
-      const result = await apiPost("start_camera_stream", {
-        offer_sdp: pc.localDescription?.sdp || "",
-        source_label: typeof getSelectedCameraDeviceLabel === "function" ? getSelectedCameraDeviceLabel() : "",
-        publisher_name: STATE.camera.displayName || STATE.camera.sessionLabel || "Browser Camera",
-      }, {
-        key: "start_camera_stream",
-        refresh: false,
-        timeout: 10000,
-      });
+        try {
+          const offer = await pc.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: true });
+          await pc.setLocalDescription(offer);
 
-      if (!result?.success) {
-        throw new Error(result?.error || "Gagal memulai siaran live");
+          const result = await apiPost("start_camera_stream", {
+            offer_sdp: pc.localDescription?.sdp || "",
+            source_label: typeof getSelectedCameraDeviceLabel === "function" ? getSelectedCameraDeviceLabel() : "",
+            publisher_name: STATE.camera.displayName || STATE.camera.sessionLabel || "Browser Camera",
+          }, {
+            key: "start_camera_stream",
+            refresh: false,
+            timeout: 10000,
+          });
+
+          if (!result?.success) {
+            throw new Error(result?.error || "Gagal memulai siaran live");
+          }
+
+          state.publisher.streamKey = result.stream_key || result.session?.stream_key || "";
+          STATE.camera.live.publishedStreamKey = state.publisher.streamKey;
+          syncSessionSummary(result.session || null);
+          setStatusChip("Menunggu Monitor", "live");
+          setPublisherMeta("Siaran aktif. Device lain pada akun ini bisa memilih sesi ini lalu klik Pantau Live.");
+          schedulePublisherPoll();
+          showToast("Siaran live kamera dimulai", "success");
+          return true;
+        } catch (error) {
+          try { pc.close(); } catch (_) {}
+          state.publisher.pc = null;
+          state.publisher.streamKey = "";
+          setStatusChip("Siap", "muted");
+          setPublisherMeta(error?.message || "Gagal memulai siaran live.");
+          showToast(error?.message || "Gagal memulai siaran live", "error");
+          return false;
+        }
+      } finally {
+        state.publisher.starting = false;
+        state.publisher.startPromise = null;
+        updateButtons();
       }
+    })();
 
-      state.publisher.streamKey = result.stream_key || result.session?.stream_key || "";
-      STATE.camera.live.publishedStreamKey = state.publisher.streamKey;
-      setStatusChip("Menunggu Monitor", "live");
-      setPublisherMeta("Siaran aktif. Device lain pada akun ini bisa memilih sesi ini lalu klik Pantau Live.");
-      updateButtons();
-      await refreshSessions({ force: true });
-      schedulePublisherPoll();
-      showToast("Siaran live kamera dimulai", "success");
-      return true;
-    } catch (error) {
-      try { pc.close(); } catch (_) {}
-      state.publisher.pc = null;
-      state.publisher.streamKey = "";
-      setPublisherMeta(error?.message || "Gagal memulai siaran live.");
-      updateButtons();
-      showToast(error?.message || "Gagal memulai siaran live", "error");
-      return false;
-    }
+    state.publisher.startPromise = startTask;
+    return startTask;
   }
 
   async function pollPublisher() {
@@ -403,6 +483,7 @@ const cameraLive = (() => {
 
     state.featureReady = result.feature_ready !== false;
     const session = result.session || null;
+
     if (!session || session.status === "ended") {
       await stopPublishing({ notifyServer: false, silent: true });
       setPublisherMeta("Sesi live berakhir. Klik Siarkan Live lagi untuk memulai ulang.");
@@ -440,112 +521,139 @@ const cameraLive = (() => {
       setStatusChip(session.viewer_camera_key ? "Menyambungkan" : "Menunggu Monitor", session.viewer_camera_key ? "warn" : "live");
     }
 
-    await refreshSessions({ force: false });
+    syncSessionSummary(session);
     schedulePublisherPoll();
   }
 
   async function stopWatching(options = {}) {
+    if (state.viewer.stopping) return;
+
     const notifyServer = options.notifyServer !== false;
     const silent = options.silent === true;
     const streamKey = state.viewer.streamKey;
 
-    clearViewerPoll();
-    if (state.viewer.pc) {
-      try { state.viewer.pc.close(); } catch (_) {}
-    }
-    state.viewer.pc = null;
-    state.viewer.streamKey = "";
-    state.viewer.lastCandidateId = 0;
-    state.viewer.remoteStream = null;
-    STATE.camera.live.watchedStreamKey = "";
-    updateRemoteStage(null);
-    setViewerMeta("Mode ini menonton stream device lain pada akun yang sama.");
-
-    if (notifyServer && streamKey) {
-      await apiPost("stop_camera_stream", { stream_key: streamKey }, {
-        key: "stop_camera_stream_viewer",
-        refresh: false,
-        timeout: 5000,
-        silentError: true,
-      }).catch(() => {});
-    }
-
+    state.viewer.stopping = true;
     updateButtons();
-    await refreshSessions({ force: true });
-    if (!silent) {
-      showToast("Mode monitor dihentikan", "info");
+
+    try {
+      clearViewerPoll();
+      if (state.viewer.pc) {
+        try { state.viewer.pc.close(); } catch (_) {}
+      }
+
+      state.viewer.pc = null;
+      state.viewer.streamKey = "";
+      state.viewer.lastCandidateId = 0;
+      state.viewer.remoteStream = null;
+      state.viewer.joining = false;
+      state.viewer.joinPromise = null;
+      STATE.camera.live.watchedStreamKey = "";
+      updateRemoteStage(null);
+      setViewerMeta("Mode ini menonton stream device lain pada akun yang sama.");
+
+      if (notifyServer && streamKey) {
+        await apiPost("stop_camera_stream", { stream_key: streamKey }, {
+          key: "stop_camera_stream_viewer",
+          refresh: false,
+          timeout: 5000,
+          silentError: true,
+        }).catch(() => {});
+      }
+
+      removeSessionSummary(streamKey);
+      if (!silent) {
+        showToast("Mode monitor dihentikan", "info");
+      }
+    } finally {
+      state.viewer.stopping = false;
+      updateButtons();
     }
   }
 
   async function watchSession(streamKey) {
-    await refreshSessions({ force: true });
-    if (!state.featureReady) {
-      showToast("Fitur live camera belum aktif. Jalankan migrasi SQL dahulu.", "error");
-      return false;
-    }
-
     if (!streamKey) return false;
     if (state.viewer.streamKey === streamKey) return true;
-    if (state.viewer.streamKey) {
-      await stopWatching({ notifyServer: true, silent: true });
-    }
+    if (state.viewer.joinPromise) return state.viewer.joinPromise;
 
-    const join = await apiPost("join_camera_stream", { stream_key: streamKey }, {
-      key: "join_camera_stream",
-      refresh: false,
-      timeout: 9000,
-    });
-    if (!join?.success) {
-      showToast(join?.error || "Gagal masuk ke sesi live", "error");
-      return false;
-    }
+    state.viewer.joining = true;
+    updateButtons();
+    setViewerMeta("Menyambungkan viewer live ke sesi yang dipilih...", "muted");
 
-    const offerSdp = join.offer_sdp || "";
-    if (!offerSdp) {
-      showToast("Offer stream belum siap. Coba lagi sebentar.", "error");
-      return false;
-    }
+    const joinTask = (async () => {
+      try {
+        await refreshSessions({ force: true });
+        if (!state.featureReady) {
+          showToast("Fitur live camera belum aktif. Jalankan migrasi SQL dahulu.", "error");
+          return false;
+        }
 
-    const pc = buildViewerPeer();
-    state.viewer.pc = pc;
-    state.viewer.streamKey = streamKey;
-    state.viewer.lastCandidateId = 0;
-    STATE.camera.live.watchedStreamKey = streamKey;
+        if (state.viewer.streamKey) {
+          await stopWatching({ notifyServer: true, silent: true });
+        }
 
-    try {
-      await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+        const join = await apiPost("join_camera_stream", { stream_key: streamKey }, {
+          key: "join_camera_stream",
+          refresh: false,
+          timeout: 9000,
+        });
+        if (!join?.success) {
+          showToast(join?.error || "Gagal masuk ke sesi live", "error");
+          return false;
+        }
 
-      const answerResult = await apiPost("submit_camera_stream_answer", {
-        stream_key: streamKey,
-        answer_sdp: pc.localDescription?.sdp || "",
-      }, {
-        key: "submit_camera_stream_answer",
-        refresh: false,
-        timeout: 9000,
-      });
+        const offerSdp = join.offer_sdp || "";
+        if (!offerSdp) {
+          showToast("Offer stream belum siap. Coba lagi sebentar.", "error");
+          return false;
+        }
 
-      if (!answerResult?.success) {
-        throw new Error(answerResult?.error || "Gagal mengirim answer viewer");
+        const pc = buildViewerPeer();
+        state.viewer.pc = pc;
+        state.viewer.streamKey = streamKey;
+        state.viewer.lastCandidateId = 0;
+        STATE.camera.live.watchedStreamKey = streamKey;
+
+        try {
+          await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+
+          const answerResult = await apiPost("submit_camera_stream_answer", {
+            stream_key: streamKey,
+            answer_sdp: pc.localDescription?.sdp || "",
+          }, {
+            key: "submit_camera_stream_answer",
+            refresh: false,
+            timeout: 9000,
+          });
+
+          if (!answerResult?.success) {
+            throw new Error(answerResult?.error || "Gagal mengirim answer viewer");
+          }
+
+          setViewerMeta(`Sedang memantau ${join.session?.publisher_name || "kamera live"}${join.session?.source_label ? ` - ${join.session.source_label}` : ""}.`, "ok");
+          syncSessionSummary(answerResult.session || join.session || null);
+          scheduleViewerPoll();
+          showToast("Live monitor terhubung", "success");
+          return true;
+        } catch (error) {
+          try { pc.close(); } catch (_) {}
+          state.viewer.pc = null;
+          state.viewer.streamKey = "";
+          STATE.camera.live.watchedStreamKey = "";
+          setViewerMeta(error?.message || "Gagal membuka monitor live.", "warn");
+          showToast(error?.message || "Gagal membuka monitor live", "error");
+          return false;
+        }
+      } finally {
+        state.viewer.joining = false;
+        state.viewer.joinPromise = null;
+        updateButtons();
       }
+    })();
 
-      setViewerMeta(`Sedang memantau ${join.session?.publisher_name || "kamera live"}${join.session?.source_label ? ` • ${join.session.source_label}` : ""}.`, "ok");
-      updateButtons();
-      await refreshSessions({ force: true });
-      scheduleViewerPoll();
-      showToast("Live monitor terhubung", "success");
-      return true;
-    } catch (error) {
-      try { pc.close(); } catch (_) {}
-      state.viewer.pc = null;
-      state.viewer.streamKey = "";
-      STATE.camera.live.watchedStreamKey = "";
-      setViewerMeta(error?.message || "Gagal membuka monitor live.", "warn");
-      updateButtons();
-      showToast(error?.message || "Gagal membuka monitor live", "error");
-      return false;
-    }
+    state.viewer.joinPromise = joinTask;
+    return joinTask;
   }
 
   async function pollViewer() {
@@ -582,7 +690,7 @@ const cameraLive = (() => {
       } catch (_) {}
     }
 
-    await refreshSessions({ force: false });
+    syncSessionSummary(session);
     scheduleViewerPoll();
   }
 
@@ -601,10 +709,22 @@ const cameraLive = (() => {
   }
 
   function initialize() {
+    if (state.initialized) {
+      updateButtons();
+      if (isCameraViewVisible() || state.publisher.streamKey || state.viewer.streamKey) {
+        refreshSessions({ force: true }).catch(() => {});
+      }
+      return;
+    }
+
+    state.initialized = true;
     renderSessionList("Memuat sesi live...");
     updateButtons();
     startRefreshLoop();
-    refreshSessions({ force: true }).catch(() => {});
+
+    if (isCameraViewVisible() || state.publisher.streamKey || state.viewer.streamKey) {
+      refreshSessions({ force: true }).catch(() => {});
+    }
   }
 
   return {

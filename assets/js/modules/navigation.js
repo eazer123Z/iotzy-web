@@ -133,7 +133,6 @@ function switchPage(page, el) {
       }
       if (typeof cameraLive !== "undefined") {
         if (typeof cameraLive.initialize === "function") cameraLive.initialize();
-        if (typeof cameraLive.refreshSessions === "function") cameraLive.refreshSessions({ force: true }).catch(() => {});
       }
       if (typeof cvUI !== "undefined") {
         if (typeof cvUI.initialize === "function") cvUI.initialize();
