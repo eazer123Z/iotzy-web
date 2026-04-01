@@ -7,7 +7,7 @@ function handleCVAction(string $action, int $userId, array $body, PDO $db): void
 {
     $defRules = iotzyDefaultCvRules();
 
-    $bundle = getUserCameraBundle($userId, $db);
+    $bundle = getUserCameraBundle($userId, $db, $body);
     $cameraId = (int)($bundle['camera']['id'] ?? 0);
 
     if ($action === 'get_cv_rules') {

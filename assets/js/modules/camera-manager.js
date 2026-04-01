@@ -41,6 +41,10 @@ async function listCameraDevices(options = {}) {
     if (STATE.camera.selectedDeviceId && !cameras.some((device) => device.deviceId === STATE.camera.selectedDeviceId)) {
       STATE.camera.selectedDeviceId = cameras[0]?.deviceId || null;
     }
+    STATE.camera.selectedDeviceLabel = "";
+    if (typeof refreshCameraSessionContext === "function") {
+      refreshCameraSessionContext({ persist: true });
+    }
     renderCameraDeviceSelect();
     return STATE.camera.availableDevices;
   } catch (error) {
@@ -62,11 +66,18 @@ function renderCameraDeviceSelect(error = null) {
   const devices = STATE.camera.availableDevices || [];
   const hint = getCameraListHint(error || STATE.camera.listError);
   const placeholderLabel = devices.length ? "Pilih kamera browser" : hint;
+  if (!STATE.camera.selectedDeviceId && devices.length) {
+    STATE.camera.selectedDeviceId = devices[0].deviceId || null;
+  }
   select.innerHTML = `<option value="">${escHtml(placeholderLabel)}</option>` + devices.map((device, index) => {
     const selected = device.deviceId === STATE.camera.selectedDeviceId ? " selected" : "";
     return `<option value="${device.deviceId}"${selected}>${escHtml(device.label || `Kamera ${index + 1}`)}</option>`;
   }).join("");
   select.disabled = !devices.length && !navigator.mediaDevices?.getUserMedia;
+  STATE.camera.selectedDeviceLabel = getSelectedCameraDeviceLabel();
+  if (typeof refreshCameraSessionContext === "function") {
+    refreshCameraSessionContext({ persist: true });
+  }
 }
 
 function setCVPanelSystemStatus(text, className = "muted") {
@@ -110,6 +121,9 @@ async function startCamera() {
     setCVPanelSystemStatus("Kamera Aktif", "ok");
     resetCVStageReadouts();
     await listCameraDevices({ ensureLabels: true });
+    if (typeof refreshCameraSessionContext === "function") {
+      refreshCameraSessionContext({ persist: true });
+    }
     return true;
   } catch (error) {
     showToast(`Gagal akses kamera: ${error.message}`, "error");
@@ -201,6 +215,10 @@ function closeCameraSelector() {
 
 async function switchCamera(deviceId) {
   STATE.camera.selectedDeviceId = deviceId || null;
+  STATE.camera.selectedDeviceLabel = getSelectedCameraDeviceLabel();
+  if (typeof refreshCameraSessionContext === "function") {
+    refreshCameraSessionContext({ persist: true });
+  }
   renderCameraDeviceSelect();
   closeCameraSelector();
   if (STATE.camera.active) {

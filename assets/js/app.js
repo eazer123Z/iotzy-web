@@ -71,9 +71,15 @@ const STATE = {
     stream:           null,
     active:           false,
     selectedDeviceId: null,
+    selectedDeviceLabel: "",
     availableDevices: [],
     defaultMeta:      null,
     settings:         {},
+    sessionKey:       "",
+    sessionLabel:     "",
+    displayName:      "",
+    listError:        "",
+    restoreAttempted: false,
   },
   cvAutoStartRequested: false,
   sessionStart: Date.now(),
@@ -91,6 +97,176 @@ const STATE = {
     lastCameraSettingsAt:  0,
   },
 };
+
+const CAMERA_SESSION_STORAGE_KEY = `iotzy_cv_camera_session_u${String(PHP_USER?.id || 0)}`;
+
+function sanitizeCameraNameValue(value, fallback = "") {
+  const normalized = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return fallback;
+  return normalized.slice(0, 100);
+}
+
+function sanitizeCameraKeyValue(value, options = {}) {
+  const allowEmpty = !!options.allowEmpty;
+  const raw = String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9:_-]+/g, "-")
+    .replace(/^[-_:]+|[-_:]+$/g, "");
+  const prefix = `u${String(PHP_USER?.id || 0)}-`;
+  if (!raw) return allowEmpty ? "" : `${prefix}default-browser`;
+  const normalized = raw.startsWith(prefix) ? raw : `${prefix}${raw.replace(/^[-]+/, "")}`;
+  return normalized.slice(0, 100);
+}
+
+function detectCameraSessionLabel() {
+  if (typeof navigator === "undefined") return "Browser Ini";
+  const ua = String(navigator.userAgent || "").toLowerCase();
+  const platformSource = String(navigator.userAgentData?.platform || navigator.platform || "");
+  let platform = platformSource;
+  if (/android/.test(ua)) platform = "Android";
+  else if (/iphone|ipad|ipod/.test(ua)) platform = "iPhone";
+  else if (/win/.test(platformSource.toLowerCase())) platform = "Windows";
+  else if (/mac/.test(platformSource.toLowerCase())) platform = "Mac";
+  else if (/linux/.test(platformSource.toLowerCase())) platform = "Linux";
+
+  let browser = "Browser";
+  if (/edg\//.test(ua)) browser = "Edge";
+  else if (/chrome\//.test(ua) && !/edg\//.test(ua)) browser = "Chrome";
+  else if (/firefox\//.test(ua)) browser = "Firefox";
+  else if (/safari\//.test(ua) && !/chrome\//.test(ua)) browser = "Safari";
+
+  return sanitizeCameraNameValue([platform, browser].filter(Boolean).join(" "), "Browser Ini");
+}
+
+function generateCameraSessionKey() {
+  const randomPart = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID().replace(/-/g, "").slice(0, 12)
+    : Math.random().toString(36).slice(2, 14);
+  return sanitizeCameraKeyValue(`browser-${randomPart}`);
+}
+
+function getSelectedCameraDeviceLabel() {
+  const selectedId = STATE.camera.selectedDeviceId;
+  const match = Array.isArray(STATE.camera.availableDevices)
+    ? STATE.camera.availableDevices.find((device) => device?.deviceId === selectedId)
+    : null;
+  return sanitizeCameraNameValue(match?.label || STATE.camera.selectedDeviceLabel || "", "");
+}
+
+function buildCameraDisplayName(sessionLabel = STATE.camera.sessionLabel, deviceLabel = getSelectedCameraDeviceLabel()) {
+  const parts = [sanitizeCameraNameValue(sessionLabel, ""), sanitizeCameraNameValue(deviceLabel, "")]
+    .filter(Boolean)
+    .slice(0, 2);
+  return sanitizeCameraNameValue(parts.join(" • "), "Browser Camera");
+}
+
+function writeCameraSessionState() {
+  const payload = {
+    key: sanitizeCameraKeyValue(STATE.camera.sessionKey),
+    sessionLabel: sanitizeCameraNameValue(STATE.camera.sessionLabel, detectCameraSessionLabel()),
+    selectedDeviceId: STATE.camera.selectedDeviceId || "",
+    selectedDeviceLabel: sanitizeCameraNameValue(STATE.camera.selectedDeviceLabel, ""),
+  };
+
+  STATE.camera.sessionKey = payload.key;
+  STATE.camera.sessionLabel = payload.sessionLabel;
+
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(CAMERA_SESSION_STORAGE_KEY, JSON.stringify(payload));
+    }
+  } catch (_) {}
+
+  if (typeof document !== "undefined") {
+    const secure = typeof window !== "undefined" && window.location?.protocol === "https:" ? "; Secure" : "";
+    const maxAge = 60 * 60 * 24 * 365;
+    document.cookie = `iotzy_camera_key=${encodeURIComponent(payload.key)}; Max-Age=${maxAge}; Path=/; SameSite=Lax${secure}`;
+    document.cookie = `iotzy_camera_name=${encodeURIComponent(STATE.camera.displayName || buildCameraDisplayName(payload.sessionLabel, payload.selectedDeviceLabel))}; Max-Age=${maxAge}; Path=/; SameSite=Lax${secure}`;
+  }
+
+  return payload;
+}
+
+function updateCVSessionMetaUI() {
+  const el = document.getElementById("cvSessionMeta");
+  if (!el) return;
+  const sessionLabel = sanitizeCameraNameValue(STATE.camera.sessionLabel, "Browser Ini");
+  const deviceLabel = sanitizeCameraNameValue(getSelectedCameraDeviceLabel(), "kamera browser");
+  el.textContent = `Sesi aktif: ${sessionLabel} • Sumber: ${deviceLabel}`;
+}
+
+function refreshCameraSessionContext(options = {}) {
+  if (!STATE.camera.sessionKey) {
+    STATE.camera.sessionKey = generateCameraSessionKey();
+  }
+  STATE.camera.sessionLabel = sanitizeCameraNameValue(
+    options.sessionLabel ?? STATE.camera.sessionLabel,
+    detectCameraSessionLabel()
+  );
+  STATE.camera.selectedDeviceLabel = sanitizeCameraNameValue(
+    options.selectedDeviceLabel ?? getSelectedCameraDeviceLabel() ?? STATE.camera.selectedDeviceLabel,
+    ""
+  );
+  STATE.camera.displayName = buildCameraDisplayName(STATE.camera.sessionLabel, STATE.camera.selectedDeviceLabel);
+
+  if (!STATE.camera.defaultMeta || typeof STATE.camera.defaultMeta !== "object") {
+    STATE.camera.defaultMeta = {};
+  }
+  STATE.camera.defaultMeta = {
+    ...STATE.camera.defaultMeta,
+    camera_key: STATE.camera.sessionKey,
+    name: STATE.camera.displayName,
+  };
+
+  if (options.persist !== false) {
+    writeCameraSessionState();
+  }
+  updateCVSessionMetaUI();
+
+  return {
+    camera_key: STATE.camera.sessionKey,
+    camera_name: STATE.camera.displayName,
+    camera_session_label: STATE.camera.sessionLabel,
+    camera_device_label: STATE.camera.selectedDeviceLabel || "",
+  };
+}
+
+function initializeCameraSessionState() {
+  let stored = null;
+  try {
+    if (typeof localStorage !== "undefined") {
+      stored = JSON.parse(localStorage.getItem(CAMERA_SESSION_STORAGE_KEY) || "null");
+    }
+  } catch (_) {
+    stored = null;
+  }
+
+  STATE.camera.sessionKey = sanitizeCameraKeyValue(stored?.key || stored?.cameraKey || "", { allowEmpty: true }) || generateCameraSessionKey();
+  STATE.camera.sessionLabel = sanitizeCameraNameValue(stored?.sessionLabel || stored?.label || "", detectCameraSessionLabel());
+  STATE.camera.selectedDeviceId = stored?.selectedDeviceId || STATE.camera.selectedDeviceId || null;
+  STATE.camera.selectedDeviceLabel = sanitizeCameraNameValue(stored?.selectedDeviceLabel || "", "");
+
+  refreshCameraSessionContext({ persist: true });
+}
+
+function getCameraRequestContext(extra = {}) {
+  const context = refreshCameraSessionContext({ persist: false });
+  return {
+    ...extra,
+    camera_key: context.camera_key,
+    camera_name: context.camera_name,
+    camera_session_label: context.camera_session_label,
+    camera_device_label: context.camera_device_label,
+  };
+}
+
+function isPHPCameraSnapshotActiveSession() {
+  const phpKey = sanitizeCameraKeyValue(typeof PHP_CAMERA !== "undefined" ? PHP_CAMERA?.camera_key : "", { allowEmpty: true });
+  const activeKey = sanitizeCameraKeyValue(STATE.camera.sessionKey, { allowEmpty: true });
+  return !!phpKey && !!activeKey && phpKey === activeKey;
+}
 
 /* ============================================================
    KONFIGURASI COMPUTER VISION (state runtime)
@@ -606,6 +782,14 @@ async function apiPost(action, data = {}, opts = {}) {
     "update_cv_state",
     "ai_chat_fast_track",
   ]);
+  const cameraScopedActions = new Set([
+    "get_dashboard_data",
+    "get_cv_config",
+    "save_cv_config",
+    "get_cv_rules",
+    "save_cv_rules",
+    "update_cv_state",
+  ]);
   let controller = null;
   try {
     if (key && ACTIVE_REQ[key]) {
@@ -617,12 +801,15 @@ async function apiPost(action, data = {}, opts = {}) {
     const hdrs = { "Content-Type": "application/json" };
     if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
     const timeoutMs = opts.timeout || 8000;
+    const requestData = cameraScopedActions.has(action)
+      ? getCameraRequestContext(data && typeof data === "object" ? { ...data } : {})
+      : data;
     const t = setTimeout(() => { try { controller.abort(); } catch(_) {} }, timeoutMs);
     const res = await fetch(`${base}?action=${action}`, {
       method: "POST",
       headers: hdrs,
       credentials: "include",
-      body: JSON.stringify(data),
+      body: JSON.stringify(requestData),
       signal: controller.signal
     });
     clearTimeout(t);
@@ -940,7 +1127,7 @@ function mergeSyncRequestOptions(base = {}, extra = {}) {
  * Sinkronisasi data utama dari server (Stale-While-Revalidate)
  */
 async function syncAllFromServer(forceSync = false, options = {}) {
-  const cacheKey = "iotzy_cache_main_sync";
+  const cacheKey = `iotzy_cache_main_sync:${sanitizeCameraKeyValue(STATE.camera.sessionKey, { allowEmpty: true }) || "default"}`;
   const requestedOptions = mergeSyncRequestOptions({}, options);
   
   // 1. Ambil dari cache dulu untuk responsivitas instan
@@ -970,11 +1157,11 @@ async function syncAllFromServer(forceSync = false, options = {}) {
           && (forceSync || (now - (STATE.sync.lastCameraSettingsAt || 0)) >= CONFIG.app.cameraSettingsSyncInterval));
       const includeCamera = !!requestedOptions.includeCamera || syncContext.needsCameraState;
 
-      const requestBody = {
+      const requestBody = getCameraRequestContext({
         include_analytics: includeAnalytics ? 1 : 0,
         include_camera: includeCamera ? 1 : 0,
         include_camera_settings: includeCameraSettings ? 1 : 0,
-      };
+      });
 
       const res = await apiPost("get_dashboard_data", requestBody);
       if (res && res.success) {
@@ -1108,6 +1295,7 @@ async function applySyncData(res, timestamp = Date.now()) {
   }
 
   if (res.cv_state && !CV.detecting) {
+    STATE.cvAutoStartRequested = Number(res.cv_state.is_active) === 1;
     STATE.cv.personCount = Math.max(0, Number(res.cv_state.person_count) || 0);
     STATE.cv.personPresent = STATE.cv.personCount > 0;
     syncCVPersonCountUI(STATE.cv.personCount);
@@ -1116,9 +1304,16 @@ async function applySyncData(res, timestamp = Date.now()) {
       Overview.updateDashboardRoomSummary();
     }
   }
+  if (res.cv_state && !Number(res.cv_state.is_active)) {
+    STATE.cvAutoStartRequested = false;
+    if (!CV.detecting) {
+      STATE.camera.restoreAttempted = false;
+    }
+  }
 
   if (res.camera) {
     STATE.camera.defaultMeta = res.camera;
+    refreshCameraSessionContext({ persist: false });
   }
   if (res.camera_settings) {
     STATE.camera.settings = res.camera_settings;
@@ -1138,6 +1333,14 @@ async function applySyncData(res, timestamp = Date.now()) {
 
   STATE.sync.lastFullSyncAt = timestamp;
   updateDashboardStats();
+
+  if (STATE.cvAutoStartRequested && !CV.detecting && !STATE.camera.restoreAttempted && typeof startDetection === "function") {
+    STATE.camera.restoreAttempted = true;
+    setTimeout(() => {
+      Promise.resolve(startDetection())
+        .catch(() => {});
+    }, 120);
+  }
 }
 
 /* ============================================================
@@ -1227,21 +1430,31 @@ function loadFromPHP() {
       });
     }
 
-    if (typeof PHP_CAMERA !== 'undefined') {
-      STATE.camera.defaultMeta = PHP_CAMERA || null;
+    const phpCameraMatchesSession = isPHPCameraSnapshotActiveSession();
+    if (typeof PHP_CAMERA !== 'undefined' && PHP_CAMERA && phpCameraMatchesSession) {
+      STATE.camera.defaultMeta = { ...PHP_CAMERA };
+    } else {
+      STATE.camera.defaultMeta = {
+        ...(STATE.camera.defaultMeta || {}),
+        camera_key: STATE.camera.sessionKey,
+        name: STATE.camera.displayName || "Browser Camera",
+      };
     }
-    if (typeof PHP_CAMERA_SETTINGS !== 'undefined') {
+    if (typeof PHP_CAMERA_SETTINGS !== 'undefined' && phpCameraMatchesSession) {
       STATE.camera.settings = PHP_CAMERA_SETTINGS || {};
     }
 
-    if (typeof PHP_CV_STATE !== "undefined" && PHP_CV_STATE && typeof PHP_CV_STATE === "object") {
+    if (phpCameraMatchesSession && typeof PHP_CV_STATE !== "undefined" && PHP_CV_STATE && typeof PHP_CV_STATE === "object") {
       STATE.cv.personCount = Math.max(0, Number(PHP_CV_STATE.person_count) || 0);
       STATE.cv.personPresent = STATE.cv.personCount > 0;
       syncCVPersonCountUI(STATE.cv.personCount);
       syncCVLightUI(PHP_CV_STATE.light_condition || "unknown", PHP_CV_STATE.brightness || 0);
+      STATE.cvAutoStartRequested = Number(PHP_CV_STATE.is_active) === 1;
+    } else {
+      STATE.cvAutoStartRequested = false;
     }
 
-    STATE.cvAutoStartRequested = !!(typeof PHP_CV_STATE !== 'undefined' && PHP_CV_STATE && Number(PHP_CV_STATE.is_active) === 1);
+    refreshCameraSessionContext({ persist: false });
   } catch (e) {
     console.warn("loadFromPHP error:", e);
     STATE.quickControlDevices = [];
@@ -1271,6 +1484,7 @@ async function bootstrapDeferredServices() {
     else if (typeof loadCVRules === "function") loadCVRules().catch(() => {});
 
     if (STATE.cvAutoStartRequested && typeof initializeCV === "function" && !CV.detecting && !CV.modelLoading) {
+      STATE.camera.restoreAttempted = true;
       const runAutoCV = () => {
         Promise.resolve(typeof startDetection === "function" ? startDetection() : initializeCV())
           .catch(() => {});
@@ -1315,6 +1529,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initClock();         // navigation.js
   initUptimeCounter(); // navigation.js
 
+  initializeCameraSessionState();
   loadFromPHP();
   renderAll();
   revealMainApp();

@@ -94,7 +94,10 @@ if (!$action) {
     $settings = getUserSettings((int)$user['id']);
     $devices = getUserDevicesClientPayload((int)$user['id'], $db);
     $sensors = getUserSensorsClientPayload((int)$user['id'], $db);
-    $cameraBundle = getUserCameraBundle((int)$user['id'], $db);
+    $cameraBundle = getUserCameraBundle((int)$user['id'], $db, [
+        'camera_key' => $_COOKIE['iotzy_camera_key'] ?? null,
+        'camera_name' => $_COOKIE['iotzy_camera_name'] ?? null,
+    ]);
     $cvState = $cameraBundle['cv_state'] ?? iotzyDefaultCvState();
     $camera = $cameraBundle['camera'] ?? null;
     $cameraSettings = $cameraBundle['camera_settings'] ?? [];

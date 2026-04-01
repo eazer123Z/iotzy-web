@@ -868,40 +868,75 @@ function iotzyDefaultCvState(): array
     ];
 }
 
-function getUserCameraBundle(int $userId, ?PDO $db = null): array
+function iotzySanitizeCameraKey(mixed $value, int $userId, bool $allowEmpty = false): string
 {
-    $db = $db ?: getLocalDB();
-    if (!$db) {
-        return [
-            'camera' => null,
-            'camera_settings' => [],
-            'cv_state' => iotzyDefaultCvState(),
-        ];
+    $normalized = strtolower(trim((string)$value));
+    $normalized = preg_replace('/[^a-z0-9:_-]+/', '-', $normalized);
+    $normalized = trim((string)$normalized, '-_:');
+    if ($normalized === '') {
+        return $allowEmpty ? '' : ('u' . max(0, $userId) . '-default-browser');
     }
 
-    $camera = null;
-    $stmt = $db->prepare(
-        "SELECT *
-         FROM cameras
-         WHERE user_id = ?
-         ORDER BY CASE WHEN source_type = 'webrtc' THEN 0 ELSE 1 END, id ASC
-         LIMIT 1"
+    $prefix = 'u' . max(0, $userId) . '-';
+    if (!str_starts_with($normalized, $prefix)) {
+        $normalized = $prefix . ltrim($normalized, '-');
+    }
+
+    return substr($normalized, 0, 100);
+}
+
+function iotzySanitizeCameraName(mixed $value, string $fallback = 'Browser Camera'): string
+{
+    $normalized = preg_replace('/\s+/', ' ', trim((string)$value));
+    $normalized = trim((string)$normalized);
+    if ($normalized === '') {
+        return $fallback;
+    }
+
+    if (function_exists('mb_substr')) {
+        return mb_substr($normalized, 0, 100);
+    }
+
+    return substr($normalized, 0, 100);
+}
+
+function iotzyResolveCameraContext(mixed $context, int $userId): array
+{
+    $source = is_array($context) ? $context : [];
+    $rawKey = $source['camera_key'] ?? $source['cameraKey'] ?? $source['cv_camera_key'] ?? null;
+    $hasExplicitKey = trim((string)$rawKey) !== '';
+
+    $sessionLabel = iotzySanitizeCameraName(
+        $source['camera_session_label'] ?? $source['cameraSessionLabel'] ?? '',
+        ''
     );
-    $stmt->execute([$userId]);
-    $camera = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-
-    if (!$camera) {
-        $cameraKey = 'default-browser-' . $userId;
-        $db->prepare(
-            "INSERT INTO cameras (user_id, camera_key, name, source_type, is_active)
-             VALUES (?, ?, ?, 'webrtc', 1)"
-        )->execute([$userId, $cameraKey, 'Browser Camera']);
-
-        $stmt->execute([$userId]);
-        $camera = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    $deviceLabel = iotzySanitizeCameraName(
+        $source['camera_device_label'] ?? $source['cameraDeviceLabel'] ?? '',
+        ''
+    );
+    $providedName = iotzySanitizeCameraName(
+        $source['camera_name'] ?? $source['cameraName'] ?? '',
+        ''
+    );
+    $fallbackName = 'Browser Camera';
+    $nameParts = array_values(array_filter([$sessionLabel, $deviceLabel], static fn($part) => $part !== ''));
+    if ($nameParts) {
+        $fallbackName = implode(' • ', array_slice($nameParts, 0, 2));
     }
 
-    if (!$camera) {
+    return [
+        'has_explicit_key' => $hasExplicitKey,
+        'camera_key' => iotzySanitizeCameraKey($rawKey, $userId, !$hasExplicitKey),
+        'camera_name' => iotzySanitizeCameraName($providedName !== '' ? $providedName : $fallbackName, 'Browser Camera'),
+        'camera_session_label' => $sessionLabel,
+        'camera_device_label' => $deviceLabel,
+    ];
+}
+
+function iotzyHydrateCameraBundle(PDO $db, array $camera): array
+{
+    $cameraId = (int)($camera['id'] ?? 0);
+    if ($cameraId <= 0) {
         return [
             'camera' => null,
             'camera_settings' => [],
@@ -909,7 +944,6 @@ function getUserCameraBundle(int $userId, ?PDO $db = null): array
         ];
     }
 
-    $cameraId = (int)$camera['id'];
     $db->prepare("INSERT IGNORE INTO camera_settings (camera_id) VALUES (?)")->execute([$cameraId]);
     $db->prepare("INSERT IGNORE INTO cv_state (camera_id) VALUES (?)")->execute([$cameraId]);
 
@@ -944,9 +978,86 @@ function getUserCameraBundle(int $userId, ?PDO $db = null): array
     ];
 }
 
-function getUserCVState(int $userId, ?PDO $db = null): array
+function getUserCameraBundle(int $userId, ?PDO $db = null, mixed $cameraContext = null): array
 {
-    $bundle = getUserCameraBundle($userId, $db);
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return [
+            'camera' => null,
+            'camera_settings' => [],
+            'cv_state' => iotzyDefaultCvState(),
+        ];
+    }
+
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $camera = null;
+    $createdCamera = false;
+
+    if ($resolvedContext['has_explicit_key']) {
+        $stmt = $db->prepare(
+            "SELECT *
+             FROM cameras
+             WHERE user_id = ? AND camera_key = ?
+             LIMIT 1"
+        );
+        $stmt->execute([$userId, $resolvedContext['camera_key']]);
+        $camera = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    } else {
+        $stmt = $db->prepare(
+            "SELECT *
+             FROM cameras
+             WHERE user_id = ?
+             ORDER BY CASE WHEN source_type = 'webrtc' THEN 0 ELSE 1 END, id ASC
+             LIMIT 1"
+        );
+        $stmt->execute([$userId]);
+        $camera = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    if (!$camera) {
+        $cameraKey = $resolvedContext['has_explicit_key']
+            ? $resolvedContext['camera_key']
+            : iotzySanitizeCameraKey(null, $userId);
+        $cameraName = $resolvedContext['camera_name'] ?: 'Browser Camera';
+        $db->prepare(
+            "INSERT INTO cameras (user_id, camera_key, name, source_type, is_active, last_seen)
+             VALUES (?, ?, ?, 'webrtc', 1, NOW())"
+        )->execute([$userId, $cameraKey, $cameraName]);
+
+        $createdCamera = true;
+        $lookup = $db->prepare("SELECT * FROM cameras WHERE user_id = ? AND camera_key = ? LIMIT 1");
+        $lookup->execute([$userId, $cameraKey]);
+        $camera = $lookup->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    if (!$camera) {
+        return [
+            'camera' => null,
+            'camera_settings' => [],
+            'cv_state' => iotzyDefaultCvState(),
+        ];
+    }
+
+    $cameraId = (int)$camera['id'];
+    $desiredName = $resolvedContext['camera_name'] ?? '';
+    if ($resolvedContext['has_explicit_key'] && $desiredName !== '' && trim((string)($camera['name'] ?? '')) !== $desiredName) {
+        $db->prepare("UPDATE cameras SET name = ?, is_active = 1, last_seen = NOW() WHERE id = ?")->execute([$desiredName, $cameraId]);
+        $camera['name'] = $desiredName;
+    }
+
+    if ($createdCamera) {
+        $userSettings = getUserSettings($userId, $db) ?? [];
+        if (is_array($userSettings) && $userSettings) {
+            iotzyPersistCvConfig($db, $userId, $cameraId, $userSettings, $userSettings, []);
+        }
+    }
+
+    return iotzyHydrateCameraBundle($db, $camera);
+}
+
+function getUserCVState(int $userId, ?PDO $db = null, mixed $cameraContext = null): array
+{
+    $bundle = getUserCameraBundle($userId, $db, $cameraContext);
     return $bundle['cv_state'] ?? iotzyDefaultCvState();
 }
 
@@ -957,7 +1068,7 @@ function updateUserCVState(int $userId, array $data, ?PDO $db = null): array
         return iotzyDefaultCvState();
     }
 
-    $bundle = getUserCameraBundle($userId, $db);
+    $bundle = getUserCameraBundle($userId, $db, $data);
     if (empty($bundle['camera']['id'])) {
         return iotzyDefaultCvState();
     }
@@ -989,7 +1100,7 @@ function updateUserCVState(int $userId, array $data, ?PDO $db = null): array
         $db->prepare("UPDATE cameras SET last_seen = NOW() WHERE id = ?")->execute([$cameraId]);
     }
 
-    return getUserCVState($userId, $db);
+    return getUserCVState($userId, $db, $data);
 }
 
 function addActivityLog(

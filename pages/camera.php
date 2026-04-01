@@ -29,6 +29,7 @@
           <select id="cameraSelect" class="form-select" onchange="switchCamera(this.value)">
             <option value="">Memuat daftar kamera...</option>
           </select>
+          <div id="cvSessionMeta" class="cv-session-meta">Sesi browser ini akan menyimpan kamera dan status CV secara terpisah.</div>
         </div>
         <div class="cv-control-actions">
           <button id="btnStartCam" class="btn-primary btn-sm" onclick="startCamera()">

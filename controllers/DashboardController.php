@@ -15,7 +15,7 @@ function handleDashboardAction(string $action, int $userId, array $body, PDO $db
         $includeCamera = array_key_exists('include_camera', $body) ? (bool)$body['include_camera'] : true;
 
         $cameraBundle = ($includeCamera || $includeCameraSettings)
-            ? getUserCameraBundle($userId, $db)
+            ? getUserCameraBundle($userId, $db, $body)
             : ['cv_state' => iotzyDefaultCvState()];
         $devices = getUserDevices($userId, $db);
         $sensors = getUserSensors($userId, $db);

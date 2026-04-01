@@ -1553,3 +1553,10 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
 
 /* ── 26. PREMIUM 3D CONTROLS (PIXEL-PERFECT) ─────────── */
 @keyframes fan-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.cv-session-meta {
+  margin-top: 8px;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
