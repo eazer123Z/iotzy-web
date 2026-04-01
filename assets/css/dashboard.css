@@ -761,7 +761,7 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
 
 .cv-control-bar{
   display:flex;
-  align-items:flex-end;
+  align-items:flex-start;
   gap:12px;
   padding:16px;
   border-radius:18px;
@@ -779,6 +779,8 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
 .cv-control-select{
   flex:1 1 280px;
   min-width:220px;
+  display:flex;
+  flex-direction:column;
 }
 
 .cv-toolbar-label{
@@ -793,19 +795,22 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
 
 .camera-controls-top .form-select{
   width:100%;
-  min-height:42px;
+  min-height:44px;
 }
 
 .cv-control-actions{
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   gap:10px;
   flex-wrap:wrap;
+  align-self:flex-start;
+  padding-top:28px;
 }
 
 .camera-controls-top button{
   flex:0 0 auto;
   white-space:nowrap;
+  min-height:44px;
 }
 
 .cv-camera-stage{
@@ -1465,6 +1470,7 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
   .cv-panel-head{flex-direction:column;align-items:flex-start}
   .cv-control-bar{padding:14px}
   .cv-control-select,.cv-control-actions{width:100%}
+  .cv-control-actions{padding-top:0}
   .cv-detection-hud{left:12px;right:12px;bottom:12px;gap:8px}
   .cv-hud-chip{min-width:unset;flex:1 1 120px;padding:9px 10px}
   .cv-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
