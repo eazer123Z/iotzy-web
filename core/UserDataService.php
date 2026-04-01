@@ -61,6 +61,97 @@ function iotzyDefaultCvConfigFlat(): array
     ];
 }
 
+function iotzyNormalizeCvRuleAction(mixed $action): string
+{
+    $normalized = strtolower(trim((string)$action));
+    return in_array($normalized, ['', 'on', 'off', 'speed_low', 'speed_mid', 'speed_high'], true)
+        ? $normalized
+        : '';
+}
+
+function iotzyNormalizeHumanRuleCondition(mixed $condition, mixed $count): array
+{
+    $normalizedCount = max(0, min(20, (int)(is_numeric($count) ? $count : 0)));
+    $normalizedCondition = strtolower(trim((string)$condition));
+
+    return match ($normalizedCondition) {
+        'gte'  => ['condition' => 'gt',  'count' => max(0, $normalizedCount - 1)],
+        'lte'  => ['condition' => 'lt',  'count' => min(20, $normalizedCount + 1)],
+        'any'  => ['condition' => 'gt',  'count' => 0],
+        'none' => ['condition' => 'eq',  'count' => 0],
+        'eq', 'neq', 'gt', 'lt' => ['condition' => $normalizedCondition, 'count' => $normalizedCount],
+        default => ['condition' => 'eq', 'count' => $normalizedCount],
+    };
+}
+
+function iotzyNormalizeCvRules(array $source = [], ?array $flatConfig = null): array
+{
+    $defaults = iotzyDefaultCvRules();
+    $raw = array_replace_recursive($defaults, is_array($source) ? $source : []);
+    $boolCaster = static fn($value, bool $fallback = false): bool
+        => filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? ($value === null ? $fallback : (bool)$value);
+    $delayCaster = static fn($value, int $fallback): int
+        => max(0, min(600000, (int)(is_numeric($value) ? $value : $fallback)));
+    $normalizeDeviceIds = static function (mixed $list): array {
+        $items = is_array($list) ? $list : ($list === null || $list === '' ? [] : [$list]);
+        $normalized = [];
+        foreach ($items as $item) {
+            $value = trim((string)$item);
+            if ($value !== '') {
+                $normalized[] = $value;
+            }
+        }
+        return array_values(array_unique($normalized));
+    };
+
+    $humanDelay = $delayCaster($raw['human']['delay'] ?? null, (int)$defaults['human']['delay']);
+    $lightDelay = $delayCaster($raw['light']['delay'] ?? null, (int)$defaults['light']['delay']);
+    $humanEnabled = is_array($flatConfig) && array_key_exists('humanEnabled', $flatConfig)
+        ? (bool)$flatConfig['humanEnabled']
+        : $boolCaster($raw['human']['enabled'] ?? $defaults['human']['enabled'], (bool)$defaults['human']['enabled']);
+    $lightEnabled = is_array($flatConfig) && array_key_exists('lightEnabled', $flatConfig)
+        ? (bool)$flatConfig['lightEnabled']
+        : $boolCaster($raw['light']['enabled'] ?? $defaults['light']['enabled'], (bool)$defaults['light']['enabled']);
+
+    $humanRules = [];
+    $rawHumanRules = is_array($raw['human']['rules'] ?? null) ? $raw['human']['rules'] : [];
+    foreach ($rawHumanRules as $index => $rule) {
+        if (!is_array($rule)) {
+            continue;
+        }
+
+        $normalizedCondition = iotzyNormalizeHumanRuleCondition($rule['condition'] ?? 'eq', $rule['count'] ?? 0);
+        $ruleId = trim((string)($rule['id'] ?? ''));
+        if ($ruleId === '') {
+            $ruleId = 'hr_' . substr(md5(json_encode([$normalizedCondition, $rule, $index])), 0, 9);
+        }
+
+        $humanRules[] = [
+            'id' => $ruleId,
+            'condition' => $normalizedCondition['condition'],
+            'count' => $normalizedCondition['count'],
+            'devices' => $normalizeDeviceIds($rule['devices'] ?? []),
+            'onTrue' => iotzyNormalizeCvRuleAction($rule['onTrue'] ?? ''),
+            'onFalse' => iotzyNormalizeCvRuleAction($rule['onFalse'] ?? ''),
+            'delay' => $delayCaster($rule['delay'] ?? null, $humanDelay),
+        ];
+    }
+
+    return [
+        'human' => [
+            'enabled' => $humanEnabled,
+            'rules' => $humanRules,
+            'delay' => $humanDelay,
+        ],
+        'light' => [
+            'enabled' => $lightEnabled,
+            'onDark' => $normalizeDeviceIds($raw['light']['onDark'] ?? []),
+            'onBright' => $normalizeDeviceIds($raw['light']['onBright'] ?? []),
+            'delay' => $lightDelay,
+        ],
+    ];
+}
+
 function iotzyResolveNestedValue(array $source, array $paths, mixed $fallback = null): mixed
 {
     foreach ($paths as $path) {
@@ -149,6 +240,7 @@ function iotzyNormalizeCvConfigFlat(array $source = [], ?array $defaults = null)
             ['cv_human_rules_enabled'],
             ['automation', 'humanEnabled'],
             ['cv_config', 'automation', 'humanEnabled'],
+            ['cv_rules', 'human', 'enabled'],
         ],
         $defaults['humanEnabled']
     ));
@@ -160,6 +252,7 @@ function iotzyNormalizeCvConfigFlat(array $source = [], ?array $defaults = null)
             ['cv_light_rules_enabled'],
             ['automation', 'lightEnabled'],
             ['cv_config', 'automation', 'lightEnabled'],
+            ['cv_rules', 'light', 'enabled'],
         ],
         $defaults['lightEnabled']
     ));
@@ -235,6 +328,17 @@ function iotzyPersistCvConfig(
 
     $flat = iotzyNormalizeCvConfigFlat($incomingConfig, $base);
     $configJson = json_encode(iotzyBuildCvConfigDocument($flat), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $existingRules = iotzyDefaultCvRules();
+    if (is_array($currentUserSettings) && $currentUserSettings) {
+        $existingRules = iotzyNormalizeCvRules(iotzyJsonDecode($currentUserSettings['cv_rules'] ?? null, []));
+    }
+    if (is_array($currentCameraSettings) && $currentCameraSettings) {
+        $existingRules = iotzyNormalizeCvRules(
+            array_replace_recursive($existingRules, iotzyJsonDecode($currentCameraSettings['cv_rules'] ?? null, []))
+        );
+    }
+    $syncedRules = iotzyNormalizeCvRules($existingRules, $flat);
+    $rulesJson = json_encode($syncedRules, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     iotzyEnsureUserSettingsRow($userId, $db);
 
@@ -249,7 +353,8 @@ function iotzyPersistCvConfig(
                  bright_threshold = ?,
                  human_rules_enabled = ?,
                  light_rules_enabled = ?,
-                 cv_config = ?
+                 cv_config = ?,
+                 cv_rules = ?
              WHERE camera_id = ?"
         )->execute([
             (int)$flat['showBoundingBox'],
@@ -260,6 +365,7 @@ function iotzyPersistCvConfig(
             (int)$flat['humanEnabled'],
             (int)$flat['lightEnabled'],
             $configJson,
+            $rulesJson,
             $cameraId,
         ]);
     }
@@ -271,7 +377,8 @@ function iotzyPersistCvConfig(
              cv_bright_threshold = ?,
              cv_human_rules_enabled = ?,
              cv_light_rules_enabled = ?,
-             cv_config = ?
+             cv_config = ?,
+             cv_rules = ?
          WHERE user_id = ?"
     )->execute([
         $flat['minConfidence'],
@@ -280,26 +387,72 @@ function iotzyPersistCvConfig(
         (int)$flat['humanEnabled'],
         (int)$flat['lightEnabled'],
         $configJson,
+        $rulesJson,
         $userId,
     ]);
 
     return $flat;
 }
 
-function iotzyPersistCvRules(PDO $db, int $userId, int $cameraId, array $rules): array
+function iotzyPersistCvRules(
+    PDO $db,
+    int $userId,
+    int $cameraId,
+    array $rules,
+    ?array $currentUserSettings = null,
+    ?array $currentCameraSettings = null
+): array
 {
-    $currentRules = iotzyJsonDecode($rules, iotzyDefaultCvRules());
-    $normalizedRules = array_replace_recursive(iotzyDefaultCvRules(), is_array($currentRules) ? $currentRules : []);
+    $baseConfig = iotzyDefaultCvConfigFlat();
+    if (is_array($currentUserSettings) && $currentUserSettings) {
+        $baseConfig = iotzyNormalizeCvConfigFlat($currentUserSettings, $baseConfig);
+    }
+    if (is_array($currentCameraSettings) && $currentCameraSettings) {
+        $baseConfig = iotzyNormalizeCvConfigFlat($currentCameraSettings, $baseConfig);
+    }
+
+    $normalizedRules = iotzyNormalizeCvRules(iotzyJsonDecode($rules, []));
+    $syncedFlatConfig = $baseConfig;
+    $syncedFlatConfig['humanEnabled'] = (bool)($normalizedRules['human']['enabled'] ?? $baseConfig['humanEnabled']);
+    $syncedFlatConfig['lightEnabled'] = (bool)($normalizedRules['light']['enabled'] ?? $baseConfig['lightEnabled']);
+    $normalizedRules = iotzyNormalizeCvRules($normalizedRules, $syncedFlatConfig);
     $rulesJson = json_encode($normalizedRules, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $configJson = json_encode(iotzyBuildCvConfigDocument($syncedFlatConfig), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     iotzyEnsureUserSettingsRow($userId, $db);
 
     if ($cameraId > 0) {
         $db->prepare("INSERT IGNORE INTO camera_settings (camera_id) VALUES (?)")->execute([$cameraId]);
-        $db->prepare("UPDATE camera_settings SET cv_rules = ? WHERE camera_id = ?")->execute([$rulesJson, $cameraId]);
+        $db->prepare(
+            "UPDATE camera_settings
+             SET cv_rules = ?,
+                 human_rules_enabled = ?,
+                 light_rules_enabled = ?,
+                 cv_config = ?
+             WHERE camera_id = ?"
+        )->execute([
+            $rulesJson,
+            (int)$syncedFlatConfig['humanEnabled'],
+            (int)$syncedFlatConfig['lightEnabled'],
+            $configJson,
+            $cameraId,
+        ]);
     }
 
-    $db->prepare("UPDATE user_settings SET cv_rules = ? WHERE user_id = ?")->execute([$rulesJson, $userId]);
+    $db->prepare(
+        "UPDATE user_settings
+         SET cv_rules = ?,
+             cv_human_rules_enabled = ?,
+             cv_light_rules_enabled = ?,
+             cv_config = ?
+         WHERE user_id = ?"
+    )->execute([
+        $rulesJson,
+        (int)$syncedFlatConfig['humanEnabled'],
+        (int)$syncedFlatConfig['lightEnabled'],
+        $configJson,
+        $userId,
+    ]);
 
     return $normalizedRules;
 }
@@ -420,11 +573,8 @@ function getUserSettings(int $userId): ?array
 
         $row['quick_control_devices'] = iotzyJsonDecode($row['quick_control_devices'], []);
         $row['cv_config'] = iotzyJsonDecode($row['cv_config'], []);
-        $row['cv_rules'] = array_replace_recursive(
-            iotzyDefaultCvRules(),
-            iotzyJsonDecode($row['cv_rules'], [])
-        );
         $flatCvConfig = iotzyNormalizeCvConfigFlat($row);
+        $row['cv_rules'] = iotzyNormalizeCvRules(iotzyJsonDecode($row['cv_rules'], []), $flatCvConfig);
         $row['cv_min_confidence'] = $flatCvConfig['minConfidence'];
         $row['cv_dark_threshold'] = $flatCvConfig['darkThreshold'];
         $row['cv_bright_threshold'] = $flatCvConfig['brightThreshold'];
@@ -767,12 +917,12 @@ function getUserCameraBundle(int $userId, ?PDO $db = null): array
     $settingsStmt->execute([$cameraId]);
     $cameraSettings = $settingsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     $cameraSettings['camera_id'] = $cameraId;
-    $cameraSettings['cv_rules'] = array_replace_recursive(
-        iotzyDefaultCvRules(),
-        iotzyJsonDecode($cameraSettings['cv_rules'] ?? null, [])
-    );
     $cameraSettings['cv_config'] = iotzyJsonDecode($cameraSettings['cv_config'] ?? null, []);
     $cameraFlatConfig = iotzyNormalizeCvConfigFlat($cameraSettings);
+    $cameraSettings['cv_rules'] = iotzyNormalizeCvRules(
+        iotzyJsonDecode($cameraSettings['cv_rules'] ?? null, []),
+        $cameraFlatConfig
+    );
     $cameraSettings['show_bounding_box'] = (int)$cameraFlatConfig['showBoundingBox'];
     $cameraSettings['show_debug_info'] = (int)$cameraFlatConfig['showDebugInfo'];
     $cameraSettings['min_confidence'] = $cameraFlatConfig['minConfidence'];

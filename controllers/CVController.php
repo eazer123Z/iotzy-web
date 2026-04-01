@@ -11,7 +11,7 @@ function handleCVAction(string $action, int $userId, array $body, PDO $db): void
     $cameraId = (int)($bundle['camera']['id'] ?? 0);
 
     if ($action === 'get_cv_rules') {
-        $rules = array_replace_recursive($defRules, iotzyJsonDecode($bundle['camera_settings']['cv_rules'] ?? null, []));
+        $rules = $bundle['camera_settings']['cv_rules'] ?? $defRules;
         jsonOut($rules);
     }
 
@@ -22,7 +22,14 @@ function handleCVAction(string $action, int $userId, array $body, PDO $db): void
             jsonOut(['success' => false, 'error' => 'Data tidak valid']);
         }
 
-        $savedRules = iotzyPersistCvRules($db, $userId, $cameraId, $rules);
+        $savedRules = iotzyPersistCvRules(
+            $db,
+            $userId,
+            $cameraId,
+            $rules,
+            getUserSettings($userId) ?? [],
+            $bundle['camera_settings'] ?? []
+        );
         jsonOut(['success' => true, 'rules' => $savedRules]);
     }
 

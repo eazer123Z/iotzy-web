@@ -174,11 +174,11 @@ function normalizeCVConfigInput(config = {}, base = {}) {
       )
     )),
     humanEnabled: boolValue(
-      source.humanEnabled ?? source.human_rules_enabled ?? source.cv_human_rules_enabled ?? source.automation?.humanEnabled,
+      source.humanEnabled ?? source.human_rules_enabled ?? source.cv_human_rules_enabled ?? source.automation?.humanEnabled ?? source.cv_rules?.human?.enabled,
       currentBase.humanEnabled
     ),
     lightEnabled: boolValue(
-      source.lightEnabled ?? source.light_rules_enabled ?? source.cv_light_rules_enabled ?? source.automation?.lightEnabled,
+      source.lightEnabled ?? source.light_rules_enabled ?? source.cv_light_rules_enabled ?? source.automation?.lightEnabled ?? source.cv_rules?.light?.enabled,
       currentBase.lightEnabled
     ),
   };
@@ -194,6 +194,109 @@ function buildCurrentCVConfigPayload(overrides = {}) {
     humanEnabled: CV.cvRules?.human?.enabled,
     lightEnabled: CV.cvRules?.light?.enabled,
   });
+}
+
+function normalizeHumanRuleConditionInput(condition, count) {
+  const numericCount = Number.isFinite(Number(count))
+    ? Math.max(0, Math.min(20, Math.trunc(Number(count))))
+    : 0;
+  const normalizedCondition = String(condition || "").trim().toLowerCase();
+
+  switch (normalizedCondition) {
+    case "gte":
+      return { condition: "gt", count: Math.max(0, numericCount - 1) };
+    case "lte":
+      return { condition: "lt", count: Math.min(20, numericCount + 1) };
+    case "any":
+      return { condition: "gt", count: 0 };
+    case "none":
+      return { condition: "eq", count: 0 };
+    case "eq":
+    case "neq":
+    case "gt":
+    case "lt":
+      return { condition: normalizedCondition, count: numericCount };
+    default:
+      return { condition: "eq", count: numericCount };
+  }
+}
+
+function normalizeCVRulesInput(rules = {}, config = null) {
+  const source = rules && typeof rules === "object" ? rules : {};
+  const humanSource = source.human && typeof source.human === "object" ? source.human : {};
+  const lightSource = source.light && typeof source.light === "object" ? source.light : {};
+  const baseConfig = config ? normalizeCVConfigInput(config, buildCurrentCVConfigPayload()) : buildCurrentCVConfigPayload();
+  const boolValue = (value, fallback) => {
+    if (value === undefined || value === null || value === "") return fallback;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (["0", "false", "off", "no"].includes(normalized)) return false;
+      if (["1", "true", "on", "yes"].includes(normalized)) return true;
+    }
+    return Boolean(value);
+  };
+  const normalizeDelay = (value, fallback) => {
+    const parsed = Math.trunc(Number(value));
+    const safe = Number.isFinite(parsed) ? parsed : fallback;
+    return Math.max(0, Math.min(600000, safe));
+  };
+  const normalizeAction = (action) => {
+    const normalized = String(action || "").trim().toLowerCase();
+    return ["", "on", "off", "speed_low", "speed_mid", "speed_high"].includes(normalized) ? normalized : "";
+  };
+  const normalizeDeviceIds = (list) => {
+    const rawList = Array.isArray(list) ? list : (list === undefined || list === null || list === "" ? [] : [list]);
+    return Array.from(new Set(rawList.map((item) => String(item).trim()).filter(Boolean)));
+  };
+
+  const humanDelay = normalizeDelay(humanSource.delay, CV.cvRules?.human?.delay ?? 5000);
+  const lightDelay = normalizeDelay(lightSource.delay, CV.cvRules?.light?.delay ?? 2000);
+  const normalizedHumanRules = (Array.isArray(humanSource.rules) ? humanSource.rules : [])
+    .map((rule, index) => {
+      if (!rule || typeof rule !== "object") return null;
+      const normalizedCondition = normalizeHumanRuleConditionInput(rule.condition, rule.count);
+      return {
+        id: String(rule.id || `hr_${index}_${normalizedCondition.condition}_${normalizedCondition.count}`),
+        condition: normalizedCondition.condition,
+        count: normalizedCondition.count,
+        devices: normalizeDeviceIds(rule.devices),
+        onTrue: normalizeAction(rule.onTrue),
+        onFalse: normalizeAction(rule.onFalse),
+        delay: normalizeDelay(rule.delay, humanDelay),
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    human: {
+      enabled: config ? baseConfig.humanEnabled : boolValue(humanSource.enabled, CV.cvRules?.human?.enabled ?? true),
+      rules: normalizedHumanRules,
+      delay: humanDelay,
+    },
+    light: {
+      enabled: config ? baseConfig.lightEnabled : boolValue(lightSource.enabled, CV.cvRules?.light?.enabled ?? true),
+      onDark: normalizeDeviceIds(lightSource.onDark),
+      onBright: normalizeDeviceIds(lightSource.onBright),
+      delay: lightDelay,
+    },
+  };
+}
+
+function applyCVRulesState(rules = {}, config = null) {
+  const normalized = normalizeCVRulesInput(rules, config);
+  CV.cvRules = normalized;
+
+  if (typeof PHP_SETTINGS !== "undefined" && PHP_SETTINGS && typeof PHP_SETTINGS === "object") {
+    PHP_SETTINGS.cv_rules = JSON.parse(JSON.stringify(normalized));
+  }
+  if (typeof STATE !== "undefined" && STATE?.camera?.settings && typeof STATE.camera.settings === "object") {
+    STATE.camera.settings.cv_rules = JSON.parse(JSON.stringify(normalized));
+  }
+  if (typeof automationEngine !== "undefined" && typeof automationEngine.hydrateCVRules === "function") {
+    automationEngine.hydrateCVRules(normalized);
+  }
+
+  return normalized;
 }
 
 function syncCVSettingControl(id, value, formatter = null) {
@@ -269,6 +372,17 @@ function applyCVConfigState(config = {}) {
         lightEnabled: resolved.lightEnabled,
       },
     };
+    if (PHP_SETTINGS.cv_rules && typeof PHP_SETTINGS.cv_rules === "object") {
+      PHP_SETTINGS.cv_rules = normalizeCVRulesInput(PHP_SETTINGS.cv_rules, resolved);
+    }
+  }
+
+  if (typeof STATE !== "undefined" && STATE?.camera?.settings && typeof STATE.camera.settings === "object") {
+    STATE.camera.settings.human_rules_enabled = resolved.humanEnabled ? 1 : 0;
+    STATE.camera.settings.light_rules_enabled = resolved.lightEnabled ? 1 : 0;
+    if (STATE.camera.settings.cv_rules) {
+      STATE.camera.settings.cv_rules = normalizeCVRulesInput(STATE.camera.settings.cv_rules, resolved);
+    }
   }
 
   ["cvShowBoundingBoxCamera", "cvShowBoundingBoxSettings"].forEach((id) => {
@@ -554,8 +668,7 @@ async function loadCVConfig() {
 async function loadCVRules() {
   const result = await apiPost("get_cv_rules", {});
   if (result) {
-    CV.cvRules = { ...CV.cvRules, ...result };
-    if (typeof automationEngine !== "undefined") automationEngine.updateCVRules(CV.cvRules);
+    applyCVRulesState(result);
   }
 }
 
@@ -982,10 +1095,7 @@ async function applySyncData(res, timestamp = Date.now()) {
       applyCVConfigState(res.camera_settings);
     }
     if (res.camera_settings.cv_rules) {
-      CV.cvRules = { ...CV.cvRules, ...res.camera_settings.cv_rules };
-      if (typeof automationEngine !== "undefined" && typeof automationEngine.updateCVRules === "function") {
-        automationEngine.updateCVRules(CV.cvRules);
-      }
+      applyCVRulesState(res.camera_settings.cv_rules, res.camera_settings);
     }
     STATE.sync.lastCameraSettingsAt = timestamp;
   }
@@ -1057,8 +1167,11 @@ function loadFromPHP() {
         lightEnabled: PHP_SETTINGS.cv_light_rules_enabled,
       });
       if (PHP_SETTINGS.cv_rules && typeof PHP_SETTINGS.cv_rules === 'object') {
-        CV.cvRules = PHP_SETTINGS.cv_rules;
-        if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules(CV.cvRules);
+        applyCVRulesState(PHP_SETTINGS.cv_rules, {
+          ...(PHP_SETTINGS.cv_config && typeof PHP_SETTINGS.cv_config === "object" ? PHP_SETTINGS.cv_config : {}),
+          humanEnabled: PHP_SETTINGS.cv_human_rules_enabled,
+          lightEnabled: PHP_SETTINGS.cv_light_rules_enabled,
+        });
       }
     }
 

@@ -54,8 +54,7 @@ const automationEngine = (() => {
         try {
             const data = await _post('get_cv_rules');
             if (data && typeof data === 'object') {
-                _cvRules = { ..._cvRules, ...data };
-                _syncToWindowCV();
+                hydrateCVRules(data, { skipEvaluate: true });
             }
         } catch (e) {
             console.warn('Failed to load CV rules:', e);
@@ -430,10 +429,31 @@ const automationEngine = (() => {
 
     function getCVRules() { return _cvRules; }
 
-    function updateCVRules(partial) {
-        if (partial.human) _cvRules.human = { ..._cvRules.human, ...partial.human };
-        if (partial.light) _cvRules.light = { ..._cvRules.light, ...partial.light };
+    function hydrateCVRules(rules, options = {}) {
+        const nextRules = (typeof normalizeCVRulesInput === 'function')
+            ? normalizeCVRulesInput(rules)
+            : { ..._cvRules, ...(rules || {}) };
+        _cvRules = nextRules;
         _syncToWindowCV();
+
+        if (_cvActive && !options.skipEvaluate) {
+            const currentCount = Math.max(0, Number(window.STATE?.cv?.personCount) || 0);
+            const currentLight = window.STATE?.cv?.lightCondition || 'unknown';
+            _evaluateHumanRules(currentCount, { forceApply: true });
+            _evaluateLightRules(currentLight, { forceApply: true });
+        }
+
+        return _cvRules;
+    }
+
+    function updateCVRules(partial) {
+        const nextRules = {
+            human: { ...(_cvRules.human || {}) },
+            light: { ...(_cvRules.light || {}) },
+        };
+        if (partial.human) nextRules.human = { ...nextRules.human, ...partial.human };
+        if (partial.light) nextRules.light = { ...nextRules.light, ...partial.light };
+        hydrateCVRules(nextRules, { skipEvaluate: true });
         const persistPromise = _post('save_cv_rules', { rules: _cvRules }).catch(() => {});
         if (_cvActive) {
             const currentCount = Math.max(0, Number(window.STATE?.cv?.personCount) || 0);
@@ -506,6 +526,7 @@ const automationEngine = (() => {
         registerPersonCallback,
         registerLightCallback,
         getCVRules,
+        hydrateCVRules,
         updateCVRules,
         setEnabled,
         _evaluateBuiltInRules: _evaluateBuiltInRules,

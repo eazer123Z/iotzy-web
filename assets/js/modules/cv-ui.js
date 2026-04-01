@@ -191,17 +191,15 @@ const cvUI = (() => {
     }
 
     function _humanConditionLabel(condition, count) {
-        const numericCount = Number.isFinite(Number(count)) ? Number(count) : 0;
-        switch (condition) {
-            case 'eq': return `Sama ${numericCount}`;
-            case 'neq': return `Tidak sama ${numericCount}`;
-            case 'gt': return `Lebih dari ${numericCount}`;
-            case 'lt': return `Kurang dari ${numericCount}`;
-            case 'gte': return `Lebih dari / sama ${numericCount}`;
-            case 'lte': return `Kurang dari / sama ${numericCount}`;
-            case 'any': return 'Ada orang';
-            case 'none': return 'Tidak ada orang';
-            default: return `${condition || 'Kondisi'} ${numericCount}`.trim();
+        const normalized = typeof normalizeHumanRuleConditionInput === 'function'
+            ? normalizeHumanRuleConditionInput(condition, count)
+            : { condition, count: Number.isFinite(Number(count)) ? Number(count) : 0 };
+        switch (normalized.condition) {
+            case 'eq': return `Sama ${normalized.count}`;
+            case 'neq': return `Tidak sama ${normalized.count}`;
+            case 'gt': return `Lebih dari ${normalized.count}`;
+            case 'lt': return `Kurang dari ${normalized.count}`;
+            default: return `${normalized.condition || 'Kondisi'} ${normalized.count}`.trim();
         }
     }
 
@@ -625,6 +623,110 @@ const cvUI = (() => {
         if (typeof showToast === 'function') showToast('Aturan berhasil ditambahkan', 'success');
     }
 
+    function toggleCVRuleEnabled(type, enabled) {
+        const nextRules = _loadRules();
+        if (!nextRules[type]) nextRules[type] = {};
+        nextRules[type].enabled = enabled;
+
+        if (typeof applyCVConfigState === 'function') {
+            applyCVConfigState(type === 'human' ? { humanEnabled: enabled } : { lightEnabled: enabled });
+        }
+
+        if (typeof automationEngine !== 'undefined') {
+            automationEngine.updateCVRules({ [type]: { enabled } });
+        } else if (window.CV) {
+            window.CV.cvRules = typeof normalizeCVRulesInput === 'function'
+                ? normalizeCVRulesInput(nextRules)
+                : nextRules;
+            if (typeof persistCVConfig === 'function') {
+                persistCVConfig(type === 'human' ? { humanEnabled: enabled } : { lightEnabled: enabled }).catch(() => {});
+            }
+        }
+    }
+
+    function updateCVDelay(type, seconds) {
+        const delay = parseInt(seconds) * 1000;
+        if (typeof automationEngine !== 'undefined') {
+            automationEngine.updateCVRules({ [type]: { delay } });
+        } else if (window.CV?.cvRules?.[type]) {
+            window.CV.cvRules[type].delay = delay;
+            if (typeof saveCVRules === 'function') {
+                try { saveCVRules(); } catch (_) {}
+            }
+        }
+    }
+
+    function saveCVRules() {
+        const rules = _loadRules();
+
+        rules.human.enabled  = document.getElementById('cvHumanToggle')?.checked ?? true;
+        rules.light.onDark   = _getChecked('cvOnDarkList');
+        rules.light.onBright = _getChecked('cvOnBrightList');
+        rules.light.enabled  = document.getElementById('cvLightToggle')?.checked ?? true;
+        const ld = document.getElementById('cvLightDelay');
+        if (ld) rules.light.delay = parseInt(ld.value) * 1000;
+
+        const persistPromise = typeof automationEngine !== 'undefined'
+            ? automationEngine.updateCVRules(rules)
+            : (typeof apiPost === 'function' ? apiPost('save_cv_rules', { rules }) : Promise.resolve({ success: true }));
+
+        if (window.CV) {
+            window.CV.cvRules = typeof normalizeCVRulesInput === 'function'
+                ? normalizeCVRulesInput(rules)
+                : rules;
+        }
+        Promise.resolve(persistPromise)
+            .then(() => { if (typeof showToast === 'function') showToast('Pengaturan CV disimpan!', 'success'); })
+            .catch(() => { if (typeof showToast === 'function') showToast('Gagal simpan ke database', 'error'); });
+    }
+
+    function addHumanRuleSubmit() {
+        const cond = document.getElementById('ahr_cond').value;
+        const count = parseInt(document.getElementById('ahr_count').value);
+        const devs = Array.from(document.querySelectorAll('#ahr_dev input[type=checkbox]:checked')).map((input) => input.value);
+        const onTrue = document.getElementById('ahr_true').value;
+        const onFalse = document.getElementById('ahr_false').value;
+
+        if (devs.length === 0) {
+            if (typeof showToast === 'function') showToast('Pilih minimal 1 perangkat!', 'error');
+            return;
+        }
+        if (!Number.isFinite(count) || count < 0) {
+            if (typeof showToast === 'function') showToast('Jumlah orang harus angka 0 atau lebih.', 'error');
+            return;
+        }
+
+        const normalizedCondition = typeof normalizeHumanRuleConditionInput === 'function'
+            ? normalizeHumanRuleConditionInput(cond, count)
+            : { condition: cond, count: count || 0 };
+        const newRule = {
+            id: Math.random().toString(36).substr(2, 9),
+            condition: normalizedCondition.condition,
+            count: normalizedCondition.count,
+            devices: devs,
+            onTrue: onTrue,
+            onFalse: onFalse,
+            delay: 3000
+        };
+
+        const rulesObj = _loadRules();
+        if (!rulesObj.human) rulesObj.human = { enabled: true, rules: [], delay: 5000 };
+        if (!Array.isArray(rulesObj.human.rules)) rulesObj.human.rules = [];
+
+        rulesObj.human.rules.push(newRule);
+
+        if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules({ human: rulesObj.human });
+        if (window.CV) {
+            window.CV.cvRules = typeof normalizeCVRulesInput === 'function'
+                ? normalizeCVRulesInput(rulesObj)
+                : rulesObj;
+        }
+
+        document.getElementById('cvAddHumanRuleModal')?.remove();
+        renderAutomationSettings();
+        if (typeof showToast === 'function') showToast('Aturan berhasil ditambahkan', 'success');
+    }
+
     /**
      * Mengumpulkan daftar ID perangkat yang dicentang dalam container tertentu.
      */
@@ -640,10 +742,16 @@ const cvUI = (() => {
      */
     function _loadRules() {
         try {
-            if (window.CV?.cvRules) return JSON.parse(JSON.stringify(window.CV.cvRules));
+            if (window.CV?.cvRules) {
+                const rules = JSON.parse(JSON.stringify(window.CV.cvRules));
+                return typeof normalizeCVRulesInput === 'function' ? normalizeCVRulesInput(rules) : rules;
+            }
             if (typeof automationEngine !== 'undefined') {
                 const r = automationEngine.getCVRules?.();
-                if (r) return JSON.parse(JSON.stringify(r));
+                if (r) {
+                    const rules = JSON.parse(JSON.stringify(r));
+                    return typeof normalizeCVRulesInput === 'function' ? normalizeCVRulesInput(rules) : rules;
+                }
             }
         } catch (_) {}
         return _defaultRules();

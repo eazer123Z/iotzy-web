@@ -170,9 +170,13 @@ async function loadCVConfig() {
 async function loadCVRules() {
   const result = await apiPost("get_cv_rules", {});
   if (result) {
-    CV.cvRules = { ...CV.cvRules, ...result };
-    if (typeof automationEngine !== "undefined") {
-      automationEngine.updateCVRules(CV.cvRules);
+    if (typeof applyCVRulesState === "function") {
+      applyCVRulesState(result);
+    } else {
+      CV.cvRules = { ...CV.cvRules, ...result };
+      if (typeof automationEngine !== "undefined" && typeof automationEngine.hydrateCVRules === "function") {
+        automationEngine.hydrateCVRules(CV.cvRules);
+      }
     }
   }
 }
