@@ -4,7 +4,6 @@
       <h1>Selamat Datang, <?= htmlspecialchars($user['username']) ?></h1>
       <p>Status rumah hari ini.</p>
     </div>
-    <div class="ov-date" id="ovClock">--:--:--</div>
   </div>
 
   <div class="stats-grid">

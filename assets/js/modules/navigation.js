@@ -11,13 +11,7 @@ function initClock() {
   const tick = () => {
     const now = new Date();
     const el  = document.getElementById("clock");
-    const de  = document.getElementById("date");
-    const ov  = document.getElementById("ovClock");
     if (el) el.textContent = now.toLocaleTimeString("id-ID");
-    if (de) de.textContent = now
-      .toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" })
-      .toUpperCase();
-    if (ov) ov.textContent = now.toLocaleTimeString("id-ID", { hour12: false });
   };
   tick();
   setInterval(tick, 1000);
@@ -61,37 +55,30 @@ function updateAllDurations() {
 const PAGE_META = {
   dashboard: {
     title: "Overview",
-    section: "Dashboard IoT",
     description: ""
   },
   devices: {
     title: "Perangkat",
-    section: "Dashboard IoT",
     description: ""
   },
   sensors: {
     title: "Sensor",
-    section: "Dashboard IoT",
     description: ""
   },
   automation: {
     title: "Rules Engine",
-    section: "Dashboard IoT",
     description: ""
   },
   camera: {
     title: "Computer Vision",
-    section: "Dashboard IoT",
     description: ""
   },
   analytics: {
     title: "Log & Analitik",
-    section: "Halaman Informasi",
     description: ""
   },
   settings: {
     title: "Pengaturan",
-    section: "Halaman Informasi",
     description: ""
   },
 };
@@ -139,13 +126,10 @@ function switchPage(page, el) {
   // Update konteks halaman di Topbar
   const meta = PAGE_META[page] || {
     title: page,
-    section: "Dashboard IoT",
     description: "Halaman sistem IoT."
   };
   const pt = document.getElementById("pageTitle");
-  const ps = document.getElementById("pageSectionBadge");
   if (pt) pt.textContent = meta.title;
-  if (ps) ps.textContent = meta.section;
   if (typeof document !== "undefined") {
     document.title = `${meta.title} | IoTzy`;
   }
