@@ -1815,7 +1815,6 @@ body {
 }
 
 .loading-logo,
-.sidebar-logo,
 .user-avatar {
   background: var(--accent);
   box-shadow: none;
@@ -1845,6 +1844,16 @@ body {
 
 .brand-name {
   color: var(--heading);
+}
+
+.sidebar-logo {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none !important;
+  color: var(--accent);
+  font-size: 1.55rem;
+  box-shadow: none !important;
 }
 
 .brand-caption {
