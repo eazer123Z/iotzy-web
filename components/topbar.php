@@ -15,21 +15,16 @@
         <button id="themeToggleBtn" onclick="toggleTheme()" class="icon-btn theme-toggle-btn" title="Ganti Tema">
           <i class="fas fa-moon"></i>
         </button>
-        <div class="mqtt-badge">
+        <div class="mqtt-badge" title="Status koneksi MQTT">
           <span class="mqtt-dot" id="mqttStatusDot"></span>
-          <span id="mqttStatusText" class="mqtt-label">Disconnected</span>
+          <span id="mqttStatusText" class="sr-only">Disconnected</span>
         </div>
         <div class="topbar-clock">
           <span id="clock" class="clock-time">00:00:00</span>
-          <span id="date" class="clock-date">-</span>
         </div>
         <div class="topbar-user-chip" title="<?= htmlspecialchars($user['username']) ?>">
           <div class="user-avatar topbar-user-avatar">
             <?= htmlspecialchars(strtoupper(substr($user['username'], 0, 1))) ?>
-          </div>
-          <div class="topbar-user-copy">
-            <span class="topbar-user-name"><?= htmlspecialchars($user['full_name'] ?: $user['username']) ?></span>
-            <span class="topbar-user-role"><?= htmlspecialchars($user['role']) ?></span>
           </div>
         </div>
       </div>
