@@ -584,15 +584,52 @@ function updateCVConfig(val) {
   persistCVConfig({ minConfidence: parseFloat(val) / 100 }).catch(() => {});
 }
 
+function normalizeCVBrightnessValue(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  if (numeric <= 0) return 0;
+  if (numeric >= 100) return 1;
+  return numeric > 1 ? numeric / 100 : numeric;
+}
+
+function syncCVPersonCountUI(count = STATE.cv.personCount) {
+  const normalizedCount = Math.max(0, Number(count) || 0);
+  const g = (id) => document.getElementById(id);
+  if (g("cvPersonCount")) g("cvPersonCount").textContent = String(normalizedCount);
+  if (g("cvPersonCountBig")) g("cvPersonCountBig").textContent = String(normalizedCount);
+  if (g("cvHumanCount")) g("cvHumanCount").textContent = String(normalizedCount);
+}
+
+function syncCVLightUI(condition = STATE.cv.lightCondition, brightness = STATE.cv.brightness) {
+  const normalizedBrightness = normalizeCVBrightnessValue(brightness);
+  const pct = Math.round(normalizedBrightness * 100);
+  const g = (id) => document.getElementById(id);
+  const condMap = { dark: "Gelap", normal: "Normal", bright: "Terang" };
+
+  STATE.cv.brightness = normalizedBrightness;
+  STATE.cv.lightCondition = condition || "unknown";
+
+  if (g("cvBrightness")) g("cvBrightness").textContent = `${pct}%`;
+  if (g("cvBrightnessLabel")) g("cvBrightnessLabel").textContent = `${pct}%`;
+  if (g("cvBrightnessBar")) g("cvBrightnessBar").style.width = pct + "%";
+  if (g("cvLightCondition")) g("cvLightCondition").textContent = condMap[STATE.cv.lightCondition] || STATE.cv.lightCondition;
+}
+
+function syncCVInferenceRateUI(rate = CV.fps) {
+  const numericRate = Number(rate);
+  const safeRate = Number.isFinite(numericRate) ? Math.max(0, numericRate) : 0;
+  const display = safeRate >= 10 ? String(Math.round(safeRate)) : safeRate.toFixed(1).replace(/\.0$/, "");
+  const fpsEl = document.getElementById("cvFPS");
+  if (fpsEl) fpsEl.textContent = display;
+}
+
 /* ============================================================
    CV PERSON COUNT CALLBACK (dipanggil oleh cv-detector.js)
    ============================================================ */
 function onCVPersonCountUpdate(count) {
   STATE.cv.personCount   = count;
   STATE.cv.personPresent = count > 0;
-  const g = (id) => document.getElementById(id);
-  if (g("cvPersonCountBig")) g("cvPersonCountBig").textContent = count;
-  if (g("cvHumanCount"))     g("cvHumanCount").textContent     = count;
+  syncCVPersonCountUI(count);
   if (typeof automationEngine !== "undefined") automationEngine.notifyPersonCount(count);
   if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
     Overview.updateDashboardRoomSummary();
@@ -604,15 +641,7 @@ function onCVPersonCountUpdate(count) {
    LIGHT ANALYZER CALLBACK
    ============================================================ */
 function onLightAnalysisUpdate(condition, brightness) {
-  STATE.cv.lightCondition = condition;
-  STATE.cv.brightness     = brightness;
-  const pct = Math.round(brightness * 100);
-  const g   = (id) => document.getElementById(id);
-  if (g("cvBrightness"))      g("cvBrightness").textContent      = `${pct}%`;
-  if (g("cvBrightnessLabel")) g("cvBrightnessLabel").textContent = `${pct}%`;
-  if (g("cvBrightnessBar"))   g("cvBrightnessBar").style.width   = pct + "%";
-  const condMap = { dark: "Gelap", normal: "Normal", bright: "Terang" };
-  if (g("cvLightCondition"))  g("cvLightCondition").textContent  = condMap[condition] || condition;
+  syncCVLightUI(condition, brightness);
   if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
     Overview.updateDashboardRoomSummary();
   }
@@ -935,9 +964,10 @@ async function applySyncData(res, timestamp = Date.now()) {
   }
 
   if (res.cv_state && !CV.detecting) {
-    STATE.cv.personCount    = res.cv_state.person_count || 0;
-    STATE.cv.brightness     = res.cv_state.brightness   || 0;
-    STATE.cv.lightCondition = res.cv_state.light_condition || 'unknown';
+    STATE.cv.personCount = Math.max(0, Number(res.cv_state.person_count) || 0);
+    STATE.cv.personPresent = STATE.cv.personCount > 0;
+    syncCVPersonCountUI(STATE.cv.personCount);
+    syncCVLightUI(res.cv_state.light_condition || 'unknown', res.cv_state.brightness || 0);
     if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
       Overview.updateDashboardRoomSummary();
     }
@@ -999,7 +1029,7 @@ function updateDashboardStats() {
   if (g("totalSensors"))         g("totalSensors").textContent         = totalSen;
   if (g("statMqttVal"))          g("statMqttVal").textContent          = STATE.mqtt.connected ? "Online" : "Offline";
   if (g("statMqttSub"))          g("statMqttSub").textContent          = (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS.mqtt_broker) || "—";
-  if (g("cvPersonCountBig"))     g("cvPersonCountBig").textContent     = STATE.cv.personCount;
+  syncCVPersonCountUI(STATE.cv.personCount);
 }
 
 /* ============================================================
@@ -1058,6 +1088,13 @@ function loadFromPHP() {
     }
     if (typeof PHP_CAMERA_SETTINGS !== 'undefined') {
       STATE.camera.settings = PHP_CAMERA_SETTINGS || {};
+    }
+
+    if (typeof PHP_CV_STATE !== "undefined" && PHP_CV_STATE && typeof PHP_CV_STATE === "object") {
+      STATE.cv.personCount = Math.max(0, Number(PHP_CV_STATE.person_count) || 0);
+      STATE.cv.personPresent = STATE.cv.personCount > 0;
+      syncCVPersonCountUI(STATE.cv.personCount);
+      syncCVLightUI(PHP_CV_STATE.light_condition || "unknown", PHP_CV_STATE.brightness || 0);
     }
 
     STATE.cvAutoStartRequested = !!(typeof PHP_CV_STATE !== 'undefined' && PHP_CV_STATE && Number(PHP_CV_STATE.is_active) === 1);

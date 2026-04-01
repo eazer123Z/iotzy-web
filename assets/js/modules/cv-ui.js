@@ -58,12 +58,13 @@ const cvUI = (() => {
      * Handler saat detektor mengirimkan data hasil scan frame terbaru.
      */
     function _onDetectionUpdate(data) {
-        const hc = document.getElementById('cvHumanCount');
+        const hc = document.getElementById('cvPersonCount') || document.getElementById('cvHumanCount');
         const ps = document.getElementById('cvPresenceStatus');
         const cf = document.getElementById('cvConfidence');
 
         // Update statistik jumlah orang di dashboard
-        if (hc) hc.textContent = data.humanCount;
+        if (typeof syncCVPersonCountUI === 'function') syncCVPersonCountUI(data.humanCount);
+        else if (hc) hc.textContent = data.humanCount;
 
         if (ps) {
             ps.textContent = data.humanPresent ? 'Terdeteksi' : 'Tidak Terdeteksi';

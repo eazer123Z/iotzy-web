@@ -13,8 +13,12 @@ function startCVFpsMonitor() {
   CV.frameCount = 0;
   CV.fpsTimer = setInterval(() => {
     CV.fps = CV.frameCount;
-    const fpsEl = document.getElementById("cvFPS");
-    if (fpsEl) fpsEl.textContent = String(CV.fps);
+    if (typeof syncCVInferenceRateUI === "function") {
+      syncCVInferenceRateUI(CV.fps);
+    } else {
+      const fpsEl = document.getElementById("cvFPS");
+      if (fpsEl) fpsEl.textContent = String(CV.fps);
+    }
     CV.frameCount = 0;
   }, 1000);
 }
@@ -26,8 +30,12 @@ function stopCVFpsMonitor() {
   }
   CV.fps = 0;
   CV.frameCount = 0;
-  const fpsEl = document.getElementById("cvFPS");
-  if (fpsEl) fpsEl.textContent = "0";
+  if (typeof syncCVInferenceRateUI === "function") {
+    syncCVInferenceRateUI(0);
+  } else {
+    const fpsEl = document.getElementById("cvFPS");
+    if (fpsEl) fpsEl.textContent = "0";
+  }
 }
 
 async function initializeCV() {
@@ -192,9 +200,14 @@ function updateCVConfig(val) {
 function onCVPersonCountUpdate(count) {
   STATE.cv.personCount  = count;
   STATE.cv.personPresent = count > 0;
-  const g = (id) => document.getElementById(id);
-  if (g("cvPersonCountBig")) g("cvPersonCountBig").textContent = count;
-  if (g("cvHumanCount"))     g("cvHumanCount").textContent     = count;
+  if (typeof syncCVPersonCountUI === "function") {
+    syncCVPersonCountUI(count);
+  } else {
+    const g = (id) => document.getElementById(id);
+    if (g("cvPersonCount")) g("cvPersonCount").textContent = count;
+    if (g("cvPersonCountBig")) g("cvPersonCountBig").textContent = count;
+    if (g("cvHumanCount")) g("cvHumanCount").textContent = count;
+  }
   if (typeof automationEngine !== "undefined" && automationEngine.notifyPersonCount) {
       automationEngine.notifyPersonCount(count);
   }
@@ -205,15 +218,19 @@ function onCVPersonCountUpdate(count) {
 }
 
 function onLightAnalysisUpdate(condition, brightness) {
-  STATE.cv.lightCondition = condition;
-  STATE.cv.brightness     = brightness;
-  const pct = Math.round(brightness * 100);
-  const g   = (id) => document.getElementById(id);
-  if (g("cvBrightness"))      g("cvBrightness").textContent      = `${pct}%`;
-  if (g("cvBrightnessLabel")) g("cvBrightnessLabel").textContent = `${pct}%`;
-  if (g("cvBrightnessBar"))   g("cvBrightnessBar").style.width   = pct + "%";
-  const condMap = { dark: "Gelap", normal: "Normal", bright: "Terang" };
-  if (g("cvLightCondition")) g("cvLightCondition").textContent   = condMap[condition] || condition;
+  if (typeof syncCVLightUI === "function") {
+    syncCVLightUI(condition, brightness);
+  } else {
+    STATE.cv.lightCondition = condition;
+    STATE.cv.brightness = brightness;
+    const pct = Math.round(brightness * 100);
+    const g = (id) => document.getElementById(id);
+    const condMap = { dark: "Gelap", normal: "Normal", bright: "Terang" };
+    if (g("cvBrightness")) g("cvBrightness").textContent = `${pct}%`;
+    if (g("cvBrightnessLabel")) g("cvBrightnessLabel").textContent = `${pct}%`;
+    if (g("cvBrightnessBar")) g("cvBrightnessBar").style.width = pct + "%";
+    if (g("cvLightCondition")) g("cvLightCondition").textContent = condMap[condition] || condition;
+  }
   if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
     Overview.updateDashboardRoomSummary();
   }
@@ -294,7 +311,11 @@ function drawCVOverlay(preds, video) {
 
 function updateCVHUD(count, preds) {
   const g = (id) => document.getElementById(id);
-  if (g("cvHumanCount")) g("cvHumanCount").textContent = count;
+  if (typeof syncCVPersonCountUI === "function") {
+    syncCVPersonCountUI(count);
+  } else if (g("cvPersonCount")) {
+    g("cvPersonCount").textContent = count;
+  }
   if (g("cvConfidence")) g("cvConfidence").textContent = preds && preds.length
     ? Math.round(Math.max(...preds.map((p) => p.score)) * 100) + "%" : "—";
   const presText = count > 0 ? `${count} orang` : "Tidak ada";

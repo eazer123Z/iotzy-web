@@ -62,7 +62,7 @@
       <div class="cv-stat-card" style="flex-direction:row; justify-content:space-between; padding:10px 20px">
         <div style="display:flex; align-items:center; gap:10px">
           <div class="cv-stat-icon" style="color:var(--text-muted); margin:0"><i class="fas fa-gauge"></i></div>
-          <div class="cv-stat-label" style="margin:0">Frame Per Second</div>
+          <div class="cv-stat-label" id="cvPerfLabel" style="margin:0" title="Laju inferensi model AI per detik, bukan FPS video kamera">AI Deteksi / Detik</div>
         </div>
         <div class="cv-stat-value" id="cvFPS" style="font-size:1rem">0</div>
       </div>
