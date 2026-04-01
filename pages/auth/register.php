@@ -52,11 +52,17 @@ body {
 .wrap { width: 100%; max-width: 440px; z-index: 2; animation: fadeIn 0.5s ease; }
 .header { text-align: center; margin-bottom: 20px; }
 .logo {
-  width: 74px; height: 74px; border-radius: 22px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-light));
-  display: flex; align-items: center; justify-content: center;
-  font-size: 32px; color: #fff; margin: 0 auto 18px;
-  box-shadow: 0 18px 40px rgba(14,165,233,0.24);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  margin: 0 auto 18px;
+  font-size: 42px;
+  color: var(--accent);
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 .title { font-size: 36px; font-weight: 800; text-align: center; margin-bottom: 6px; color: var(--heading); letter-spacing: -0.03em; }
 .sub { color: var(--text-secondary); font-size: 0.98rem; }
