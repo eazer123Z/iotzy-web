@@ -54,8 +54,7 @@ const automationEngine = (() => {
         try {
             const data = await _post('get_cv_rules');
             if (data && typeof data === 'object') {
-                _cvRules = { ..._cvRules, ...data };
-                _syncToWindowCV();
+                hydrateCVRules(data, { skipEvaluate: true });
             }
         } catch (e) {
             console.warn('Failed to load CV rules:', e);
@@ -104,22 +103,13 @@ const automationEngine = (() => {
     // Human rule state tracking to prevent spamming
     let _cvHumanRuleState = {};
 
-    function _onPersonDetected(count) {
+    function _evaluateHumanRules(count, options = {}) {
         if (!_cvActive) return;
         if (!_cvRules.human?.enabled) return;
 
-        // Core presence detection logging
-        const isPresent = count > 0;
-        if (isPresent !== _cvHumanPresent) {
-            _cvHumanPresent = isPresent;
-            if (typeof addLog === 'function') {
-                addLog('CV Otomasi', isPresent ? `${count} orang terdeteksi` : 'Tidak ada orang', 'CV', 'info');
-            }
-        }
-
-        // Evaluate human rules based on counts
+        const forceApply = options.forceApply === true;
         const rules = Array.isArray(_cvRules.human.rules) ? _cvRules.human.rules : [];
-        if (rules.length === 0) return; // No custom rules, do nothing
+        if (rules.length === 0) return;
 
         const now = Date.now();
         const baseDelay = _cvRules.human.delay || 5000;
@@ -131,6 +121,7 @@ const automationEngine = (() => {
             let conditionMet = false;
             switch(rule.condition) {
                 case 'eq':  conditionMet = count === parseInt(rule.count); break;
+                case 'neq': conditionMet = count !== parseInt(rule.count); break;
                 case 'gt':  conditionMet = count >   parseInt(rule.count); break;
                 case 'gte': conditionMet = count >=  parseInt(rule.count); break;
                 case 'lt':  conditionMet = count <   parseInt(rule.count); break;
@@ -140,50 +131,72 @@ const automationEngine = (() => {
                 default:    conditionMet = false;
             }
 
-            // Check if state changed
-            const prevState = _cvHumanRuleState[rid] || false;
-            
-            if (conditionMet && !prevState) {
-                // Just became true
+            const prevState = Object.prototype.hasOwnProperty.call(_cvHumanRuleState, rid)
+                ? !!_cvHumanRuleState[rid]
+                : null;
+
+            if (forceApply) {
+                _cvHumanRuleState[rid] = true;
+                if (!conditionMet) {
+                    _cvHumanRuleState[rid] = false;
+                }
+            }
+
+            const effectivePrevState = forceApply ? null : (prevState === null ? false : prevState);
+
+            if (conditionMet && !effectivePrevState) {
                 _cvHumanRuleState[rid] = true;
                 if (!rule.onTrue) return;
-                
-                // Check cooldown
+
                 const cdKey = `cv_human_${rid}_true`;
-                if (_cooldowns[cdKey] && now - _cooldowns[cdKey] < (rule.delay || baseDelay)) return;
+                if (_cooldowns[cdKey] && now - _cooldowns[cdKey] < (rule.delay || baseDelay) && !forceApply) return;
                 _cooldowns[cdKey] = now;
 
-                const reason = `CV: ${count} orang (Aturan ${rule.condition} ${rule.count || ''})`;
+                const reason = `CV: ${count} orang (${rule.condition} ${rule.count ?? 0})`;
                 (Array.isArray(rule.devices) ? rule.devices : []).forEach(devId => {
-                    _execute(devId, rule.onTrue, reason, rule.delay || 0);
+                    _execute(devId, rule.onTrue, reason, forceApply ? 0 : (rule.delay || 0));
                 });
-            } else if (!conditionMet && prevState) {
-                // Just became false
+            } else if (!conditionMet && (effectivePrevState || forceApply)) {
                 _cvHumanRuleState[rid] = false;
                 if (!rule.onFalse) return;
 
-                // Check cooldown
                 const cdKey = `cv_human_${rid}_false`;
-                if (_cooldowns[cdKey] && now - _cooldowns[cdKey] < (rule.delay || baseDelay)) return;
+                if (_cooldowns[cdKey] && now - _cooldowns[cdKey] < (rule.delay || baseDelay) && !forceApply) return;
                 _cooldowns[cdKey] = now;
-                
-                const reason = `CV: Tidak memenuhi ${rule.condition} ${rule.count || ''}`;
+
+                const reason = `CV: tidak memenuhi ${rule.condition} ${rule.count ?? 0}`;
                 (Array.isArray(rule.devices) ? rule.devices : []).forEach(devId => {
-                    _execute(devId, rule.onFalse, reason, rule.delay || 0);
+                    _execute(devId, rule.onFalse, reason, forceApply ? 0 : (rule.delay || 0));
                 });
             }
         });
     }
 
-    function _onLight(condition) {
+    function _onPersonDetected(count) {
+        if (!_cvActive) return;
+        if (!_cvRules.human?.enabled) return;
+
+        const isPresent = count > 0;
+        if (isPresent !== _cvHumanPresent) {
+            _cvHumanPresent = isPresent;
+            if (typeof addLog === 'function') {
+                addLog('CV Otomasi', isPresent ? `${count} orang terdeteksi` : 'Tidak ada orang', 'CV', 'info');
+            }
+        }
+
+        _evaluateHumanRules(count);
+    }
+
+    function _evaluateLightRules(condition, options = {}) {
         if (!_cvActive) return;
         if (!_cvRules.light?.enabled) return;
-        if (condition === _cvLightCondition) return;
+        const forceApply = options.forceApply === true;
+        if (condition === _cvLightCondition && !forceApply) return;
         _cvLightCondition = condition;
 
         const delay = _cvRules.light.delay || 2000;
-        if (condition === 'dark')   (_cvRules.light.onDark   || []).forEach(id => _execute(id, 'on',  'CV Cahaya Gelap',  delay));
-        if (condition === 'bright') (_cvRules.light.onBright || []).forEach(id => _execute(id, 'off', 'CV Cahaya Terang', delay));
+        if (condition === 'dark')   (_cvRules.light.onDark   || []).forEach(id => _execute(id, 'on',  'CV Cahaya Gelap',  forceApply ? 0 : delay));
+        if (condition === 'bright') (_cvRules.light.onBright || []).forEach(id => _execute(id, 'off', 'CV Cahaya Terang', forceApply ? 0 : delay));
 
         if (typeof addLog === 'function') {
             const lbl = { dark: 'Gelap', normal: 'Normal', bright: 'Terang' }[condition] || condition;
@@ -192,6 +205,10 @@ const automationEngine = (() => {
 
         // Built-in Smart Lamp Automation
         _evaluateBuiltInRules('lamp', condition);
+    }
+
+    function _onLight(condition) {
+        _evaluateLightRules(condition);
     }
 
     /**
@@ -412,11 +429,39 @@ const automationEngine = (() => {
 
     function getCVRules() { return _cvRules; }
 
-    function updateCVRules(partial) {
-        if (partial.human) _cvRules.human = { ..._cvRules.human, ...partial.human };
-        if (partial.light) _cvRules.light = { ..._cvRules.light, ...partial.light };
+    function hydrateCVRules(rules, options = {}) {
+        const nextRules = (typeof normalizeCVRulesInput === 'function')
+            ? normalizeCVRulesInput(rules)
+            : { ..._cvRules, ...(rules || {}) };
+        _cvRules = nextRules;
         _syncToWindowCV();
-        _post('save_cv_rules', { rules: _cvRules }).catch(() => {});
+
+        if (_cvActive && !options.skipEvaluate) {
+            const currentCount = Math.max(0, Number(window.STATE?.cv?.personCount) || 0);
+            const currentLight = window.STATE?.cv?.lightCondition || 'unknown';
+            _evaluateHumanRules(currentCount, { forceApply: true });
+            _evaluateLightRules(currentLight, { forceApply: true });
+        }
+
+        return _cvRules;
+    }
+
+    function updateCVRules(partial) {
+        const nextRules = {
+            human: { ...(_cvRules.human || {}) },
+            light: { ...(_cvRules.light || {}) },
+        };
+        if (partial.human) nextRules.human = { ...nextRules.human, ...partial.human };
+        if (partial.light) nextRules.light = { ...nextRules.light, ...partial.light };
+        hydrateCVRules(nextRules, { skipEvaluate: true });
+        const persistPromise = _post('save_cv_rules', { rules: _cvRules }).catch(() => {});
+        if (_cvActive) {
+            const currentCount = Math.max(0, Number(window.STATE?.cv?.personCount) || 0);
+            const currentLight = window.STATE?.cv?.lightCondition || 'unknown';
+            if (partial.human) _evaluateHumanRules(currentCount, { forceApply: true });
+            if (partial.light) _evaluateLightRules(currentLight, { forceApply: true });
+        }
+        return persistPromise;
     }
 
     function setEnabled(type, enabled) {
@@ -457,8 +502,16 @@ const automationEngine = (() => {
             _checkTimeRules();
         },
 
-        startCV()  { _cvActive = true; },
-        stopCV()   { _cvActive = false; },
+        startCV()  {
+            _cvActive = true;
+            const currentCount = Math.max(0, Number(window.STATE?.cv?.personCount) || 0);
+            const currentLight = window.STATE?.cv?.lightCondition || 'unknown';
+            _evaluateHumanRules(currentCount, { forceApply: true });
+            _evaluateLightRules(currentLight, { forceApply: true });
+        },
+        stopCV()   {
+            _cvActive = false;
+        },
 
         destroy() {
             _isActive = false;
@@ -473,8 +526,10 @@ const automationEngine = (() => {
         registerPersonCallback,
         registerLightCallback,
         getCVRules,
+        hydrateCVRules,
         updateCVRules,
         setEnabled,
+        _evaluateBuiltInRules: _evaluateBuiltInRules,
 
         onPersonCount(count)               { notifyPersonCount(count); },
         onLightCondition(cond, brightness) { notifyLight(cond, brightness); },

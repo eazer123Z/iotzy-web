@@ -1,10 +1,10 @@
 const Overview = {
   init() {
-    this.startClock();
+    this.refreshClock();
     this.initChartSelect();
     this.updateDashboardRoomSummary();
   },
-  startClock() {
+  refreshClock() {
     const el = document.getElementById('ovClock');
     if (!el) return;
     const upd = () => {
@@ -12,20 +12,23 @@ const Overview = {
       el.textContent = now.toLocaleTimeString('id-ID', { hour12: false });
     };
     upd();
-    setInterval(upd, 1000);
   },
   initChartSelect() {
     const sel = document.getElementById('ovChartSensorSelect');
     if (!sel) return;
-    sel.innerHTML = '<option value="all">Semua Sensor</option>';
-    if (window.STATE && window.STATE.sensors) {
-      Object.values(window.STATE.sensors).forEach(s => {
-        const opt = document.createElement('option');
-        opt.value = s.id;
-        opt.textContent = s.name;
-        sel.appendChild(opt);
-      });
+    const sensors = Object.values(window.STATE?.sensors || {});
+    const signature = sensors.map((sensor) => `${sensor.id}:${sensor.name}`).join('|');
+    if (this._sensorSelectSignature === signature) {
+      return;
     }
+    this._sensorSelectSignature = signature;
+    sel.innerHTML = '<option value="all">Semua Sensor</option>';
+    sensors.forEach((s) => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
   },
   updateDashboardRoomSummary() {
     const container = document.getElementById('ovStatusSummary');

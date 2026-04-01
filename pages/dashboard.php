@@ -2,9 +2,8 @@
   <div class="overview-header">
     <div class="ov-title">
       <h1>Selamat Datang, <?= htmlspecialchars($user['username']) ?></h1>
-      <p>Ringkasan kondisi rumah pintar Anda saat ini.</p>
+      <p>Status rumah hari ini.</p>
     </div>
-    <div class="ov-date" id="ovClock">--:--:--</div>
   </div>
 
   <div class="stats-grid">

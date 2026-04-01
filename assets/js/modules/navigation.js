@@ -11,11 +11,7 @@ function initClock() {
   const tick = () => {
     const now = new Date();
     const el  = document.getElementById("clock");
-    const de  = document.getElementById("date");
     if (el) el.textContent = now.toLocaleTimeString("id-ID");
-    if (de) de.textContent = now
-      .toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" })
-      .toUpperCase();
   };
   tick();
   setInterval(tick, 1000);
@@ -55,16 +51,39 @@ function updateAllDurations() {
   });
 }
 
-/* ── Page Titles Mapping ── */
-const PAGE_TITLES = {
-  dashboard:  "Overview",
-  devices:    "Perangkat",
-  sensors:    "Sensor",
-  automation: "Rules Engine",
-  camera:     "Computer Vision",
-  analytics:  "Log & Analytics",
-  settings:   "Pengaturan",
+/* ── Page Meta Mapping ── */
+const PAGE_META = {
+  dashboard: {
+    title: "Overview",
+    description: ""
+  },
+  devices: {
+    title: "Perangkat",
+    description: ""
+  },
+  sensors: {
+    title: "Sensor",
+    description: ""
+  },
+  automation: {
+    title: "Rules Engine",
+    description: ""
+  },
+  camera: {
+    title: "Computer Vision",
+    description: ""
+  },
+  analytics: {
+    title: "Log & Analitik",
+    description: ""
+  },
+  settings: {
+    title: "Pengaturan",
+    description: ""
+  },
 };
+
+const MOBILE_HUB_PAGES = new Set(["automation", "analytics", "settings"]);
 
 /* ── Variabel state halaman aktif ── */
 let _currentPage = 'dashboard';
@@ -104,14 +123,27 @@ function switchPage(page, el) {
     if (navEl) navEl.classList.add("active");
   }
   
-  // Update judul di Topbar
+  // Update konteks halaman di Topbar
+  const meta = PAGE_META[page] || {
+    title: page,
+    description: "Halaman sistem IoT."
+  };
   const pt = document.getElementById("pageTitle");
-  if (pt) pt.textContent = PAGE_TITLES[page] || page;
+  if (pt) pt.textContent = meta.title;
+  if (typeof document !== "undefined") {
+    document.title = `${meta.title} | IoTzy`;
+  }
 
   // Sync dengan bottom-nav mobile
   document.querySelectorAll(".bn-item").forEach((b) => {
+    const isMore = b.dataset.page === "more";
+    const shouldActive = isMore ? MOBILE_HUB_PAGES.has(page) : b.dataset.page === page;
+    b.classList.toggle("active", shouldActive);
+  });
+  document.querySelectorAll(".mobile-nav-link").forEach((b) => {
     b.classList.toggle("active", b.dataset.page === page);
   });
+  closeMobileHub();
 
   // Jalankan inisialisasi modul spesifik halaman secara Async (Non-blocking)
   setTimeout(() => {
@@ -126,6 +158,12 @@ function switchPage(page, el) {
       const c    = document.getElementById("cvOverlayCanvas");
       const cont = document.getElementById("cameraFocusContainer");
       if (c && cont) { c.width = cont.clientWidth; c.height = cont.clientHeight; }
+      if (typeof listCameraDevices === "function") {
+        listCameraDevices({ ensureLabels: false }).catch(() => {});
+      }
+      if (typeof cameraLive !== "undefined") {
+        if (typeof cameraLive.initialize === "function") cameraLive.initialize();
+      }
       if (typeof cvUI !== "undefined") {
         if (typeof cvUI.initialize === "function") cvUI.initialize();
         if (typeof cvUI.renderAutomationSettings === "function") cvUI.renderAutomationSettings();
@@ -154,8 +192,25 @@ function switchPageMobile(page, btn) {
   switchPage(page, navItem);
 }
 
+function toggleMobileHub(forceOpen) {
+  const hub = document.getElementById("mobileNavHub");
+  const overlay = document.getElementById("mobileNavOverlay");
+  const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !hub?.classList.contains("open");
+  hub?.classList.toggle("open", shouldOpen);
+  overlay?.classList.toggle("show", shouldOpen);
+  if (hub) hub.setAttribute("aria-hidden", shouldOpen ? "false" : "true");
+}
+
+function closeMobileHub() {
+  toggleMobileHub(false);
+}
+
 /* ── Toggle Sidebar Mobile ── */
 function toggleSidebar() {
+  if (window.innerWidth <= 768) {
+    toggleMobileHub(true);
+    return;
+  }
   document.getElementById("sidebar")?.classList.toggle("open");
   document.getElementById("overlay")?.classList.toggle("show");
 }
@@ -173,11 +228,15 @@ function switchSettingsTab(btn) {
   const panelId = btn.dataset.panel;
   const panel = document.getElementById(panelId);
   if (panel) panel.classList.add('active');
+  if (typeof ensureSettingsPanelData === "function") {
+    ensureSettingsPanelData(panelId).catch(() => {});
+  }
 }
 
 /* ── Apply Theme from Settings Dropdown ── */
 function applyThemeFromSettings(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   updateThemeIcon(theme);
+  if (typeof updateThemeChrome === "function") updateThemeChrome(theme);
   apiPost("save_settings", { theme: theme }).catch(e => console.warn("Gagal sinkron tema:", e));
 }

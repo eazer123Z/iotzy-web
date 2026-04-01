@@ -2,7 +2,7 @@
   <div class="view-header">
     <div class="v-title">
       <h3><i class="fas fa-robot"></i> Rules Engine</h3>
-      <p>Otomatisasi cerdas berdasarkan sensor, jadwal, dan kondisi lingkungan.</p>
+      <p>Aturan otomatisasi sensor dan jadwal.</p>
     </div>
     <div class="v-actions">
       <button class="btn-primary" onclick="openAddRuleModal()">

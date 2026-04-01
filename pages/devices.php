@@ -2,7 +2,7 @@
   <div class="view-header">
     <div class="v-title">
       <h3><i class="fas fa-microchip"></i> Monitoring Perangkat</h3>
-      <p>Kontrol & status perangkat real-time rumah pintar Anda.</p>
+      <p>Kontrol perangkat real-time.</p>
     </div>
     <div class="v-actions">
       <div class="search-box">

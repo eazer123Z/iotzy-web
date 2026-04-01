@@ -2,7 +2,7 @@
   <div class="view-header">
     <div class="v-title">
       <h3><i class="fas fa-gear"></i> Pengaturan Sistem</h3>
-      <p>Konfigurasi profil, koneksi MQTT, Telegram, dan keamanan akun.</p>
+      <p>Profil, koneksi, dan keamanan.</p>
     </div>
   </div>
 

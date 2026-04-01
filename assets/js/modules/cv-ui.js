@@ -58,12 +58,13 @@ const cvUI = (() => {
      * Handler saat detektor mengirimkan data hasil scan frame terbaru.
      */
     function _onDetectionUpdate(data) {
-        const hc = document.getElementById('cvHumanCount');
+        const hc = document.getElementById('cvPersonCount') || document.getElementById('cvHumanCount');
         const ps = document.getElementById('cvPresenceStatus');
         const cf = document.getElementById('cvConfidence');
 
         // Update statistik jumlah orang di dashboard
-        if (hc) hc.textContent = data.humanCount;
+        if (typeof syncCVPersonCountUI === 'function') syncCVPersonCountUI(data.humanCount);
+        else if (hc) hc.textContent = data.humanCount;
 
         if (ps) {
             ps.textContent = data.humanPresent ? 'Terdeteksi' : 'Tidak Terdeteksi';
@@ -91,7 +92,7 @@ const cvUI = (() => {
         _overlayCanvas.height = video.videoHeight || video.offsetHeight || 480;
         _overlayCtx.clearRect(0, 0, _overlayCanvas.width, _overlayCanvas.height);
 
-        const color = CV_CONFIG?.ui?.overlayColor || '#6366f1';
+        const color = CV_CONFIG?.ui?.overlayColor || '#38bdf8';
         detections.forEach(d => {
             const [x, y, w, h] = d.bbox;
             // Gambar kotak luar
@@ -120,7 +121,7 @@ const cvUI = (() => {
      */
     function _onBrightnessUpdate(brightness, condition) {
         const pct  = (brightness * 100).toFixed(1) + '%';
-        const map  = { dark: '🌙 Gelap', normal: '☁️ Normal', bright: '☀️ Terang' };
+        const map  = { dark: 'Gelap', normal: 'Normal', bright: 'Terang' };
 
         const bEl  = document.getElementById('cvBrightness');
         const blEl = document.getElementById('cvBrightnessLabel');
@@ -179,14 +180,51 @@ const cvUI = (() => {
         const el = document.getElementById('cvSystemStatus');
         if (!el) return;
         const map = {
-            ready:    ['✅ Siap',           'ok'],
-            loading:  ['⏳ Memuat…',        'muted'],
-            error:    ['❌ Error',           ''],
-            inactive: ['⚪ Tidak Aktif',     'muted'],
+            ready:    ['Siap',         'ok'],
+            loading:  ['Memuat...',    'muted'],
+            error:    ['Error',        ''],
+            inactive: ['Tidak Aktif',  'muted'],
         };
         const [txt, cls] = map[status] || map.inactive;
         el.textContent = txt;
         el.className   = 'status-val ' + cls;
+    }
+
+    function _humanConditionLabel(condition, count) {
+        const normalized = typeof normalizeHumanRuleConditionInput === 'function'
+            ? normalizeHumanRuleConditionInput(condition, count)
+            : { condition, count: Number.isFinite(Number(count)) ? Number(count) : 0 };
+        switch (normalized.condition) {
+            case 'eq': return `Sama ${normalized.count}`;
+            case 'neq': return `Tidak sama ${normalized.count}`;
+            case 'gt': return `Lebih dari ${normalized.count}`;
+            case 'lt': return `Kurang dari ${normalized.count}`;
+            default: return `${normalized.condition || 'Kondisi'} ${normalized.count}`.trim();
+        }
+    }
+
+    function _humanActionLabel(action) {
+        if (action === 'on') return 'Nyalakan';
+        if (action === 'off') return 'Matikan';
+        if (action === 'speed_high') return 'Kipas 75%';
+        if (action === 'speed_mid') return 'Kipas 50%';
+        if (action === 'speed_low') return 'Kipas 25%';
+        return '-';
+    }
+
+    function _renderHumanRuleDeviceChoices(devices, selectedList = [], name = 'ahr_dev') {
+        const selected = new Set((selectedList || []).map(String));
+        return Object.keys(devices).map((id) => {
+            const dev = devices[id];
+            const checked = selected.has(String(id));
+            return `<label class="cv-dev-cb-item ${checked ? 'checked' : ''}" style="margin-bottom:8px">
+                <input type="checkbox" name="${name}" value="${id}" ${checked ? 'checked' : ''}
+                    onchange="this.closest('label').classList.toggle('checked', this.checked)"
+                    style="width:14px;height:14px;accent-color:var(--accent);flex-shrink:0">
+                <i class="fas ${dev.icon || 'fa-plug'}"></i>
+                <span>${_esc(dev.name)}</span>
+            </label>`;
+        }).join('');
     }
 
     /**
@@ -207,8 +245,9 @@ const cvUI = (() => {
 
         if (!devKeys.length) {
             container.innerHTML = `<div class="cv-no-dev">
-                <i class="fas fa-microchip" style="font-size:20px;display:block;margin-bottom:8px;opacity:.3"></i>
+                <i class="fas fa-microchip"></i>
                 Belum ada perangkat ditambahkan
+                <div class="muted" style="margin-top:6px;font-size:.74rem">Tambahkan perangkat lebih dulu agar rule CV bisa diarahkan ke aksi yang tepat.</div>
             </div>`;
             return;
         }
@@ -221,7 +260,7 @@ const cvUI = (() => {
                 return `<label class="cv-dev-cb-item ${checked ? 'checked' : ''}" data-trigger="${triggerId}" data-id="${id}">
                     <input type="checkbox" value="${id}" ${checked ? 'checked' : ''}
                         onchange="cvUI.updateCVRule('${triggerId}', this)"
-                        style="width:14px;height:14px;accent-color:var(--a);flex-shrink:0">
+                        style="width:14px;height:14px;accent-color:var(--accent);flex-shrink:0">
                     <i class="fas ${dev.icon || 'fa-plug'}"></i>
                     <span>${_esc(dev.name)}</span>
                 </label>`;
@@ -235,52 +274,50 @@ const cvUI = (() => {
         if (Array.isArray(humanR.rules) && humanR.rules.length > 0) {
             humanRulesHtml = humanR.rules.map((r, i) => {
                 const devsText = (r.devices || []).map(id => devices[id]?.name || id).join(', ');
-                let condTxt = '';
-                switch(r.condition) {
-                    case 'eq': condTxt = `= ${r.count}`; break;
-                    case 'gt': condTxt = `> ${r.count}`; break;
-                    case 'gte': condTxt = `≥ ${r.count}`; break;
-                    case 'lt': condTxt = `< ${r.count}`; break;
-                    case 'lte': condTxt = `≤ ${r.count}`; break;
-                    case 'any': condTxt = `Terdeteksi (Berapapun)`; break;
-                    case 'none': condTxt = `Tidak Ada (0)`; break;
-                }
-                
-                let onTrueTxt = r.onTrue === 'on' ? 'Nyalakan' : r.onTrue === 'off' ? 'Matikan' : r.onTrue === 'speed_high' ? 'Kipas 75%' : r.onTrue === 'speed_mid' ? 'Kipas 50%' : r.onTrue === 'speed_low' ? 'Kipas 25%' : '';
-                let onFalseTxt = r.onFalse === 'on' ? 'Nyalakan' : r.onFalse === 'off' ? 'Matikan' : r.onFalse === 'speed_high' ? 'Kipas 75%' : r.onFalse === 'speed_mid' ? 'Kipas 50%' : r.onFalse === 'speed_low' ? 'Kipas 25%' : '';
+                const condTxt = _humanConditionLabel(r.condition, r.count);
+                const onTrueTxt = _humanActionLabel(r.onTrue);
+                const onFalseTxt = _humanActionLabel(r.onFalse);
                 
                 return `
-                <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:12px;margin-bottom:10px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                        <b>Jika Orang ${condTxt}</b>
-                        <button onclick="cvUI.deleteHumanRule(${i})" style="color:var(--red);background:none;border:none;cursor:pointer"><i class="fas fa-trash"></i></button>
+                <div class="cv-rule-card">
+                    <div class="cv-rule-card-head">
+                        <div class="cv-rule-title">Jika jumlah orang ${condTxt}</div>
+                        <button class="cv-rule-delete" onclick="cvUI.deleteHumanRule(${i})" title="Hapus aturan">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
-                    <div style="font-size:12px;color:var(--ink-4);margin-bottom:8px">
-                        Perangkat: <b>${devsText || '-'}</b>
+                    <div class="cv-rule-meta">
+                        Perangkat target: <strong>${devsText || '-'}</strong>
                     </div>
-                    <div style="font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                        <div style="background:var(--green-bg);color:var(--green-dim);padding:6px;border-radius:6px;text-align:center">
-                            Memenuhi: <br><b>${onTrueTxt || '-'}</b>
+                    <div class="cv-rule-actions">
+                        <div class="cv-rule-action true">
+                            Memenuhi
+                            <strong>${onTrueTxt || '-'}</strong>
                         </div>
-                        <div style="background:var(--red-bg);color:var(--red-dim);padding:6px;border-radius:6px;text-align:center">
-                            Tidak Memenuhi: <br><b>${onFalseTxt || '-'}</b>
+                        <div class="cv-rule-action false">
+                            Tidak Memenuhi
+                            <strong>${onFalseTxt || '-'}</strong>
                         </div>
                     </div>
                 </div>`;
             }).join('');
         } else {
-            humanRulesHtml = `<div style="text-align:center;padding:16px;color:var(--ink-5);font-size:13px">Belum ada aturan jumlah orang.</div>`;
+            humanRulesHtml = `<div class="cv-empty-state">
+                <i class="fas fa-users-slash"></i>
+                Belum ada aturan jumlah orang.
+                <div class="muted" style="margin-top:6px;font-size:.74rem">Tambahkan rule agar perangkat bisa merespons jumlah orang di frame.</div>
+            </div>`;
         }
 
         // Tampilan UI utama panel otomasi CV
         container.innerHTML = `
-        <div class="cv-auto-section" style="margin-bottom:10px">
+        <div class="cv-auto-section" style="margin-bottom:12px">
             <div class="cv-auto-head">
                 <div>
                     <div class="cv-auto-title">
-                        <i class="fas fa-users" style="color:var(--a);margin-right:6px"></i>Automasi Jumlah Orang
+                        <i class="fas fa-users" style="color:var(--accent);margin-right:6px"></i>Automasi Jumlah Orang
                     </div>
-                    <div class="cv-auto-sub">Aksi berdasarkan jumlah deteksi manusia</div>
+                    <div class="cv-auto-sub">Rule ini aktif saat deteksi AI membaca jumlah orang pada frame kamera.</div>
                 </div>
                 <label class="toggle-wrapper">
                     <input type="checkbox" class="toggle-input" id="cvHumanToggle" ${humanR.enabled ? 'checked' : ''}
@@ -290,7 +327,7 @@ const cvUI = (() => {
             </div>
             <div class="cv-auto-body">
                 ${humanRulesHtml}
-                <button onclick="cvUI.showAddHumanRuleModal()" class="btn-primary" style="width:100%;padding:10px;margin-top:8px">
+                <button onclick="cvUI.showAddHumanRuleModal()" class="btn-primary" style="width:100%;padding:11px;margin-top:8px;justify-content:center">
                     <i class="fas fa-plus"></i> Tambah Aturan
                 </button>
             </div>
@@ -302,7 +339,7 @@ const cvUI = (() => {
                     <div class="cv-auto-title">
                         <i class="fas fa-sun" style="color:var(--amber);margin-right:6px"></i>Analisis Cahaya
                     </div>
-                    <div class="cv-auto-sub">Aksi berdasarkan kondisi cahaya kamera</div>
+                    <div class="cv-auto-sub">Nyalakan atau matikan perangkat saat frame masuk kategori gelap atau terang.</div>
                 </div>
                 <label class="toggle-wrapper">
                     <input type="checkbox" class="toggle-input" id="cvLightToggle" ${lightR.enabled ? 'checked' : ''}
@@ -313,7 +350,7 @@ const cvUI = (() => {
             <div class="cv-auto-body">
                 <div>
                     <span class="cv-trigger-label">
-                        <i class="fas fa-moon" style="color:var(--ink-4);margin-right:4px"></i>Nyalakan saat gelap
+                        <i class="fas fa-moon" style="color:var(--text-secondary);margin-right:4px"></i>Nyalakan Saat Gelap
                     </span>
                     <div class="cv-device-list" id="cvOnDarkList">
                         ${devCheckboxes(lightR.onDark, 'light_onDark')}
@@ -321,7 +358,7 @@ const cvUI = (() => {
                 </div>
                 <div>
                     <span class="cv-trigger-label">
-                        <i class="fas fa-sun" style="color:var(--amber);margin-right:4px"></i>Matikan saat terang
+                        <i class="fas fa-sun" style="color:var(--amber);margin-right:4px"></i>Matikan Saat Terang
                     </span>
                     <div class="cv-device-list" id="cvOnBrightList">
                         ${devCheckboxes(lightR.onBright, 'light_onBright')}
@@ -329,28 +366,28 @@ const cvUI = (() => {
                 </div>
                 <div class="cv-threshold-grid">
                     <div class="cv-field">
-                        <label>🌙 Ambang Gelap</label>
+                        <label><i class="fas fa-moon" style="color:var(--text-secondary);margin-right:6px"></i>Ambang Gelap</label>
                         <div style="display:flex;align-items:center;gap:8px">
                             <input type="range" id="cvDarkThreshold"
                                 value="${Math.round((CV_CONFIG?.light?.darkThreshold || 0.30) * 100)}"
                                 min="5" max="95" step="1"
                                 style="flex:1;accent-color:var(--blue)"
                                 oninput="cvUI.updateLightThreshold('dark', this.value); document.getElementById('cvDarkVal').textContent=this.value+'%'">
-                            <span id="cvDarkVal" style="min-width:36px;text-align:right;font-weight:700;font-size:12px;color:var(--ink-3)">${Math.round((CV_CONFIG?.light?.darkThreshold || 0.30) * 100)}%</span>
+                            <span id="cvDarkVal" style="min-width:36px;text-align:right;font-weight:700;font-size:12px;color:var(--text-secondary)">${Math.round((CV_CONFIG?.light?.darkThreshold || 0.30) * 100)}%</span>
                         </div>
-                        <div style="font-size:10px;color:var(--ink-5);margin-top:2px">Kecerahan di bawah nilai ini = <b>Gelap</b></div>
+                        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Kecerahan di bawah nilai ini dianggap <b>gelap</b>.</div>
                     </div>
                     <div class="cv-field">
-                        <label>☀️ Ambang Terang</label>
+                        <label><i class="fas fa-sun" style="color:var(--amber);margin-right:6px"></i>Ambang Terang</label>
                         <div style="display:flex;align-items:center;gap:8px">
                             <input type="range" id="cvBrightThreshold"
                                 value="${Math.round((CV_CONFIG?.light?.brightThreshold || 0.70) * 100)}"
                                 min="5" max="95" step="1"
                                 style="flex:1;accent-color:var(--amber)"
                                 oninput="cvUI.updateLightThreshold('bright', this.value); document.getElementById('cvBrightVal').textContent=this.value+'%'">
-                            <span id="cvBrightVal" style="min-width:36px;text-align:right;font-weight:700;font-size:12px;color:var(--ink-3)">${Math.round((CV_CONFIG?.light?.brightThreshold || 0.70) * 100)}%</span>
+                            <span id="cvBrightVal" style="min-width:36px;text-align:right;font-weight:700;font-size:12px;color:var(--text-secondary)">${Math.round((CV_CONFIG?.light?.brightThreshold || 0.70) * 100)}%</span>
                         </div>
-                        <div style="font-size:10px;color:var(--ink-5);margin-top:2px">Kecerahan di atas nilai ini = <b>Terang</b></div>
+                        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Kecerahan di atas nilai ini dianggap <b>terang</b>.</div>
                     </div>
                 </div>
                 <div class="cv-delay-row">
@@ -367,7 +404,7 @@ const cvUI = (() => {
         </div>
 
         <button onclick="cvUI.saveCVRules()"
-            class="btn-primary" style="width:100%;justify-content:center;margin-top:6px">
+            class="btn-primary" style="width:100%;justify-content:center;margin-top:6px;padding:11px 16px">
             <i class="fas fa-floppy-disk"></i> Simpan Pengaturan CV
         </button>`;
     }
@@ -465,20 +502,13 @@ const cvUI = (() => {
         const ld = document.getElementById('cvLightDelay');
         if (ld) rules.light.delay = parseInt(ld.value) * 1000;
 
-        if (typeof automationEngine !== 'undefined') {
-            automationEngine.updateCVRules(rules);
-        }
+        const persistPromise = typeof automationEngine !== 'undefined'
+            ? automationEngine.updateCVRules(rules)
+            : (typeof apiPost === 'function' ? apiPost('save_cv_rules', { rules }) : Promise.resolve({ success: true }));
         if (window.CV) window.CV.cvRules = rules;
-        if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules(rules);
-
-        // 🔥 Persist to DB (Dedicated CV Rules API)
-        if (typeof apiPost === 'function') {
-            apiPost('save_cv_rules', { rules: rules })
-                .then(() => { if (typeof showToast === 'function') showToast('Pengaturan CV disimpan!', 'success'); })
-                .catch(e => { if (typeof showToast === 'function') showToast('Gagal simpan ke database', 'error'); });
-        } else {
-            if (typeof showToast === 'function') showToast('Pengaturan CV disimpan lokal!', 'success');
-        }
+        Promise.resolve(persistPromise)
+            .then(() => { if (typeof showToast === 'function') showToast('Pengaturan CV disimpan!', 'success'); })
+            .catch(() => { if (typeof showToast === 'function') showToast('Gagal simpan ke database', 'error'); });
     }
 
     /**
@@ -507,8 +537,6 @@ const cvUI = (() => {
         const stateRef = (typeof STATE !== 'undefined' ? STATE : null) || (typeof window !== 'undefined' ? window.STATE : null) || {};
         const devices  = stateRef.devices || {};
         const devKeys  = Object.keys(devices);
-        
-        const devOpts = devKeys.map(k => `<option value="${k}">${_esc(devices[k].name)}</option>`).join('');
 
         const html = `
         <div id="${_id}" class="modal-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;opacity:1;pointer-events:all">
@@ -518,22 +546,18 @@ const cvUI = (() => {
                 <label style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Kondisi Jumlah Orang</label>
                 <div style="display:flex;gap:8px;margin-bottom:16px">
                     <select id="ahr_cond" class="fi-input" style="flex:1">
-                        <option value="gte">Lebih dari / Sama (≥)</option>
-                        <option value="gt">Lebih dari (>)</option>
-                        <option value="eq">Tepat (=)</option>
-                        <option value="lt">Kurang dari (<)</option>
-                        <option value="lte">Kurang / Sama (≤)</option>
-                        <option value="any">Berapa saja (>0)</option>
-                        <option value="none">Tidak Ada (0)</option>
+                        <option value="eq">Sama</option>
+                        <option value="gt">Lebih dari</option>
+                        <option value="lt">Kurang dari</option>
+                        <option value="neq">Tidak sama</option>
                     </select>
                     <input type="number" id="ahr_count" class="fi-input" style="width:70px" value="1" min="0" max="20">
                 </div>
 
                 <label style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Target Perangkat</label>
-                <select id="ahr_dev" class="fi-input" style="width:100%;margin-bottom:16px" multiple size="3">
-                    ${devOpts}
-                </select>
-                <div style="font-size:11px;color:var(--ink-4);margin-top:-12px;margin-bottom:16px">Tahan Ctrl/Cmd untuk pilih multiple</div>
+                <div id="ahr_dev" class="cv-device-list" style="margin-bottom:16px;max-height:180px;overflow:auto">
+                    ${devKeys.length ? _renderHumanRuleDeviceChoices(devices, [], 'ahr_dev') : '<div class="muted" style="font-size:12px">Belum ada perangkat tersedia.</div>'}
+                </div>
 
                 <label style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Terpenuhi -> Aksi</label>
                 <select id="ahr_true" class="fi-input" style="width:100%;margin-bottom:16px">
@@ -571,13 +595,16 @@ const cvUI = (() => {
     function addHumanRuleSubmit() {
         const cond = document.getElementById('ahr_cond').value;
         const count = parseInt(document.getElementById('ahr_count').value);
-        const devSelect = document.getElementById('ahr_dev');
-        const devs = Array.from(devSelect.selectedOptions).map(o => o.value);
+        const devs = Array.from(document.querySelectorAll('#ahr_dev input[type=checkbox]:checked')).map((input) => input.value);
         const onTrue = document.getElementById('ahr_true').value;
         const onFalse = document.getElementById('ahr_false').value;
 
         if (devs.length === 0) {
             if (typeof showToast === 'function') showToast('Pilih minimal 1 perangkat!', 'error');
+            return;
+        }
+        if (!Number.isFinite(count) || count < 0) {
+            if (typeof showToast === 'function') showToast('Jumlah orang harus angka 0 atau lebih.', 'error');
             return;
         }
 
@@ -605,6 +632,110 @@ const cvUI = (() => {
         if (typeof showToast === 'function') showToast('Aturan berhasil ditambahkan', 'success');
     }
 
+    function toggleCVRuleEnabled(type, enabled) {
+        const nextRules = _loadRules();
+        if (!nextRules[type]) nextRules[type] = {};
+        nextRules[type].enabled = enabled;
+
+        if (typeof applyCVConfigState === 'function') {
+            applyCVConfigState(type === 'human' ? { humanEnabled: enabled } : { lightEnabled: enabled });
+        }
+
+        if (typeof automationEngine !== 'undefined') {
+            automationEngine.updateCVRules({ [type]: { enabled } });
+        } else if (window.CV) {
+            window.CV.cvRules = typeof normalizeCVRulesInput === 'function'
+                ? normalizeCVRulesInput(nextRules)
+                : nextRules;
+            if (typeof persistCVConfig === 'function') {
+                persistCVConfig(type === 'human' ? { humanEnabled: enabled } : { lightEnabled: enabled }).catch(() => {});
+            }
+        }
+    }
+
+    function updateCVDelay(type, seconds) {
+        const delay = parseInt(seconds) * 1000;
+        if (typeof automationEngine !== 'undefined') {
+            automationEngine.updateCVRules({ [type]: { delay } });
+        } else if (window.CV?.cvRules?.[type]) {
+            window.CV.cvRules[type].delay = delay;
+            if (typeof saveCVRules === 'function') {
+                try { saveCVRules(); } catch (_) {}
+            }
+        }
+    }
+
+    function saveCVRules() {
+        const rules = _loadRules();
+
+        rules.human.enabled  = document.getElementById('cvHumanToggle')?.checked ?? true;
+        rules.light.onDark   = _getChecked('cvOnDarkList');
+        rules.light.onBright = _getChecked('cvOnBrightList');
+        rules.light.enabled  = document.getElementById('cvLightToggle')?.checked ?? true;
+        const ld = document.getElementById('cvLightDelay');
+        if (ld) rules.light.delay = parseInt(ld.value) * 1000;
+
+        const persistPromise = typeof automationEngine !== 'undefined'
+            ? automationEngine.updateCVRules(rules)
+            : (typeof apiPost === 'function' ? apiPost('save_cv_rules', { rules }) : Promise.resolve({ success: true }));
+
+        if (window.CV) {
+            window.CV.cvRules = typeof normalizeCVRulesInput === 'function'
+                ? normalizeCVRulesInput(rules)
+                : rules;
+        }
+        Promise.resolve(persistPromise)
+            .then(() => { if (typeof showToast === 'function') showToast('Pengaturan CV disimpan!', 'success'); })
+            .catch(() => { if (typeof showToast === 'function') showToast('Gagal simpan ke database', 'error'); });
+    }
+
+    function addHumanRuleSubmit() {
+        const cond = document.getElementById('ahr_cond').value;
+        const count = parseInt(document.getElementById('ahr_count').value);
+        const devs = Array.from(document.querySelectorAll('#ahr_dev input[type=checkbox]:checked')).map((input) => input.value);
+        const onTrue = document.getElementById('ahr_true').value;
+        const onFalse = document.getElementById('ahr_false').value;
+
+        if (devs.length === 0) {
+            if (typeof showToast === 'function') showToast('Pilih minimal 1 perangkat!', 'error');
+            return;
+        }
+        if (!Number.isFinite(count) || count < 0) {
+            if (typeof showToast === 'function') showToast('Jumlah orang harus angka 0 atau lebih.', 'error');
+            return;
+        }
+
+        const normalizedCondition = typeof normalizeHumanRuleConditionInput === 'function'
+            ? normalizeHumanRuleConditionInput(cond, count)
+            : { condition: cond, count: count || 0 };
+        const newRule = {
+            id: Math.random().toString(36).substr(2, 9),
+            condition: normalizedCondition.condition,
+            count: normalizedCondition.count,
+            devices: devs,
+            onTrue: onTrue,
+            onFalse: onFalse,
+            delay: 3000
+        };
+
+        const rulesObj = _loadRules();
+        if (!rulesObj.human) rulesObj.human = { enabled: true, rules: [], delay: 5000 };
+        if (!Array.isArray(rulesObj.human.rules)) rulesObj.human.rules = [];
+
+        rulesObj.human.rules.push(newRule);
+
+        if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules({ human: rulesObj.human });
+        if (window.CV) {
+            window.CV.cvRules = typeof normalizeCVRulesInput === 'function'
+                ? normalizeCVRulesInput(rulesObj)
+                : rulesObj;
+        }
+
+        document.getElementById('cvAddHumanRuleModal')?.remove();
+        renderAutomationSettings();
+        if (typeof showToast === 'function') showToast('Aturan berhasil ditambahkan', 'success');
+    }
+
     /**
      * Mengumpulkan daftar ID perangkat yang dicentang dalam container tertentu.
      */
@@ -620,10 +751,16 @@ const cvUI = (() => {
      */
     function _loadRules() {
         try {
-            if (window.CV?.cvRules) return JSON.parse(JSON.stringify(window.CV.cvRules));
+            if (window.CV?.cvRules) {
+                const rules = JSON.parse(JSON.stringify(window.CV.cvRules));
+                return typeof normalizeCVRulesInput === 'function' ? normalizeCVRulesInput(rules) : rules;
+            }
             if (typeof automationEngine !== 'undefined') {
                 const r = automationEngine.getCVRules?.();
-                if (r) return JSON.parse(JSON.stringify(r));
+                if (r) {
+                    const rules = JSON.parse(JSON.stringify(r));
+                    return typeof normalizeCVRulesInput === 'function' ? normalizeCVRulesInput(rules) : rules;
+                }
             }
         } catch (_) {}
         return _defaultRules();

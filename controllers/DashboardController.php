@@ -15,18 +15,18 @@ function handleDashboardAction(string $action, int $userId, array $body, PDO $db
         $includeCamera = array_key_exists('include_camera', $body) ? (bool)$body['include_camera'] : true;
 
         $cameraBundle = ($includeCamera || $includeCameraSettings)
-            ? getUserCameraBundle($userId, $db)
+            ? getUserCameraBundle($userId, $db, $body)
             : ['cv_state' => iotzyDefaultCvState()];
-        $devices = getUserDevices($userId);
-        $sensors = getUserSensors($userId);
+        $devices = getUserDevices($userId, $db);
+        $sensors = getUserSensors($userId, $db);
         $analytics = $includeAnalytics
-            ? getDailyAnalyticsSummary($userId, date('Y-m-d'), $db, $devices, $sensors)
+            ? getDailyAnalyticsHeadlineSummary($userId, date('Y-m-d'), $db, $devices, $sensors)
             : null;
 
         jsonOut([
             'success' => true,
-            'devices' => $devices,
-            'sensors' => $sensors,
+            'devices' => array_map('iotzyBuildDeviceClientPayload', $devices),
+            'sensors' => array_map('iotzyBuildSensorClientPayload', $sensors),
             'cv_state' => $cameraBundle['cv_state'] ?? iotzyDefaultCvState(),
             'camera' => $includeCamera ? ($cameraBundle['camera'] ?? null) : null,
             'camera_settings' => $includeCameraSettings ? ($cameraBundle['camera_settings'] ?? []) : null,

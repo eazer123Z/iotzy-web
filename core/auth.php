@@ -2,15 +2,26 @@
 
 require_once __DIR__ . '/bootstrap.php';
 
+function iotzyIsSecureRequest(): bool
+{
+    $https = strtolower((string)($_SERVER['HTTPS'] ?? ''));
+    $forwardedProto = strtolower(trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
+
+    return getenv('VERCEL') === "1"
+        || isset($_SERVER['VERCEL'])
+        || isset($_ENV['VERCEL'])
+        || ($https !== '' && $https !== 'off')
+        || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443
+        || $forwardedProto === 'https';
+}
+
 function startSecureSession(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE)
         return;
 
     $lifetime = defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 86400;
-
-    $isVercel = getenv('VERCEL') === "1" || isset($_SERVER['VERCEL']) || isset($_ENV['VERCEL']);
-    $isSecure = $isVercel || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443;
+    $isSecure = iotzyIsSecureRequest();
 
     session_set_cookie_params([
         'lifetime' => $lifetime,
@@ -128,9 +139,7 @@ function requireCsrf(): void
         ?? null;
 
     if (!validateCsrfToken($token)) {
-        http_response_code(403);
-        echo json_encode(['error' => 'Invalid CSRF token']);
-        exit;
+        jsonOut(['success' => false, 'error' => 'Invalid CSRF token'], 403);
     }
 }
 
@@ -140,9 +149,6 @@ function loginUser(string $login, string $password): mixed
     $db = getLocalDB();
     if (!$db)
         return 'Database tidak tersedia.';
-
-    $isVercel = getenv('VERCEL') === "1" || isset($_SERVER['VERCEL']) || isset($_ENV['VERCEL']);
-    $isSecure = $isVercel || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['SERVER_PORT'] ?? null) == 443);
 
     $login = trim($login);
     if (!$login || !$password)
@@ -196,14 +202,13 @@ function loginUser(string $login, string $password): mixed
         $_SESSION['user_id'] = $userId;
         $_SESSION['session_token'] = $token;
         
-        $rememberCookieOptions = [
+        setcookie('iotzy_remember', $token, [
             'expires' => time() + (30 * 86400),
             'path' => '/',
+            'secure' => iotzyIsSecureRequest(),
             'httponly' => true,
-            'samesite' => 'Lax',
-            'secure' => $isSecure,
-        ];
-        setcookie('iotzy_remember', $token, $rememberCookieOptions);
+            'samesite' => 'Lax'
+        ]);
 
         $mqttBroker = getenv('MQTT_HOST') ?: 'broker.hivemq.com';
         $mqttPort   = (int)(getenv('MQTT_PORT') ?: 8884);
@@ -218,7 +223,7 @@ function loginUser(string $login, string $password): mixed
     catch (PDOException $e) {
         $msg = '[IoTzy] loginUser error: ' . $e->getMessage();
         error_log($msg);
-        return 'Terjadi kesalahan server. Silakan coba lagi.';
+        return 'Terjadi kesalahan server. Silakan coba beberapa saat lagi.';
     }
 }
 
@@ -249,18 +254,27 @@ function logoutUser(): void
     if (session_status() === PHP_SESSION_ACTIVE && (bool)ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();
 
-        setcookie(
-            session_name(),
-            '',
-            time() - 42000,
-            $params['path'],
-            $params['domain'] ?? '',
-            $params['secure'],
-            $params['httponly']
-        );
+        $sessionCookieOptions = [
+            'expires' => time() - 42000,
+            'path' => $params['path'] ?? '/',
+            'secure' => (bool)($params['secure'] ?? false),
+            'httponly' => (bool)($params['httponly'] ?? true),
+            'samesite' => $params['samesite'] ?? 'Lax',
+        ];
+        if (!empty($params['domain'])) {
+            $sessionCookieOptions['domain'] = $params['domain'];
+        }
+
+        setcookie(session_name(), '', $sessionCookieOptions);
     }
 
-    setcookie('iotzy_remember', '', time() - 3600, '/');
+    setcookie('iotzy_remember', '', [
+        'expires' => time() - 3600,
+        'path' => '/',
+        'secure' => iotzyIsSecureRequest(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_destroy();
 }
 

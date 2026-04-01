@@ -6,7 +6,7 @@ require_once __DIR__ . '/../core/UserDataService.php';
 function handleSensorAction(string $action, int $userId, array $body, PDO $db): void
 {
     if ($action === 'get_sensors') {
-        jsonOut(getUserSensors($userId));
+        jsonOut(getUserSensorsClientPayload($userId, $db));
     }
 
     if ($action === 'get_sensor_templates') {

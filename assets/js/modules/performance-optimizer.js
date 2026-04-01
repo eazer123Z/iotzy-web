@@ -8,7 +8,7 @@
 const CACHE_CONFIG = {
   enabled: true,
   ttl: 1000 * 60 * 5, // 5 minutes default
-  version: "v1.0.1",
+  version: "v1.0.2",
 };
 
 const CACHE_KEYS = {
@@ -22,6 +22,14 @@ const CACHE_KEYS = {
 const PerformanceOptimizer = {
   _memoryCache: {},
 
+  shouldDeferOptionalWork() {
+    if (typeof document !== "undefined" && document.hidden) return true;
+    if (typeof navigator === "undefined") return false;
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const effectiveType = String(connection?.effectiveType || "").toLowerCase();
+    return !!connection?.saveData || effectiveType === "slow-2g" || effectiveType === "2g";
+  },
+
   /**
    * Caching Manager (Stale-While-Revalidate)
    */
@@ -30,8 +38,12 @@ const PerformanceOptimizer = {
       if (!CACHE_CONFIG.enabled) return null;
       
       // 1. Check Memory Cache
-      if (PerformanceOptimizer._memoryCache[key]) {
-        return PerformanceOptimizer._memoryCache[key];
+      const memoryEntry = PerformanceOptimizer._memoryCache[key];
+      if (memoryEntry) {
+        if ((Date.now() - memoryEntry.timestamp) <= CACHE_CONFIG.ttl) {
+          return memoryEntry.data;
+        }
+        delete PerformanceOptimizer._memoryCache[key];
       }
 
       // 2. Check LocalStorage
@@ -39,10 +51,16 @@ const PerformanceOptimizer = {
         const stored = localStorage.getItem(key);
         if (stored) {
           const parsed = JSON.parse(stored);
-          if (parsed.version === CACHE_CONFIG.version) {
-            PerformanceOptimizer._memoryCache[key] = parsed.data;
+          const timestamp = Number(parsed.timestamp || 0);
+          const isExpired = !timestamp || (Date.now() - timestamp) > CACHE_CONFIG.ttl;
+          if (parsed.version === CACHE_CONFIG.version && !isExpired) {
+            PerformanceOptimizer._memoryCache[key] = {
+              data: parsed.data,
+              timestamp,
+            };
             return parsed.data;
           }
+          localStorage.removeItem(key);
         }
       } catch (e) {
         console.warn("Cache Read Error:", e);
@@ -53,11 +71,15 @@ const PerformanceOptimizer = {
     set(key, data) {
       if (!CACHE_CONFIG.enabled) return;
       
-      PerformanceOptimizer._memoryCache[key] = data;
+      const entry = {
+        data,
+        timestamp: Date.now(),
+      };
+      PerformanceOptimizer._memoryCache[key] = entry;
       try {
         localStorage.setItem(key, JSON.stringify({
-          data: data,
-          timestamp: Date.now(),
+          data: entry.data,
+          timestamp: entry.timestamp,
           version: CACHE_CONFIG.version
         }));
       } catch (e) {
@@ -73,15 +95,20 @@ const PerformanceOptimizer = {
     _prefetched: new Set(),
 
     async start() {
-      // Tunggu sebentar setelah bootstrap selesai
-      setTimeout(() => {
+      const kickoff = () => {
+        if (PerformanceOptimizer.shouldDeferOptionalWork()) return;
         this.run();
-      }, 2000);
+      };
+
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(() => kickoff(), { timeout: 4000 });
+      } else {
+        setTimeout(() => kickoff(), 3200);
+      }
     },
 
     async run() {
-      console.log("🚀 Starting Prefetching...");
-      
+      if (PerformanceOptimizer.shouldDeferOptionalWork()) return;
       const today = new Date().toISOString().slice(0, 10);
       const tasks = [
         { action: "get_logs", data: { date: today, limit: 100 }, key: `iotzy_cache_logs_${today}` },
@@ -92,12 +119,15 @@ const PerformanceOptimizer = {
 
       for (const task of tasks) {
         if (!this._prefetched.has(task.key)) {
-          apiPost(task.action, task.data).then(res => {
+          try {
+            const res = await apiPost(task.action, task.data, { refresh: false });
             if (res) {
               PerformanceOptimizer.Cache.set(task.key, res);
               this._prefetched.add(task.key);
             }
-          }).catch(() => {});
+          } catch (_) {}
+          if (PerformanceOptimizer.shouldDeferOptionalWork()) break;
+          await new Promise((resolve) => setTimeout(resolve, 140));
         }
       }
     }

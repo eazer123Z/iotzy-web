@@ -9,25 +9,36 @@ if (function_exists('registerApiErrorHandler')) {
 
 $apiOnlyMode = defined('IOTZY_API_ONLY') && IOTZY_API_ONLY === true;
 
-$origin = trim((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
-$appUrl = rtrim((string)(defined('APP_URL') ? APP_URL : ''), '/');
-$allowedOrigins = array_values(array_filter(array_unique([
-    $appUrl,
-    rtrim((string)(getenv('APP_URL') ?: ''), '/'),
-    rtrim((string)(getenv('ALLOWED_ORIGIN') ?: ''), '/'),
-])));
+$requestScheme = (
+    (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443
+    || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
+) ? 'https' : 'http';
+$requestHost = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+$origin = rtrim(trim((string)($_SERVER['HTTP_ORIGIN'] ?? '')), '/');
+$allowedOrigins = [];
 
-if ($origin !== '' && in_array(rtrim($origin, '/'), $allowedOrigins, true)) {
+if ($requestHost !== '') {
+    $allowedOrigins[] = $requestScheme . '://' . $requestHost;
+}
+
+if (defined('APP_URL') && preg_match('/^https?:\/\//i', APP_URL)) {
+    $allowedOrigins[] = rtrim(APP_URL, '/');
+}
+
+$allowedOrigins = array_values(array_unique(array_filter($allowedOrigins)));
+$isCorsOriginAllowed = $origin === '' || in_array($origin, $allowedOrigins, true);
+
+if ($origin !== '' && $isCorsOriginAllowed) {
     header('Access-Control-Allow-Origin: ' . $origin);
+    header('Access-Control-Allow-Credentials: true');
     header('Vary: Origin');
-} elseif ($origin === '' && !$apiOnlyMode && $appUrl !== '') {
-    header('Access-Control-Allow-Origin: ' . $appUrl);
 }
 
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
+    http_response_code($isCorsOriginAllowed ? 200 : 403);
     exit;
 }
 
@@ -81,9 +92,12 @@ if (!$action) {
     }
 
     $settings = getUserSettings((int)$user['id']);
-    $devices = getUserDevices((int)$user['id']);
-    $sensors = getUserSensors((int)$user['id']);
-    $cameraBundle = getUserCameraBundle((int)$user['id'], $db);
+    $devices = getUserDevicesClientPayload((int)$user['id'], $db);
+    $sensors = getUserSensorsClientPayload((int)$user['id'], $db);
+    $cameraBundle = getUserCameraBundle((int)$user['id'], $db, [
+        'camera_key' => $_COOKIE['iotzy_camera_key'] ?? null,
+        'camera_name' => $_COOKIE['iotzy_camera_name'] ?? null,
+    ]);
     $cvState = $cameraBundle['cv_state'] ?? iotzyDefaultCvState();
     $camera = $cameraBundle['camera'] ?? null;
     $cameraSettings = $cameraBundle['camera_settings'] ?? [];
@@ -170,6 +184,14 @@ $routes = [
     'save_cv_rules' => 'CVController.php',
     'get_cv_config' => 'CVController.php',
     'save_cv_config' => 'CVController.php',
+
+    'get_camera_stream_sessions' => 'CameraStreamController.php',
+    'start_camera_stream' => 'CameraStreamController.php',
+    'join_camera_stream' => 'CameraStreamController.php',
+    'submit_camera_stream_answer' => 'CameraStreamController.php',
+    'push_camera_stream_candidate' => 'CameraStreamController.php',
+    'poll_camera_stream_updates' => 'CameraStreamController.php',
+    'stop_camera_stream' => 'CameraStreamController.php',
 
     'get_settings' => 'SettingsController.php',
     'save_settings' => 'SettingsController.php',

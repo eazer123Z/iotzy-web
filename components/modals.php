@@ -1,13 +1,16 @@
 <?php ?>
 <div id="quickControlModal" class="modal-overlay">
-  <div class="modal-content">
+  <div class="modal-content quick-control-modal">
     <div class="modal-header">
       <h3>Atur Kontrol Cepat</h3>
       <button onclick="closeQuickControlSettings()" class="modal-close"><i class="fas fa-times"></i></button>
     </div>
-    <div class="modal-body">
-      <p style="color:var(--text-secondary);font-size:.85rem;margin-bottom:12px">Pilih hingga 4 perangkat untuk akses cepat di Dashboard.</p>
-      <div id="quickControlDevicesList" class="quick-controls-grid"></div>
+    <div class="modal-body quick-control-modal-body">
+      <div class="quick-control-summary">
+        <p class="quick-control-hint">Pilih sampai 4 perangkat favorit.</p>
+        <span id="quickControlSelectionCount" class="quick-control-count">0 / 4 dipilih</span>
+      </div>
+      <div id="quickControlDevicesList" class="qc-picker-grid"></div>
     </div>
     <div class="modal-footer">
       <button onclick="closeQuickControlSettings()" class="btn-secondary">Batal</button>

@@ -8,38 +8,39 @@ $csrf  = $csrf ?? (function_exists('generateCsrfToken') ? generateCsrfToken() : 
 <meta charset="UTF-8">
 <title>IoTzy — Register</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#edf8ff">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
 :root {
-  --bg: #080912;
-  --bg-2: #0f1023;
-  --surface: rgba(255,255,255,0.05);
-  --surface-hover: rgba(255,255,255,0.08);
-  --border: rgba(255,255,255,0.08);
-  --border-hover: rgba(255,255,255,0.16);
-  --accent: #6366f1;
-  --accent-light: #818cf8;
-  --accent-glow: rgba(99,102,241,0.2);
+  --bg: #edf8ff;
+  --bg-2: #dbeeff;
+  --surface: rgba(255,255,255,0.82);
+  --surface-hover: rgba(255,255,255,0.94);
+  --border: rgba(56,189,248,0.15);
+  --border-hover: rgba(14,165,233,0.24);
+  --accent: #0284c7;
+  --accent-light: #38bdf8;
+  --accent-glow: rgba(14,165,233,0.18);
   --success: #22c55e;
   --success-bg: rgba(34,197,94,0.12);
   --danger: #ef4444;
   --danger-bg: rgba(239,68,68,0.12);
-  --text: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: rgba(226,232,240,0.42);
-  --heading: #f8fafc;
+  --text: #12304a;
+  --text-secondary: #496782;
+  --text-muted: rgba(18,48,74,0.46);
+  --heading: #0c2741;
   --radius: 16px;
   --radius-lg: 24px;
-  --shadow: 0 24px 80px rgba(0,0,0,0.45);
+  --shadow: 0 24px 72px rgba(12,64,102,0.16);
 }
 * { box-sizing: border-box; }
 body {
   font-family: 'Plus Jakarta Sans', sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(99,102,241,0.22) 0%, transparent 34%),
-    radial-gradient(circle at bottom right, rgba(6,182,212,0.16) 0%, transparent 32%),
+    radial-gradient(circle at top left, rgba(56,189,248,0.2) 0%, transparent 34%),
+    radial-gradient(circle at bottom right, rgba(125,211,252,0.24) 0%, transparent 32%),
     linear-gradient(180deg, var(--bg-2) 0%, var(--bg) 100%);
   color: var(--text);
   min-height: 100vh;
@@ -51,11 +52,17 @@ body {
 .wrap { width: 100%; max-width: 440px; z-index: 2; animation: fadeIn 0.5s ease; }
 .header { text-align: center; margin-bottom: 20px; }
 .logo {
-  width: 74px; height: 74px; border-radius: 22px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-light));
-  display: flex; align-items: center; justify-content: center;
-  font-size: 32px; color: #fff; margin: 0 auto 18px;
-  box-shadow: 0 18px 40px rgba(99,102,241,0.32);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  margin: 0 auto 18px;
+  font-size: 42px;
+  color: var(--accent);
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 .title { font-size: 36px; font-weight: 800; text-align: center; margin-bottom: 6px; color: var(--heading); letter-spacing: -0.03em; }
 .sub { color: var(--text-secondary); font-size: 0.98rem; }
@@ -87,7 +94,7 @@ body {
 }
 .form-input {
   width: 100%; padding: 13px 15px 13px 42px;
-  background: rgba(8, 9, 18, 0.55);
+  background: rgba(255,255,255,0.78);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text); outline: none; transition: all 0.2s ease;
@@ -98,7 +105,7 @@ body {
   width: 100%; padding: 14px; border-radius: var(--radius);
   background: linear-gradient(135deg, var(--accent), var(--accent-light));
   color: #fff; font-weight: 800; border: none; cursor: pointer;
-  box-shadow: 0 14px 28px rgba(99,102,241,0.26);
+  box-shadow: 0 14px 28px rgba(14,165,233,0.2);
   transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
@@ -106,7 +113,7 @@ body {
   gap: 10px;
   margin-top: 6px;
 }
-.btn:hover { transform: translateY(-1px); box-shadow: 0 18px 32px rgba(99,102,241,0.32); }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 18px 32px rgba(14,165,233,0.28); }
 .btn:disabled { opacity: 0.75; cursor: wait; transform: none; }
 .alert {
   display: flex;
@@ -117,8 +124,8 @@ body {
   margin-bottom: 16px;
   border: 1px solid var(--border);
 }
-.alert.error { background: var(--danger-bg); color: #fecaca; border-color: rgba(239,68,68,0.2); }
-.alert.success { background: var(--success-bg); color: #bbf7d0; border-color: rgba(34,197,94,0.2); }
+.alert.error { background: var(--danger-bg); color: #b91c1c; border-color: rgba(239,68,68,0.18); }
+.alert.success { background: var(--success-bg); color: #166534; border-color: rgba(34,197,94,0.2); }
 .bottom-link {
   margin-top: 18px;
   text-align: center;

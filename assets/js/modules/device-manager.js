@@ -16,7 +16,9 @@ function getDeviceType(input) {
   const device = (input && typeof input === "object") ? input : null;
   const explicitType = device ? String(device.type || device.template_device_type || "").toLowerCase() : "";
   if (explicitType) return explicitType;
-  const icon = device ? String(device.icon || device.template_default_icon || "") : String(input || "");
+  const icon = device
+    ? normalizeFaIcon(device.icon || device.template_default_icon || "", "")
+    : normalizeFaIcon(input || "", "");
   if (!icon) return "switch";
   const i = icon.toLowerCase();
   if (i.includes("light") || i.includes("bulb") || i.includes("lamp") || i.includes("sun")) return "light";
@@ -38,15 +40,66 @@ function getDeviceType(input) {
 function getDeviceTypeName(input) {
   const device = (input && typeof input === "object") ? input : null;
   if (device?.template_name) return device.template_name;
-  const icon = device ? device.icon : input;
+  const icon = device
+    ? normalizeFaIcon(device.icon || device.template_default_icon || "", getDefaultDeviceIcon(getDeviceType(device)))
+    : normalizeFaIcon(input || "", "fa-plug");
   const map = {
     "fa-lightbulb":  "Lampu",         "fa-wind":       "Kipas Angin",
     "fa-snowflake":  "AC / Pendingin", "fa-tv":         "Televisi",
     "fa-lock":       "Kunci Pintu",    "fa-door-open":  "Pintu",
     "fa-video":      "Kamera CCTV",    "fa-volume-up":  "Speaker / Alarm",
+    "fa-volume-high":"Speaker / Alarm",
     "fa-plug":       "Stop Kontak",
   };
   return map[icon] || "Perangkat IoT";
+}
+
+function normalizeFaIcon(input, fallback = "fa-plug") {
+  const styleTokens = new Set(["fa", "fas", "far", "fal", "fat", "fab", "fa-solid", "fa-regular", "fa-light", "fa-thin", "fa-brands"]);
+  const aliases = {
+    "volume-up": "fa-volume-high",
+    "fa-volume-up": "fa-volume-high",
+    "volume-down": "fa-volume-low",
+    "fa-volume-down": "fa-volume-low",
+    "speaker": "fa-volume-high",
+    "alarm": "fa-volume-high",
+    "lamp": "fa-lightbulb",
+    "lampu": "fa-lightbulb",
+    "lightbulb": "fa-lightbulb",
+    "bulb": "fa-lightbulb",
+    "kipas": "fa-wind",
+    "fan": "fa-wind",
+    "camera": "fa-video",
+    "cctv": "fa-video",
+    "kunci": "fa-lock",
+    "lock": "fa-lock",
+    "door": "fa-door-open",
+    "pintu": "fa-door-open",
+    "plug": "fa-plug",
+    "switch": "fa-plug",
+    "sensor": "fa-microchip",
+    "temperature": "fa-temperature-half",
+  };
+  const raw = String(input || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-\s]/g, " ")
+    .trim();
+  if (!raw) return fallback;
+
+  const faToken = raw
+    .split(/\s+/)
+    .find((token) => token.startsWith("fa-") && !styleTokens.has(token));
+  if (faToken) {
+    return aliases[faToken] || faToken;
+  }
+
+  const compact = raw.replace(/\s+/g, "-").replace(/^-+|-+$/g, "");
+  if (aliases[compact]) return aliases[compact];
+  if (compact.startsWith("fa-")) return aliases[compact] || compact;
+
+  const withPrefix = `fa-${compact}`;
+  return aliases[withPrefix] || withPrefix || fallback;
 }
 
 async function ensureDeviceTemplatesLoaded() {
@@ -89,8 +142,8 @@ function getDeviceAccent(deviceType = "switch") {
     light: "#fbbf24",
     fan: "#22d3ee",
     ac: "#22d3ee",
-    tv: "#8b5cf6",
-    speaker: "#8b5cf6",
+    tv: "#60a5fa",
+    speaker: "#60a5fa",
     lock: "#f59e0b",
     door: "#f59e0b",
     cctv: "#38bdf8",
@@ -105,7 +158,10 @@ function getDeviceCardIcon(device, isOn = false) {
   if ((dtype === "lock" || dtype === "door") && isOn) {
     return "fa-lock-open";
   }
-  return String(device?.icon || device?.template_default_icon || getDefaultDeviceIcon(dtype) || "fa-plug");
+  return normalizeFaIcon(
+    device?.icon || device?.template_default_icon || getDefaultDeviceIcon(dtype) || "fa-plug",
+    getDefaultDeviceIcon(dtype)
+  );
 }
 
 async function populateDeviceTemplateSelect(selectId, selectedId = "") {
@@ -142,17 +198,26 @@ function updateDeviceUI(deviceId) {
   if (!device) return;
 
   const isOn = !!STATE.deviceStates[id];
+  const isUpdating = !!(STATE.deviceUpdating && STATE.deviceUpdating[id]);
   const dtype = getDeviceType(device);
   const isLock = (dtype === 'lock' || dtype === 'door');
   const onLabel = device.resolved_state_on_label || device.state_on_label || 'ON';
   const offLabel = device.resolved_state_off_label || device.state_off_label || 'OFF';
-
-  const g = (s) => document.getElementById(s);
+  const statusText = isLock ? (isOn ? "Terbuka" : "Terkunci") : (isOn ? "Aktif" : "Standby");
+  const iconClass = getDeviceCardIcon(device, isOn);
+  const title = `${device.name} • ${isOn ? 'ON' : 'OFF'}`;
   
   // 1. Update Every Possible Card Instance (Main Grid, Quick Control, etc.)
-  document.querySelectorAll(`[id^="card-${id}"], [id^="qc-${id}"]`).forEach(card => {
+  document.querySelectorAll(`[id^="card-${id}"], [id="qc-${id}"]`).forEach(card => {
     card.classList.toggle("on", isOn);
     card.classList.toggle("active", isOn);
+    card.classList.toggle("is-pending", isUpdating);
+    if (card.tagName === "BUTTON") {
+      card.disabled = false;
+      card.setAttribute("aria-pressed", isOn ? "true" : "false");
+      card.setAttribute("aria-busy", isUpdating ? "true" : "false");
+      card.title = title;
+    }
     
     const pill = card.querySelector(".device-status-pill");
     if (pill) {
@@ -162,14 +227,33 @@ function updateDeviceUI(deviceId) {
 
     const dur = card.querySelector(".device-usage");
     if (dur) {
-        if (isLock) dur.textContent = isOn ? "Terbuka" : "Terkunci";
-        else dur.textContent = isOn ? "Aktif" : "Standby";
+        dur.textContent = statusText;
     }
 
     const icon = card.querySelector(".device-icon");
     if (icon && isLock) {
       icon.classList.remove("fa-lock", "fa-lock-open");
       icon.classList.add(isOn ? "fa-lock-open" : "fa-lock");
+    }
+
+    const qcIcon = card.querySelector(".qc-btn-icon i");
+    if (qcIcon) {
+      qcIcon.className = `fas ${iconClass}`;
+    }
+
+    const qcLabel = card.querySelector(".qc-btn-label");
+    if (qcLabel) {
+      qcLabel.textContent = device.name;
+    }
+
+    const qcType = card.querySelector(".qc-btn-type");
+    if (qcType) {
+      qcType.textContent = device.template_name || getDeviceTypeName(device);
+    }
+
+    const qcState = card.querySelector(".qc-btn-state");
+    if (qcState) {
+      qcState.textContent = isOn ? (onLabel || "ON") : (offLabel || "OFF");
     }
     
     // Update Extra Controls visibility within this card
@@ -180,36 +264,112 @@ function updateDeviceUI(deviceId) {
 
 }
 
+function captureDeviceLocalState(deviceId) {
+  const id = String(deviceId);
+  return {
+    state: !!STATE.deviceStates[id],
+    onAt: STATE.deviceOnAt[id]
+  };
+}
+
+function applyLocalDeviceState(deviceId, nextState) {
+  const id = String(deviceId);
+  const normalized = !!nextState;
+  STATE.deviceStates[id] = normalized;
+  if (normalized) {
+    if (!STATE.deviceOnAt[id]) STATE.deviceOnAt[id] = Date.now();
+  } else {
+    delete STATE.deviceOnAt[id];
+  }
+  updateDeviceUI(id);
+}
+
+function restoreLocalDeviceState(deviceId, snapshot) {
+  const id = String(deviceId);
+  STATE.deviceStates[id] = !!snapshot?.state;
+  if (snapshot && typeof snapshot.onAt !== "undefined") STATE.deviceOnAt[id] = snapshot.onAt;
+  else delete STATE.deviceOnAt[id];
+  updateDeviceUI(id);
+}
+
+function publishDeviceState(deviceId, nextState) {
+  const id = String(deviceId);
+  const topic = STATE.deviceTopics[id];
+  if (topic?.pub) publishMQTT(topic.pub, buildDevicePayload(id, nextState));
+}
+
+function syncDeviceStateToServer(deviceId, nextState, trigger, snapshot, onFailure) {
+  const id = String(deviceId);
+  STATE.deviceUpdating = STATE.deviceUpdating || {};
+  STATE.deviceQueuedState = STATE.deviceQueuedState || {};
+
+  STATE.deviceUpdating[id] = true;
+  updateDeviceUI(id);
+
+  return apiPost(
+    "update_device_state",
+    { id, state: nextState ? 1 : 0, trigger },
+    { key: `update_device_state:${id}` }
+  )
+    .then((result) => {
+      if (!result || result.success === false) {
+        throw new Error(result?.error || "Gagal memperbarui status perangkat.");
+      }
+    })
+    .catch((error) => {
+      const hasQueuedState = Object.prototype.hasOwnProperty.call(STATE.deviceQueuedState || {}, id);
+      const queuedState = hasQueuedState ? !!STATE.deviceQueuedState[id] : nextState;
+      if (!hasQueuedState || queuedState === nextState) {
+        onFailure?.(error);
+      }
+    })
+    .finally(() => {
+      STATE.deviceUpdating[id] = false;
+      updateDeviceUI(id);
+
+      if (Object.prototype.hasOwnProperty.call(STATE.deviceQueuedState || {}, id)) {
+        const queuedState = !!STATE.deviceQueuedState[id];
+        delete STATE.deviceQueuedState[id];
+        if (queuedState !== nextState) {
+          const queuedSnapshot = captureDeviceLocalState(id);
+          syncDeviceStateToServer(id, queuedState, trigger, queuedSnapshot, (error) => {
+            restoreLocalDeviceState(id, queuedSnapshot);
+            updateDashboardStats();
+            showToast(error?.message || "Gagal memperbarui status perangkat.", "error");
+          });
+        }
+      }
+    });
+}
+
 /**
  * Mengubah status perangkat secara manual dari UI.
  * Melakukan Publish MQTT dan Update DB backend.
  */
 function toggleDeviceState(deviceId, newState) {
   const id   = String(deviceId);
-  const prev = STATE.deviceStates[id];
-  STATE.deviceStates[id] = newState;
-
-  // Track durasi penggunaan
-  if (newState && !prev) STATE.deviceOnAt[id] = Date.now();
-  else if (!newState)    delete STATE.deviceOnAt[id];
-
-  updateDeviceUI(id);
-
-  // Komunikasi MQTT
-  const t = STATE.deviceTopics[id];
-  if (t?.pub) publishMQTT(t.pub, buildDevicePayload(id, newState));
-
-  // Optimistic UI Lock
+  if (!STATE.devices[id]) return;
   STATE.deviceUpdating = STATE.deviceUpdating || {};
-  STATE.deviceUpdating[id] = true;
+  STATE.deviceQueuedState = STATE.deviceQueuedState || {};
 
-  // Update Database Backend (Tidak blocking)
-  apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: "Manual" })
-    .catch(() => {})
-    .finally(() => { setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000); });
+  const nextState = !!newState;
+  const previousSnapshot = captureDeviceLocalState(id);
+
+  applyLocalDeviceState(id, nextState);
+  publishDeviceState(id, nextState);
+
+  if (STATE.deviceUpdating[id]) {
+    STATE.deviceQueuedState[id] = nextState;
+  } else {
+    syncDeviceStateToServer(id, nextState, "Manual", previousSnapshot, (error) => {
+      restoreLocalDeviceState(id, previousSnapshot);
+      updateDashboardStats();
+      showToast(error?.message || "Gagal memperbarui status perangkat.", "error");
+    });
+  }
   
   // Logging lokal
-  addLog(STATE.devices[id]?.name, newState ? "Dinyalakan" : "Dimatikan", "Manual", "info", { device_id: Number(id) });
+  addLog(STATE.devices[id]?.name, nextState ? "Dinyalakan" : "Dimatikan", "Manual", "info", { device_id: Number(id) });
   updateDashboardStats();
 
   // Built-in Automation Trigger (Smart Lock)
@@ -242,31 +402,35 @@ function buildDevicePayload(deviceId, state) {
  */
 function applyDeviceState(deviceId, newState, reason = "Automation") {
   const id = String(deviceId);
-  if (STATE.deviceStates[id] === newState) return;
+  if (!STATE.devices[id]) return;
+  const nextState = !!newState;
+  if (!!STATE.deviceStates[id] === nextState) return;
 
-  STATE.deviceStates[id] = newState;
-  if (newState) STATE.deviceOnAt[id] = Date.now();
-  else delete STATE.deviceOnAt[id];
-
-  updateDeviceUI(id);
-
-  const t = STATE.deviceTopics[id];
-  if (t?.pub) publishMQTT(t.pub, buildDevicePayload(id, newState));
+  const previousSnapshot = captureDeviceLocalState(id);
+  applyLocalDeviceState(id, nextState);
+  publishDeviceState(id, nextState);
 
   // Optimistic UI Lock
   STATE.deviceUpdating = STATE.deviceUpdating || {};
   STATE.deviceUpdating[id] = true;
+  updateDeviceUI(id);
 
   // Update Database Backend (Skip jika sudah diupdate server AI)
   if (reason !== "AI Assistant (Sync)") {
-    apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: reason })
-      .catch(() => {})
-      .finally(() => { setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000); });
+    apiPost("update_device_state", { id, state: nextState ? 1 : 0, trigger: reason }, { key: `update_device_state:${id}` })
+      .catch(() => {
+        restoreLocalDeviceState(id, previousSnapshot);
+      })
+      .finally(() => {
+        STATE.deviceUpdating[id] = false;
+        updateDeviceUI(id);
+      });
   } else {
-    setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000);
+    STATE.deviceUpdating[id] = false;
+    updateDeviceUI(id);
   }
   
-  addLog(STATE.devices[id]?.name, `${newState ? "ON" : "OFF"} (${reason})`, "Automation", newState ? "success" : "info", { device_id: Number(id) });
+  addLog(STATE.devices[id]?.name, `${nextState ? "ON" : "OFF"} (${reason})`, "Automation", nextState ? "success" : "info", { device_id: Number(id) });
   updateDashboardStats();
 
   // Built-in Automation Trigger (Smart Lock)
@@ -474,10 +638,15 @@ function buildQuickControlButtonHTML(deviceId) {
   const accent = getDeviceAccent(dtype);
   const title = `${device.name} • ${isOn ? 'ON' : 'OFF'}`;
   return `
-    <button class="qc-btn ${isOn ? 'on' : ''}" title="${escHtml(title)}"
+    <button id="qc-${id}" class="qc-btn ${isOn ? 'on' : ''}" title="${escHtml(title)}"
             onclick="event.preventDefault(); toggleDeviceState('${id}', ${isOn ? 'false' : 'true'});"
-            style="--qc-accent:${accent}">
-      <i class="fas ${iconClass}"></i>
+            style="--qc-accent:${accent}" aria-pressed="${isOn ? 'true' : 'false'}">
+      <span class="qc-btn-icon"><i class="fas ${iconClass}"></i></span>
+      <span class="qc-btn-copy">
+        <span class="qc-btn-label">${escHtml(device.name)}</span>
+        <span class="qc-btn-type">${escHtml(device.template_name || getDeviceTypeName(device))}</span>
+      </span>
+      <span class="qc-btn-state">${escHtml(isOn ? 'ON' : 'OFF')}</span>
     </button>
   `;
 }
@@ -501,10 +670,12 @@ function renderDevices() {
   const keys = Object.keys(STATE.devices || {});
   grid.innerHTML = '';
   if (empty) empty.classList.toggle('hidden', keys.length > 0);
-  
-  keys.forEach((id) => {
-    grid.insertAdjacentHTML('beforeend', buildDeviceCardHTML(id, 'grid'));
-  });
+
+  if (!keys.length) {
+    return;
+  }
+
+  grid.innerHTML = keys.map((id) => buildDeviceCardHTML(id, 'grid')).join('');
 }
 
 
@@ -518,6 +689,31 @@ function filterDevices(q) {
 
 /* ==================== QUICK CONTROLS ==================== */
 
+function normalizeQuickControlSelection(list) {
+  return Array.from(new Set((Array.isArray(list) ? list : []).map(String)))
+    .filter((id) => !!STATE.devices[id])
+    .slice(0, 4);
+}
+
+function getQuickControlSelection() {
+  return Array.isArray(STATE.quickControlDevicesDraft)
+    ? normalizeQuickControlSelection(STATE.quickControlDevicesDraft)
+    : normalizeQuickControlSelection(STATE.quickControlDevices);
+}
+
+function updateQuickControlSelectionSummary() {
+  const counter = document.getElementById('quickControlSelectionCount');
+  if (!counter) return;
+  const count = getQuickControlSelection().length;
+  counter.textContent = `${count} / 4 dipilih`;
+}
+
+function isQuickControlSelectionUnchanged(selection) {
+  const next = normalizeQuickControlSelection(selection);
+  const current = normalizeQuickControlSelection(STATE.quickControlDevices);
+  return next.length === current.length && next.every((id, index) => id === current[index]);
+}
+
 /**
  * Merender Quick Control Card ke Dashboard.
  */
@@ -525,6 +721,7 @@ function renderQuickControls() {
   const container = document.getElementById('quickControlsContainer');
   if (!container) return;
   container.innerHTML = '';
+  container.classList.remove('qc-grid');
 
   const selected = (STATE.quickControlDevices || []).map(String).filter((id) => STATE.devices[id]);
   if (!selected.length) {
@@ -546,7 +743,7 @@ function renderQuickControls() {
  * Memilih perangkat yang akan tampil di Quick Control Modal.
  */
 function toggleQuickControlPick(id) {
-  const current = (STATE.quickControlDevices || []).map(String);
+  const current = getQuickControlSelection();
   const idx = current.indexOf(String(id));
   
   if (idx >= 0) {
@@ -556,7 +753,7 @@ function toggleQuickControlPick(id) {
     current.push(String(id));
   }
   
-  STATE.quickControlDevices = current;
+  STATE.quickControlDevicesDraft = current;
   renderQuickControlPicker();
 }
 
@@ -568,7 +765,19 @@ function renderQuickControlPicker() {
   if (!list) return;
   list.innerHTML = '';
 
-  const keys = Object.keys(STATE.devices || {});
+  const selectedIds = getQuickControlSelection();
+  const selectedSet = new Set(selectedIds);
+  const keys = Object.keys(STATE.devices || {}).sort((a, b) => {
+    const aSelected = selectedSet.has(String(a)) ? 0 : 1;
+    const bSelected = selectedSet.has(String(b)) ? 0 : 1;
+    if (aSelected !== bSelected) return aSelected - bSelected;
+    const aName = String(STATE.devices[a]?.name || '').toLowerCase();
+    const bName = String(STATE.devices[b]?.name || '').toLowerCase();
+    return aName.localeCompare(bName, 'id');
+  });
+
+  updateQuickControlSelectionSummary();
+
   if (!keys.length) {
     list.innerHTML = '<p class="modal-loading">Belum ada perangkat.</p>';
     return;
@@ -576,18 +785,27 @@ function renderQuickControlPicker() {
 
   keys.forEach((id) => {
     const device = STATE.devices[id];
-    const selected = (STATE.quickControlDevices || []).map(String).includes(String(id));
+    const selected = selectedSet.has(String(id));
+    const isOn = !!STATE.deviceStates[id];
+    const dtype = getDeviceType(device);
+    const accent = getDeviceAccent(dtype);
     
     const item = document.createElement('button');
     item.type = 'button';
     item.className = `qc-picker-card${selected ? ' active' : ''}`;
+    item.style.setProperty('--qc-picker-accent', accent);
     item.innerHTML = `
-      <div class="qc-picker-icon"><i class="fas ${device.icon || 'fa-plug'}"></i></div>
-      <div class="qc-picker-meta">
-        <strong>${escHtml(device.name)}</strong>
-        <span>${getDeviceTypeName(device)}</span>
+      <div class="qc-picker-main">
+        <div class="qc-picker-icon"><i class="fas ${normalizeFaIcon(device.icon || device.template_default_icon || '', getDefaultDeviceIcon(dtype))}"></i></div>
+        <div class="qc-picker-meta">
+          <strong>${escHtml(device.name)}</strong>
+          <span>${escHtml(device.template_name || getDeviceTypeName(device))}</span>
+        </div>
       </div>
-      <div class="qc-picker-state">${selected ? 'Dipilih' : 'Pilih'}</div>`;
+      <div class="qc-picker-side">
+        <span class="qc-picker-status${isOn ? ' on' : ''}">${isOn ? 'Aktif' : 'Mati'}</span>
+        <span class="qc-picker-badge">${selected ? 'Dipilih' : 'Pilih'}</span>
+      </div>`;
     
     item.onclick = () => toggleQuickControlPick(id);
     list.appendChild(item);
@@ -595,20 +813,67 @@ function renderQuickControlPicker() {
 }
 
 function openQuickControlSettings() {
+  STATE.quickControlDevicesDraft = normalizeQuickControlSelection(STATE.quickControlDevices);
   renderQuickControlPicker();
   document.getElementById('quickControlModal')?.classList.add('active');
 }
 
 function closeQuickControlSettings() {
+  delete STATE.quickControlDevicesDraft;
   document.getElementById('quickControlModal')?.classList.remove('active');
 }
 
 async function saveQuickControlSettings() {
-  STATE.quickControlDevices = (STATE.quickControlDevices || []).map(String).slice(0, 4);
-  await apiPost('save_settings', { quick_control_devices: STATE.quickControlDevices });
+  if (STATE.quickControlSaveBusy) return;
+
+  const btn = document.getElementById('btnSaveQuickControl');
+  const previous = normalizeQuickControlSelection(STATE.quickControlDevices);
+  const next = getQuickControlSelection();
+
+  if (isQuickControlSelectionUnchanged(next)) {
+    closeQuickControlSettings();
+    return;
+  }
+
+  STATE.quickControlDevices = next;
   renderQuickControls();
-  closeQuickControlSettings();
-  showToast('Quick Control diperbarui!', 'success');
+
+  try {
+    STATE.quickControlSaveBusy = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+    }
+
+    const result = await apiPost(
+      'save_settings',
+      { quick_control_devices: next },
+      { refresh: false, key: 'save_quick_controls' }
+    );
+
+    if (!result || result.success === false) {
+      throw new Error(result?.error || 'Gagal menyimpan quick control.');
+    }
+
+    if (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS) {
+      PHP_SETTINGS.quick_control_devices = [...next];
+    }
+
+    closeQuickControlSettings();
+    showToast('Kontrol cepat diperbarui.', 'success');
+  } catch (error) {
+    STATE.quickControlDevices = previous;
+    renderQuickControls();
+    STATE.quickControlDevicesDraft = [...next];
+    renderQuickControlPicker();
+    showToast(error?.message || 'Gagal menyimpan quick control.', 'error');
+  } finally {
+    STATE.quickControlSaveBusy = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = 'Simpan';
+    }
+  }
 }
 
 /* ==================== DEVICE SETTINGS & CRUD ==================== */

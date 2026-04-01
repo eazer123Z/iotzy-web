@@ -3,13 +3,29 @@ function setCVModelStatus(label) {
   if (el) el.textContent = label;
 }
 
+function setCVHeadlineStatus(text, className = "muted") {
+  const el = document.getElementById("cvSystemStatus");
+  if (!el) return;
+  el.textContent = text;
+  el.className = `status-val ${className}`.trim();
+}
+
+function getCVBackendSuffix() {
+  if (typeof cvDetector === "undefined" || !cvDetector.backendLabel) return "";
+  return ` (${cvDetector.backendLabel})`;
+}
+
 function startCVFpsMonitor() {
   stopCVFpsMonitor();
   CV.frameCount = 0;
   CV.fpsTimer = setInterval(() => {
     CV.fps = CV.frameCount;
-    const fpsEl = document.getElementById("cvFPS");
-    if (fpsEl) fpsEl.textContent = String(CV.fps);
+    if (typeof syncCVInferenceRateUI === "function") {
+      syncCVInferenceRateUI(CV.fps);
+    } else {
+      const fpsEl = document.getElementById("cvFPS");
+      if (fpsEl) fpsEl.textContent = String(CV.fps);
+    }
     CV.frameCount = 0;
   }, 1000);
 }
@@ -21,8 +37,12 @@ function stopCVFpsMonitor() {
   }
   CV.fps = 0;
   CV.frameCount = 0;
-  const fpsEl = document.getElementById("cvFPS");
-  if (fpsEl) fpsEl.textContent = "0";
+  if (typeof syncCVInferenceRateUI === "function") {
+    syncCVInferenceRateUI(0);
+  } else {
+    const fpsEl = document.getElementById("cvFPS");
+    if (fpsEl) fpsEl.textContent = "0";
+  }
 }
 
 async function initializeCV() {
@@ -50,12 +70,9 @@ async function initializeCV() {
     CV.modelLoaded = true;
     CV.model = cvDetector.model || CV.model;
     updateCVBadge("ready", "Siap");
-    setCVModelStatus("Siap");
+    setCVModelStatus(`Siap${getCVBackendSuffix()}`);
     if (document.getElementById("cvLoadingStatus")) document.getElementById("cvLoadingStatus").classList.add("hidden");
-    if (document.getElementById("cvSystemStatus")) {
-      document.getElementById("cvSystemStatus").textContent = "Model siap";
-      document.getElementById("cvSystemStatus").className   = "status-val ok";
-    }
+    setCVHeadlineStatus(`Model Siap${getCVBackendSuffix()}`, "ok");
     if (document.getElementById("btnStartCV"))   document.getElementById("btnStartCV").disabled   = false;
     if (document.getElementById("btnLoadModel")) document.getElementById("btnLoadModel").disabled = true;
 
@@ -86,6 +103,9 @@ function startCVDetection() {
 
   CV.detecting = true;
   cvDetector.startDetection(video);
+  if (typeof automationEngine !== "undefined" && typeof automationEngine.startCV === "function") {
+    automationEngine.startCV();
+  }
   startCVFpsMonitor();
 
   if (typeof lightAnalyzer !== 'undefined') {
@@ -96,15 +116,19 @@ function startCVDetection() {
   if (document.getElementById("btnStopCV"))  document.getElementById("btnStopCV").disabled  = false;
   if (document.getElementById("cvDetectionInfo")) document.getElementById("cvDetectionInfo").style.display = "flex";
   
-  updateCVBadge("active", "Aktif");
-  setCVModelStatus("Aktif");
-  if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
-  showToast("Deteksi CV dimulai", "info");
+    updateCVBadge("active", "Aktif");
+    setCVModelStatus(`Aktif${getCVBackendSuffix()}`);
+    setCVHeadlineStatus("Deteksi Berjalan", "ok");
+    if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
+    showToast("Deteksi CV dimulai", "info");
 }
 
 function stopCVDetection() {
   CV.detecting = false;
   cvDetector.stopDetection();
+  if (typeof automationEngine !== "undefined" && typeof automationEngine.stopCV === "function") {
+    automationEngine.stopCV();
+  }
   stopCVFpsMonitor();
   if (typeof lightAnalyzer !== 'undefined') lightAnalyzer.stopAnalysis();
 
@@ -113,7 +137,8 @@ function stopCVDetection() {
   if (document.getElementById("cvDetectionInfo")) document.getElementById("cvDetectionInfo").style.display = "none";
   
   updateCVBadge("ready", "Siap");
-  setCVModelStatus(CV.modelLoaded ? "Siap" : "Idle");
+  setCVModelStatus(CV.modelLoaded ? `Siap${getCVBackendSuffix()}` : "Idle");
+  setCVHeadlineStatus(CV.modelLoaded ? `Model Siap${getCVBackendSuffix()}` : "Kamera Aktif", CV.modelLoaded ? "ok" : "muted");
   if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
   showToast("Deteksi CV dihentikan", "info");
 }
@@ -138,18 +163,26 @@ function stopDetection() {
 async function loadCVConfig() {
   const result = await apiPost("get_cv_config", {});
   if (result) {
-    if (result.showBoundingBox !== undefined) CV.showBoxes  = result.showBoundingBox;
-    if (result.showDebugInfo   !== undefined) CV.showDebug  = result.showDebugInfo;
-    if (result.minConfidence   !== undefined) CV.confidence = result.minConfidence;
+    if (typeof applyCVConfigState === "function") {
+      applyCVConfigState(result);
+    } else {
+      if (result.showBoundingBox !== undefined) CV.showBoxes  = result.showBoundingBox;
+      if (result.showDebugInfo   !== undefined) CV.showDebug  = result.showDebugInfo;
+      if (result.minConfidence   !== undefined) CV.confidence = result.minConfidence;
+    }
   }
 }
 
 async function loadCVRules() {
   const result = await apiPost("get_cv_rules", {});
   if (result) {
-    CV.cvRules = { ...CV.cvRules, ...result };
-    if (typeof automationEngine !== "undefined") {
-      automationEngine.updateCVRules(CV.cvRules);
+    if (typeof applyCVRulesState === "function") {
+      applyCVRulesState(result);
+    } else {
+      CV.cvRules = { ...CV.cvRules, ...result };
+      if (typeof automationEngine !== "undefined" && typeof automationEngine.hydrateCVRules === "function") {
+        automationEngine.hydrateCVRules(CV.cvRules);
+      }
     }
   }
 }
@@ -159,51 +192,64 @@ async function saveCVRules() {
 }
 
 function toggleBoundingBox(val) {
-  CV.showBoxes = val;
-  ["cvShowBoundingBoxCamera", "cvShowBoundingBoxSettings"].forEach((id) => {
-    const el = document.getElementById(id); if (el && el.checked !== val) el.checked = val;
-  });
-  if (!val && CV.overlayCtx && CV.overlayCanvas) CV.overlayCtx.clearRect(0, 0, CV.overlayCanvas.width, CV.overlayCanvas.height);
-  apiPost("save_cv_config", { config: { showBoundingBox: val, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
+  if (typeof applyCVConfigState === "function") applyCVConfigState({ showBoundingBox: val });
+  else CV.showBoxes = val;
+  if (typeof persistCVConfig === "function") persistCVConfig({ showBoundingBox: val }).catch(() => {});
+  else apiPost("save_cv_config", { config: { showBoundingBox: val, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
 }
 
 function toggleDebugInfo(val) {
-  CV.showDebug = val;
-  ["cvShowDebugInfoCamera", "cvShowDebugInfoSettings"].forEach((id) => {
-    const el = document.getElementById(id); if (el && el.checked !== val) el.checked = val;
-  });
-  const hud = document.getElementById("cvDetectionInfo");
-  if (hud) hud.style.display = val && CV.detecting ? "flex" : "none";
-  apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: val, minConfidence: CV.confidence } }).catch(() => {});
+  if (typeof applyCVConfigState === "function") applyCVConfigState({ showDebugInfo: val });
+  else CV.showDebug = val;
+  if (typeof persistCVConfig === "function") persistCVConfig({ showDebugInfo: val }).catch(() => {});
+  else apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: val, minConfidence: CV.confidence } }).catch(() => {});
 }
 
 function updateCVConfig(val) {
-  CV.confidence = parseFloat(val) / 100;
-  apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
+  const confidence = parseFloat(val) / 100;
+  if (typeof applyCVConfigState === "function") applyCVConfigState({ minConfidence: confidence });
+  else CV.confidence = confidence;
+  if (typeof persistCVConfig === "function") persistCVConfig({ minConfidence: confidence }).catch(() => {});
+  else apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
 }
 
 function onCVPersonCountUpdate(count) {
   STATE.cv.personCount  = count;
   STATE.cv.personPresent = count > 0;
-  const g = (id) => document.getElementById(id);
-  if (g("cvPersonCountBig")) g("cvPersonCountBig").textContent = count;
-  if (g("cvHumanCount"))     g("cvHumanCount").textContent     = count;
+  if (typeof syncCVPersonCountUI === "function") {
+    syncCVPersonCountUI(count);
+  } else {
+    const g = (id) => document.getElementById(id);
+    if (g("cvPersonCount")) g("cvPersonCount").textContent = count;
+    if (g("cvPersonCountBig")) g("cvPersonCountBig").textContent = count;
+    if (g("cvHumanCount")) g("cvHumanCount").textContent = count;
+  }
   if (typeof automationEngine !== "undefined" && automationEngine.notifyPersonCount) {
       automationEngine.notifyPersonCount(count);
+  }
+  if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
+    Overview.updateDashboardRoomSummary();
   }
   if (typeof updateDashboardStats === 'function') updateDashboardStats();
 }
 
 function onLightAnalysisUpdate(condition, brightness) {
-  STATE.cv.lightCondition = condition;
-  STATE.cv.brightness     = brightness;
-  const pct = Math.round(brightness * 100);
-  const g   = (id) => document.getElementById(id);
-  if (g("cvBrightness"))      g("cvBrightness").textContent      = `${pct}%`;
-  if (g("cvBrightnessLabel")) g("cvBrightnessLabel").textContent = `${pct}%`;
-  if (g("cvBrightnessBar"))   g("cvBrightnessBar").style.width   = pct + "%";
-  const condMap = { dark: "Gelap", normal: "Normal", bright: "Terang" };
-  if (g("cvLightCondition")) g("cvLightCondition").textContent   = condMap[condition] || condition;
+  if (typeof syncCVLightUI === "function") {
+    syncCVLightUI(condition, brightness);
+  } else {
+    STATE.cv.lightCondition = condition;
+    STATE.cv.brightness = brightness;
+    const pct = Math.round(brightness * 100);
+    const g = (id) => document.getElementById(id);
+    const condMap = { dark: "Gelap", normal: "Normal", bright: "Terang" };
+    if (g("cvBrightness")) g("cvBrightness").textContent = `${pct}%`;
+    if (g("cvBrightnessLabel")) g("cvBrightnessLabel").textContent = `${pct}%`;
+    if (g("cvBrightnessBar")) g("cvBrightnessBar").style.width = pct + "%";
+    if (g("cvLightCondition")) g("cvLightCondition").textContent = condMap[condition] || condition;
+  }
+  if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
+    Overview.updateDashboardRoomSummary();
+  }
 
   // Trigger automation engine for light rules
   if (typeof automationEngine !== "undefined" && automationEngine.onLightCondition) {
@@ -230,6 +276,7 @@ async function loadCVLibraries() {
     document.head.appendChild(s);
   });
   await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0');
+  await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@4.11.0/dist/tf-backend-wasm.min.js');
   await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3');
   return !!(window.tf && window.cocoSsd);
 }
@@ -242,7 +289,7 @@ async function runCVLoop() {
     return;
   }
   const now = performance.now();
-  if (now - (_cvLastDetectTime || 0) < 300) {
+  if (now - (_cvLastDetectTime || 0) < 120) {
     if (CV.detecting) requestAnimationFrame(runCVLoop);
     return;
   }
@@ -280,7 +327,11 @@ function drawCVOverlay(preds, video) {
 
 function updateCVHUD(count, preds) {
   const g = (id) => document.getElementById(id);
-  if (g("cvHumanCount")) g("cvHumanCount").textContent = count;
+  if (typeof syncCVPersonCountUI === "function") {
+    syncCVPersonCountUI(count);
+  } else if (g("cvPersonCount")) {
+    g("cvPersonCount").textContent = count;
+  }
   if (g("cvConfidence")) g("cvConfidence").textContent = preds && preds.length
     ? Math.round(Math.max(...preds.map((p) => p.score)) * 100) + "%" : "—";
   const presText = count > 0 ? `${count} orang` : "Tidak ada";

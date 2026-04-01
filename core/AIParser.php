@@ -40,6 +40,63 @@ if (!defined('AI_RATE_LIMIT_WINDOW_SEC'))   define('AI_RATE_LIMIT_WINDOW_SEC',  
 if (!defined('AI_MODEL'))
     define('AI_MODEL', getenv('OPENROUTER_MODEL') ?: 'deepseek/deepseek-chat');
 
+function iotzy_log_ai_nonfatal(string $scope, \Throwable $e): void
+{
+    error_log(sprintf(
+        '[IoTzy AI:%s] %s in %s:%d',
+        $scope,
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine()
+    ));
+}
+
+function iotzy_parse_http_status(array $headers): int
+{
+    foreach ($headers as $headerLine) {
+        if (preg_match('#^HTTP/\S+\s+(\d{3})#', (string)$headerLine, $m)) {
+            return (int)$m[1];
+        }
+    }
+    return 0;
+}
+
+function iotzy_call_api_via_stream(string $apiKey, array $payload): array
+{
+    $allowUrlFopen = ini_get('allow_url_fopen');
+    if ($allowUrlFopen !== '1' && strtolower((string)$allowUrlFopen) !== 'on') {
+        return ['code' => 0, 'body' => '', 'error' => 'HTTP stream transport unavailable'];
+    }
+
+    $headers = [
+        'Authorization: Bearer ' . $apiKey,
+        'Content-Type: application/json',
+        'HTTP-Referer: ' . (defined('APP_URL') ? APP_URL : ''),
+        'X-Title: ' . (defined('APP_NAME') ? APP_NAME : 'IOTZY'),
+    ];
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => implode("\r\n", $headers),
+            'content' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+            'timeout' => AI_TIMEOUT_SECONDS,
+            'ignore_errors' => true,
+        ],
+    ]);
+    $raw = @file_get_contents('https://openrouter.ai/api/v1/chat/completions', false, $context);
+    $responseHeaders = $http_response_header ?? [];
+    $statusCode = iotzy_parse_http_status((array)$responseHeaders);
+    if ($raw === false) {
+        $err = error_get_last();
+        return [
+            'code' => $statusCode,
+            'body' => '',
+            'error' => $err['message'] ?? 'HTTP stream request failed',
+        ];
+    }
+    return ['code' => $statusCode, 'body' => $raw, 'error' => ''];
+}
+
 // ============================================================================
 // RATE LIMITING
 // ============================================================================
@@ -52,32 +109,37 @@ if (!defined('AI_MODEL'))
  */
 function iotzy_check_rate_limit(int $userId, PDO $db, string $action = 'ai_chat'): bool
 {
-    if (random_int(1, 50) === 1) {
+    try {
+        if (random_int(1, 50) === 1) {
+            $db->prepare(
+                "DELETE FROM ai_rate_limits
+                 WHERE created_at < DATE_SUB(NOW(), INTERVAL 2 DAY)"
+            )->execute();
+        }
+
+        // Hitung request dalam window aktif
+        $stmt = $db->prepare(
+            "SELECT COUNT(*) FROM ai_rate_limits
+             WHERE user_id = ? AND action_name = ?
+               AND created_at >= DATE_SUB(NOW(), INTERVAL " . (int)AI_RATE_LIMIT_WINDOW_SEC . " SECOND)"
+        );
+        $stmt->execute([$userId, $action]);
+        $count = (int)$stmt->fetchColumn();
+
+        if ($count >= AI_RATE_LIMIT_MAX) {
+            return false;
+        }
+
+        // Catat request baru
         $db->prepare(
-            "DELETE FROM ai_rate_limits
-             WHERE created_at < DATE_SUB(NOW(), INTERVAL 2 DAY)"
-        )->execute();
+            "INSERT INTO ai_rate_limits (user_id, action_name) VALUES (?, ?)"
+        )->execute([$userId, $action]);
+
+        return true;
+    } catch (\Throwable $e) {
+        iotzy_log_ai_nonfatal('rate_limit', $e);
+        return true;
     }
-
-    // Hitung request dalam window aktif
-    $stmt = $db->prepare(
-        "SELECT COUNT(*) FROM ai_rate_limits
-         WHERE user_id = ? AND action_name = ?
-           AND created_at >= DATE_SUB(NOW(), INTERVAL " . (int)AI_RATE_LIMIT_WINDOW_SEC . " SECOND)"
-    );
-    $stmt->execute([$userId, $action]);
-    $count = (int)$stmt->fetchColumn();
-
-    if ($count >= AI_RATE_LIMIT_MAX) {
-        return false;
-    }
-
-    // Catat request baru
-    $db->prepare(
-        "INSERT INTO ai_rate_limits (user_id, action_name) VALUES (?, ?)"
-    )->execute([$userId, $action]);
-
-    return true;
 }
 
 // ============================================================================
@@ -529,58 +591,63 @@ function iotzy_build_history_text(array $rows): string
 
 function iotzy_get_history(int $userId, PDO $db, string $command = ''): string
 {
-    $stmt = $db->prepare(
-        "SELECT sender, message, platform, created_at
-         FROM ai_chat_history
-         WHERE user_id = ?
-         ORDER BY created_at DESC
-         LIMIT " . (int)AI_HISTORY_KEEP
-    );
-    $stmt->execute([$userId]);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    if (empty($rows)) return '';
+    try {
+        $stmt = $db->prepare(
+            "SELECT sender, message, platform, created_at
+             FROM ai_chat_history
+             WHERE user_id = ?
+             ORDER BY created_at DESC
+             LIMIT " . (int)AI_HISTORY_KEEP
+        );
+        $stmt->execute([$userId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (empty($rows)) return '';
 
-    // Ambil N pesan terbaru sebagai sliding window wajib
-    $sliding = array_slice($rows, 0, min(AI_HISTORY_MIN_SLIDING, AI_HISTORY_SEND));
-    $picked  = $sliding;
+        // Ambil N pesan terbaru sebagai sliding window wajib
+        $sliding = array_slice($rows, 0, min(AI_HISTORY_MIN_SLIDING, AI_HISTORY_SEND));
+        $picked  = $sliding;
 
-    // Relevance scoring untuk sisa history
-    $keywords = iotzy_extract_keywords($command);
-    $left     = array_slice($rows, count($sliding));
-    $scored   = [];
-    foreach ($left as $r) {
-        $scored[] = [
-            'score' => iotzy_relevance_score((string)($r['message'] ?? ''), $keywords),
-            'row'   => $r,
-        ];
-    }
-    usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
+        // Relevance scoring untuk sisa history
+        $keywords = iotzy_extract_keywords($command);
+        $left     = array_slice($rows, count($sliding));
+        $scored   = [];
+        foreach ($left as $r) {
+            $scored[] = [
+                'score' => iotzy_relevance_score((string)($r['message'] ?? ''), $keywords),
+                'row'   => $r,
+            ];
+        }
+        usort($scored, fn($a, $b) => $b['score'] <=> $a['score']);
 
-    // Tambah berdasarkan relevansi
-    foreach ($scored as $s) {
-        if (count($picked) >= AI_HISTORY_SEND) break;
-        if ($s['score'] <= 0) break;
-        $picked[] = $s['row'];
-    }
-
-    // Isi sisa kuota dengan pesan terlama jika masih ada slot
-    if (count($picked) < AI_HISTORY_SEND) {
-        $pickedKeys = array_map(fn($p) => $p['created_at'] . '|' . $p['message'], $picked);
-        foreach ($rows as $r) {
+        // Tambah berdasarkan relevansi
+        foreach ($scored as $s) {
             if (count($picked) >= AI_HISTORY_SEND) break;
-            $key = $r['created_at'] . '|' . $r['message'];
-            if (!in_array($key, $pickedKeys, true)) {
-                $picked[]      = $r;
-                $pickedKeys[]  = $key;
+            if ($s['score'] <= 0) break;
+            $picked[] = $s['row'];
+        }
+
+        // Isi sisa kuota dengan pesan terlama jika masih ada slot
+        if (count($picked) < AI_HISTORY_SEND) {
+            $pickedKeys = array_map(fn($p) => $p['created_at'] . '|' . $p['message'], $picked);
+            foreach ($rows as $r) {
+                if (count($picked) >= AI_HISTORY_SEND) break;
+                $key = $r['created_at'] . '|' . $r['message'];
+                if (!in_array($key, $pickedKeys, true)) {
+                    $picked[]      = $r;
+                    $pickedKeys[]  = $key;
+                }
             }
         }
+
+        // Sort kronologis sebelum dikirim ke AI
+        $picked = array_slice($picked, 0, AI_HISTORY_SEND);
+        usort($picked, fn($a, $b) => strcmp((string)$a['created_at'], (string)$b['created_at']));
+
+        return iotzy_build_history_text($picked);
+    } catch (\Throwable $e) {
+        iotzy_log_ai_nonfatal('history', $e);
+        return '';
     }
-
-    // Sort kronologis sebelum dikirim ke AI
-    $picked = array_slice($picked, 0, AI_HISTORY_SEND);
-    usort($picked, fn($a, $b) => strcmp((string)$a['created_at'], (string)$b['created_at']));
-
-    return iotzy_build_history_text($picked);
 }
 
 // ============================================================================
@@ -595,47 +662,56 @@ function iotzy_save_message(int $userId, PDO $db, string $sender, string $msg, s
         $msg = mb_substr($msg, 0, AI_CHAT_MAX_MESSAGE_LEN);
     }
 
-    // Simpan pesan baru
-    $db->prepare(
-        "INSERT INTO ai_chat_history (user_id, sender, message, platform) VALUES (?, ?, ?, ?)"
-    )->execute([$userId, $sender, $msg, $platform]);
+    try {
+        // Simpan pesan baru
+        $db->prepare(
+            "INSERT INTO ai_chat_history (user_id, sender, message, platform) VALUES (?, ?, ?, ?)"
+        )->execute([$userId, $sender, $msg, $platform]);
+    } catch (\Throwable $e) {
+        iotzy_log_ai_nonfatal('history_write', $e);
+        return;
+    }
 
-    // Arsip pesan yang akan dihapus (overflow)
-    $db->prepare(
-        "INSERT INTO ai_chat_history_archive (user_id, sender, message, platform, created_at)
-         SELECT user_id, sender, message, platform, created_at
-         FROM ai_chat_history
-         WHERE user_id = ?
-           AND id NOT IN (
-               SELECT id FROM (
-                   SELECT id FROM ai_chat_history
-                   WHERE user_id = ?
-                   ORDER BY created_at DESC
-                   LIMIT " . (int)AI_HISTORY_KEEP . "
-               ) AS tmp
-           )"
-    )->execute([$userId, $userId]);
+    try {
+        // Arsip pesan yang akan dihapus (overflow)
+        $db->prepare(
+            "INSERT INTO ai_chat_history_archive (user_id, sender, message, platform, created_at)
+             SELECT user_id, sender, message, platform, created_at
+             FROM ai_chat_history
+             WHERE user_id = ?
+               AND id NOT IN (
+                   SELECT id FROM (
+                       SELECT id FROM ai_chat_history
+                       WHERE user_id = ?
+                       ORDER BY created_at DESC
+                       LIMIT " . (int)AI_HISTORY_KEEP . "
+                   ) AS tmp
+               )"
+        )->execute([$userId, $userId]);
 
-    // Hapus overflow dari tabel aktif
-    $db->prepare(
-        "DELETE FROM ai_chat_history
-         WHERE user_id = ?
-           AND id NOT IN (
-               SELECT id FROM (
-                   SELECT id FROM ai_chat_history
-                   WHERE user_id = ?
-                   ORDER BY created_at DESC
-                   LIMIT " . (int)AI_HISTORY_KEEP . "
-               ) AS tmp
-           )"
-    )->execute([$userId, $userId]);
+        // Hapus overflow dari tabel aktif
+        $db->prepare(
+            "DELETE FROM ai_chat_history
+             WHERE user_id = ?
+               AND id NOT IN (
+                   SELECT id FROM (
+                       SELECT id FROM ai_chat_history
+                       WHERE user_id = ?
+                       ORDER BY created_at DESC
+                       LIMIT " . (int)AI_HISTORY_KEEP . "
+                   ) AS tmp
+               )"
+        )->execute([$userId, $userId]);
 
-    // Bersihkan arsip lama (> N hari)
-    $db->prepare(
-        "DELETE FROM ai_chat_history_archive
-         WHERE user_id = ?
-           AND created_at < DATE_SUB(NOW(), INTERVAL " . (int)AI_HISTORY_ARCHIVE_KEEP_DAYS . " DAY)"
-    )->execute([$userId]);
+        // Bersihkan arsip lama (> N hari)
+        $db->prepare(
+            "DELETE FROM ai_chat_history_archive
+             WHERE user_id = ?
+               AND created_at < DATE_SUB(NOW(), INTERVAL " . (int)AI_HISTORY_ARCHIVE_KEEP_DAYS . " DAY)"
+        )->execute([$userId]);
+    } catch (\Throwable $e) {
+        iotzy_log_ai_nonfatal('history_cleanup', $e);
+    }
 }
 
 // ============================================================================
@@ -660,27 +736,35 @@ function iotzy_validate_builtin_automation_column(?string $target): ?string
 function iotzy_call_api(string $apiKey, array $payload): array
 {
     $lastErr = '';
+    $useCurl = function_exists('curl_init');
     // Loop AI_MAX_RETRIES kali (bukan +1)
     for ($i = 1; $i <= AI_MAX_RETRIES; $i++) {
         error_log("[IoTzy AI] API attempt {$i}/" . AI_MAX_RETRIES);
-        $ch = curl_init('https://openrouter.ai/api/v1/chat/completions');
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_CONNECTTIMEOUT => AI_CONNECT_TIMEOUT,
-            CURLOPT_TIMEOUT        => AI_TIMEOUT_SECONDS,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Bearer ' . $apiKey,
-                'Content-Type: application/json',
-                'HTTP-Referer: ' . (defined('APP_URL')  ? APP_URL  : ''),
-                'X-Title: '      . (defined('APP_NAME') ? APP_NAME : 'IOTZY'),
-            ],
-            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        ]);
-        $raw  = curl_exec($ch);
-        $err  = curl_error($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        if ($useCurl) {
+            $ch = curl_init('https://openrouter.ai/api/v1/chat/completions');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_CONNECTTIMEOUT => AI_CONNECT_TIMEOUT,
+                CURLOPT_TIMEOUT        => AI_TIMEOUT_SECONDS,
+                CURLOPT_HTTPHEADER     => [
+                    'Authorization: Bearer ' . $apiKey,
+                    'Content-Type: application/json',
+                    'HTTP-Referer: ' . (defined('APP_URL')  ? APP_URL  : ''),
+                    'X-Title: '      . (defined('APP_NAME') ? APP_NAME : 'IOTZY'),
+                ],
+                CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
+            ]);
+            $raw  = curl_exec($ch);
+            $err  = curl_error($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+        } else {
+            $streamResponse = iotzy_call_api_via_stream($apiKey, $payload);
+            $raw = $streamResponse['body'];
+            $err = $streamResponse['error'];
+            $code = (int)$streamResponse['code'];
+        }
 
         if (!$err && $code === 200) {
             $res = json_decode($raw, true);
@@ -741,10 +825,14 @@ function iotzy_estimate_tokens(string $text): int
 function iotzy_log_token_metrics(PDO $db, int $userId, int $promptTokens, int $historyTokens, int $contextTokens, int $responseTokens): void
 {
     // Tabel sudah ada di schema migration — tidak perlu CREATE TABLE di sini
-    $db->prepare(
-        "INSERT INTO ai_token_metrics (user_id, prompt_tokens, history_tokens, context_tokens, response_tokens)
-         VALUES (?, ?, ?, ?, ?)"
-    )->execute([$userId, $promptTokens, $historyTokens, $contextTokens, $responseTokens]);
+    try {
+        $db->prepare(
+            "INSERT INTO ai_token_metrics (user_id, prompt_tokens, history_tokens, context_tokens, response_tokens)
+             VALUES (?, ?, ?, ?, ?)"
+        )->execute([$userId, $promptTokens, $historyTokens, $contextTokens, $responseTokens]);
+    } catch (\Throwable $e) {
+        iotzy_log_ai_nonfatal('token_metrics', $e);
+    }
 }
 
 // ============================================================================
@@ -860,10 +948,15 @@ function parse_nl_to_action(
 
     iotzy_save_message($userId, $db, 'user', $command, $platform);
 
-    $ctxText = iotzy_trim_context_for_prompt(
-        iotzy_format_context($userId, $db, $sessionStart, $cvState),
-        $command
-    );
+    try {
+        $ctxText = iotzy_trim_context_for_prompt(
+            iotzy_format_context($userId, $db, $sessionStart, $cvState),
+            $command
+        );
+    } catch (\Throwable $e) {
+        iotzy_log_ai_nonfatal('context', $e);
+        $ctxText = "Konteks dashboard lengkap sementara tidak tersedia. Fokus pada intent pengguna, data perangkat yang disebut jelas, dan balas dengan tindakan aman.";
+    }
     $history = iotzy_get_history($userId, $db, $command);
     $time    = date('Y-m-d H:i:s');
     $day     = date('l');
@@ -1202,31 +1295,35 @@ function execute_ai_actions(int $userId, array $parsed): array
                     break;
 
                 case 'update_cv_config':
-                    $db->prepare(
-                        "UPDATE user_settings SET
-                            cv_min_confidence    = COALESCE(?, cv_min_confidence),
-                            cv_dark_threshold    = COALESCE(?, cv_dark_threshold),
-                            cv_bright_threshold  = COALESCE(?, cv_bright_threshold),
-                            cv_human_rules_enabled = COALESCE(?, cv_human_rules_enabled),
-                            cv_light_rules_enabled = COALESCE(?, cv_light_rules_enabled)
-                         WHERE user_id = ?"
-                    )->execute([
-                        $a['min_confidence']  ?? null,
-                        $a['dark_threshold']  ?? null,
-                        $a['bright_threshold'] ?? null,
-                        isset($a['human_enabled']) ? ($a['human_enabled'] ? 1 : 0) : null,
-                        isset($a['light_enabled']) ? ($a['light_enabled'] ? 1 : 0) : null,
+                    $cameraBundle = getUserCameraBundle($userId, $db);
+                    $cameraId = (int)($cameraBundle['camera']['id'] ?? 0);
+                    iotzyPersistCvConfig(
+                        $db,
                         $userId,
-                    ]);
+                        $cameraId,
+                        [
+                            'minConfidence' => $a['min_confidence'] ?? null,
+                            'darkThreshold' => $a['dark_threshold'] ?? null,
+                            'brightThreshold' => $a['bright_threshold'] ?? null,
+                            'humanEnabled' => $a['human_enabled'] ?? null,
+                            'lightEnabled' => $a['light_enabled'] ?? null,
+                        ],
+                        getUserSettings($userId) ?? null,
+                        $cameraBundle['camera_settings'] ?? null
+                    );
                     $result['executed'][] = 'cv_config_updated';
                     break;
 
                 case 'update_cv_rules':
-                    $stmtOld = $db->prepare("SELECT cv_rules FROM user_settings WHERE user_id = ? LIMIT 1");
-                    $stmtOld->execute([$userId]);
-                    $oldR = json_decode((string)$stmtOld->fetchColumn(), true) ?: [];
-                    $newR = array_replace_recursive($oldR, $a['rules'] ?? []);
-                    $db->prepare("UPDATE user_settings SET cv_rules = ? WHERE user_id = ?")->execute([json_encode($newR), $userId]);
+                    $cameraBundle = getUserCameraBundle($userId, $db);
+                    $cameraId = (int)($cameraBundle['camera']['id'] ?? 0);
+                    $oldR = array_replace_recursive(
+                        iotzyDefaultCvRules(),
+                        iotzyJsonDecode($cameraBundle['camera_settings']['cv_rules'] ?? null, []),
+                        iotzyJsonDecode((getUserSettings($userId) ?? [])['cv_rules'] ?? null, [])
+                    );
+                    $newR = array_replace_recursive($oldR, (array)($a['rules'] ?? []));
+                    iotzyPersistCvRules($db, $userId, $cameraId, $newR);
                     $result['executed'][] = 'cv_rules';
                     break;
 
