@@ -69,6 +69,27 @@ function renderCameraDeviceSelect(error = null) {
   select.disabled = !devices.length && !navigator.mediaDevices?.getUserMedia;
 }
 
+function setCVPanelSystemStatus(text, className = "muted") {
+  const el = document.getElementById("cvSystemStatus");
+  if (!el) return;
+  el.textContent = text;
+  el.className = `status-val ${className}`.trim();
+}
+
+function resetCVStageReadouts() {
+  const presence = document.getElementById("cvPresenceStatus");
+  const confidence = document.getElementById("cvConfidence");
+  const brightnessLabel = document.getElementById("cvBrightnessLabel");
+  const brightnessBar = document.getElementById("cvBrightnessBar");
+  if (presence) {
+    presence.textContent = "Tidak Terdeteksi";
+    presence.className = "status-val muted";
+  }
+  if (confidence) confidence.textContent = "0%";
+  if (brightnessLabel) brightnessLabel.textContent = "0%";
+  if (brightnessBar) brightnessBar.style.width = "0%";
+}
+
 async function startCamera() {
   try {
     if (STATE.camera.stream) {
@@ -86,11 +107,14 @@ async function startCamera() {
     updateCameraElements(true);
     toggleCameraButtons(true);
     toggleCVActionButtons();
+    setCVPanelSystemStatus("Kamera Aktif", "ok");
+    resetCVStageReadouts();
     await listCameraDevices({ ensureLabels: true });
     return true;
   } catch (error) {
     showToast(`Gagal akses kamera: ${error.message}`, "error");
     STATE.camera.listError = error?.message || "unknown";
+    setCVPanelSystemStatus("Akses Kamera Gagal", "");
     renderCameraDeviceSelect(error);
     return false;
   }
@@ -108,6 +132,10 @@ function stopCamera() {
   updateCameraElements(false);
   toggleCameraButtons(false);
   toggleCVActionButtons();
+  setCVPanelSystemStatus("Tidak Aktif", "muted");
+  resetCVStageReadouts();
+  const hud = document.getElementById("cvDetectionInfo");
+  if (hud) hud.style.display = "none";
 }
 
 async function toggleCamera() {

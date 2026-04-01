@@ -121,7 +121,7 @@ const cvUI = (() => {
      */
     function _onBrightnessUpdate(brightness, condition) {
         const pct  = (brightness * 100).toFixed(1) + '%';
-        const map  = { dark: '🌙 Gelap', normal: '☁️ Normal', bright: '☀️ Terang' };
+        const map  = { dark: 'Gelap', normal: 'Normal', bright: 'Terang' };
 
         const bEl  = document.getElementById('cvBrightness');
         const blEl = document.getElementById('cvBrightnessLabel');
@@ -180,10 +180,10 @@ const cvUI = (() => {
         const el = document.getElementById('cvSystemStatus');
         if (!el) return;
         const map = {
-            ready:    ['✅ Siap',           'ok'],
-            loading:  ['⏳ Memuat…',        'muted'],
-            error:    ['❌ Error',           ''],
-            inactive: ['⚪ Tidak Aktif',     'muted'],
+            ready:    ['Siap',         'ok'],
+            loading:  ['Memuat...',    'muted'],
+            error:    ['Error',        ''],
+            inactive: ['Tidak Aktif',  'muted'],
         };
         const [txt, cls] = map[status] || map.inactive;
         el.textContent = txt;
@@ -220,7 +220,7 @@ const cvUI = (() => {
             return `<label class="cv-dev-cb-item ${checked ? 'checked' : ''}" style="margin-bottom:8px">
                 <input type="checkbox" name="${name}" value="${id}" ${checked ? 'checked' : ''}
                     onchange="this.closest('label').classList.toggle('checked', this.checked)"
-                    style="width:14px;height:14px;accent-color:var(--a);flex-shrink:0">
+                    style="width:14px;height:14px;accent-color:var(--accent);flex-shrink:0">
                 <i class="fas ${dev.icon || 'fa-plug'}"></i>
                 <span>${_esc(dev.name)}</span>
             </label>`;
@@ -245,8 +245,9 @@ const cvUI = (() => {
 
         if (!devKeys.length) {
             container.innerHTML = `<div class="cv-no-dev">
-                <i class="fas fa-microchip" style="font-size:20px;display:block;margin-bottom:8px;opacity:.3"></i>
+                <i class="fas fa-microchip"></i>
                 Belum ada perangkat ditambahkan
+                <div class="muted" style="margin-top:6px;font-size:.74rem">Tambahkan perangkat lebih dulu agar rule CV bisa diarahkan ke aksi yang tepat.</div>
             </div>`;
             return;
         }
@@ -259,7 +260,7 @@ const cvUI = (() => {
                 return `<label class="cv-dev-cb-item ${checked ? 'checked' : ''}" data-trigger="${triggerId}" data-id="${id}">
                     <input type="checkbox" value="${id}" ${checked ? 'checked' : ''}
                         onchange="cvUI.updateCVRule('${triggerId}', this)"
-                        style="width:14px;height:14px;accent-color:var(--a);flex-shrink:0">
+                        style="width:14px;height:14px;accent-color:var(--accent);flex-shrink:0">
                     <i class="fas ${dev.icon || 'fa-plug'}"></i>
                     <span>${_esc(dev.name)}</span>
                 </label>`;
@@ -278,37 +279,45 @@ const cvUI = (() => {
                 const onFalseTxt = _humanActionLabel(r.onFalse);
                 
                 return `
-                <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:12px;margin-bottom:10px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                        <b>Jika jumlah orang ${condTxt}</b>
-                        <button onclick="cvUI.deleteHumanRule(${i})" style="color:var(--red);background:none;border:none;cursor:pointer"><i class="fas fa-trash"></i></button>
+                <div class="cv-rule-card">
+                    <div class="cv-rule-card-head">
+                        <div class="cv-rule-title">Jika jumlah orang ${condTxt}</div>
+                        <button class="cv-rule-delete" onclick="cvUI.deleteHumanRule(${i})" title="Hapus aturan">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
-                    <div style="font-size:12px;color:var(--ink-4);margin-bottom:8px">
-                        Perangkat: <b>${devsText || '-'}</b>
+                    <div class="cv-rule-meta">
+                        Perangkat target: <strong>${devsText || '-'}</strong>
                     </div>
-                    <div style="font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                        <div style="background:var(--green-bg);color:var(--green-dim);padding:6px;border-radius:6px;text-align:center">
-                            Memenuhi: <br><b>${onTrueTxt || '-'}</b>
+                    <div class="cv-rule-actions">
+                        <div class="cv-rule-action true">
+                            Memenuhi
+                            <strong>${onTrueTxt || '-'}</strong>
                         </div>
-                        <div style="background:var(--red-bg);color:var(--red-dim);padding:6px;border-radius:6px;text-align:center">
-                            Tidak Memenuhi: <br><b>${onFalseTxt || '-'}</b>
+                        <div class="cv-rule-action false">
+                            Tidak Memenuhi
+                            <strong>${onFalseTxt || '-'}</strong>
                         </div>
                     </div>
                 </div>`;
             }).join('');
         } else {
-            humanRulesHtml = `<div style="text-align:center;padding:16px;color:var(--ink-5);font-size:13px">Belum ada aturan jumlah orang.</div>`;
+            humanRulesHtml = `<div class="cv-empty-state">
+                <i class="fas fa-users-slash"></i>
+                Belum ada aturan jumlah orang.
+                <div class="muted" style="margin-top:6px;font-size:.74rem">Tambahkan rule agar perangkat bisa merespons jumlah orang di frame.</div>
+            </div>`;
         }
 
         // Tampilan UI utama panel otomasi CV
         container.innerHTML = `
-        <div class="cv-auto-section" style="margin-bottom:10px">
+        <div class="cv-auto-section" style="margin-bottom:12px">
             <div class="cv-auto-head">
                 <div>
                     <div class="cv-auto-title">
-                        <i class="fas fa-users" style="color:var(--a);margin-right:6px"></i>Automasi Jumlah Orang
+                        <i class="fas fa-users" style="color:var(--accent);margin-right:6px"></i>Automasi Jumlah Orang
                     </div>
-                    <div class="cv-auto-sub">Aksi berdasarkan jumlah deteksi manusia</div>
+                    <div class="cv-auto-sub">Rule ini aktif saat deteksi AI membaca jumlah orang pada frame kamera.</div>
                 </div>
                 <label class="toggle-wrapper">
                     <input type="checkbox" class="toggle-input" id="cvHumanToggle" ${humanR.enabled ? 'checked' : ''}
@@ -318,7 +327,7 @@ const cvUI = (() => {
             </div>
             <div class="cv-auto-body">
                 ${humanRulesHtml}
-                <button onclick="cvUI.showAddHumanRuleModal()" class="btn-primary" style="width:100%;padding:10px;margin-top:8px">
+                <button onclick="cvUI.showAddHumanRuleModal()" class="btn-primary" style="width:100%;padding:11px;margin-top:8px;justify-content:center">
                     <i class="fas fa-plus"></i> Tambah Aturan
                 </button>
             </div>
@@ -330,7 +339,7 @@ const cvUI = (() => {
                     <div class="cv-auto-title">
                         <i class="fas fa-sun" style="color:var(--amber);margin-right:6px"></i>Analisis Cahaya
                     </div>
-                    <div class="cv-auto-sub">Aksi berdasarkan kondisi cahaya kamera</div>
+                    <div class="cv-auto-sub">Nyalakan atau matikan perangkat saat frame masuk kategori gelap atau terang.</div>
                 </div>
                 <label class="toggle-wrapper">
                     <input type="checkbox" class="toggle-input" id="cvLightToggle" ${lightR.enabled ? 'checked' : ''}
@@ -341,7 +350,7 @@ const cvUI = (() => {
             <div class="cv-auto-body">
                 <div>
                     <span class="cv-trigger-label">
-                        <i class="fas fa-moon" style="color:var(--ink-4);margin-right:4px"></i>Nyalakan saat gelap
+                        <i class="fas fa-moon" style="color:var(--text-secondary);margin-right:4px"></i>Nyalakan Saat Gelap
                     </span>
                     <div class="cv-device-list" id="cvOnDarkList">
                         ${devCheckboxes(lightR.onDark, 'light_onDark')}
@@ -349,7 +358,7 @@ const cvUI = (() => {
                 </div>
                 <div>
                     <span class="cv-trigger-label">
-                        <i class="fas fa-sun" style="color:var(--amber);margin-right:4px"></i>Matikan saat terang
+                        <i class="fas fa-sun" style="color:var(--amber);margin-right:4px"></i>Matikan Saat Terang
                     </span>
                     <div class="cv-device-list" id="cvOnBrightList">
                         ${devCheckboxes(lightR.onBright, 'light_onBright')}
@@ -357,28 +366,28 @@ const cvUI = (() => {
                 </div>
                 <div class="cv-threshold-grid">
                     <div class="cv-field">
-                        <label>🌙 Ambang Gelap</label>
+                        <label><i class="fas fa-moon" style="color:var(--text-secondary);margin-right:6px"></i>Ambang Gelap</label>
                         <div style="display:flex;align-items:center;gap:8px">
                             <input type="range" id="cvDarkThreshold"
                                 value="${Math.round((CV_CONFIG?.light?.darkThreshold || 0.30) * 100)}"
                                 min="5" max="95" step="1"
                                 style="flex:1;accent-color:var(--blue)"
                                 oninput="cvUI.updateLightThreshold('dark', this.value); document.getElementById('cvDarkVal').textContent=this.value+'%'">
-                            <span id="cvDarkVal" style="min-width:36px;text-align:right;font-weight:700;font-size:12px;color:var(--ink-3)">${Math.round((CV_CONFIG?.light?.darkThreshold || 0.30) * 100)}%</span>
+                            <span id="cvDarkVal" style="min-width:36px;text-align:right;font-weight:700;font-size:12px;color:var(--text-secondary)">${Math.round((CV_CONFIG?.light?.darkThreshold || 0.30) * 100)}%</span>
                         </div>
-                        <div style="font-size:10px;color:var(--ink-5);margin-top:2px">Kecerahan di bawah nilai ini = <b>Gelap</b></div>
+                        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Kecerahan di bawah nilai ini dianggap <b>gelap</b>.</div>
                     </div>
                     <div class="cv-field">
-                        <label>☀️ Ambang Terang</label>
+                        <label><i class="fas fa-sun" style="color:var(--amber);margin-right:6px"></i>Ambang Terang</label>
                         <div style="display:flex;align-items:center;gap:8px">
                             <input type="range" id="cvBrightThreshold"
                                 value="${Math.round((CV_CONFIG?.light?.brightThreshold || 0.70) * 100)}"
                                 min="5" max="95" step="1"
                                 style="flex:1;accent-color:var(--amber)"
                                 oninput="cvUI.updateLightThreshold('bright', this.value); document.getElementById('cvBrightVal').textContent=this.value+'%'">
-                            <span id="cvBrightVal" style="min-width:36px;text-align:right;font-weight:700;font-size:12px;color:var(--ink-3)">${Math.round((CV_CONFIG?.light?.brightThreshold || 0.70) * 100)}%</span>
+                            <span id="cvBrightVal" style="min-width:36px;text-align:right;font-weight:700;font-size:12px;color:var(--text-secondary)">${Math.round((CV_CONFIG?.light?.brightThreshold || 0.70) * 100)}%</span>
                         </div>
-                        <div style="font-size:10px;color:var(--ink-5);margin-top:2px">Kecerahan di atas nilai ini = <b>Terang</b></div>
+                        <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Kecerahan di atas nilai ini dianggap <b>terang</b>.</div>
                     </div>
                 </div>
                 <div class="cv-delay-row">
@@ -395,7 +404,7 @@ const cvUI = (() => {
         </div>
 
         <button onclick="cvUI.saveCVRules()"
-            class="btn-primary" style="width:100%;justify-content:center;margin-top:6px">
+            class="btn-primary" style="width:100%;justify-content:center;margin-top:6px;padding:11px 16px">
             <i class="fas fa-floppy-disk"></i> Simpan Pengaturan CV
         </button>`;
     }

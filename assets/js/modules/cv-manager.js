@@ -3,6 +3,13 @@ function setCVModelStatus(label) {
   if (el) el.textContent = label;
 }
 
+function setCVHeadlineStatus(text, className = "muted") {
+  const el = document.getElementById("cvSystemStatus");
+  if (!el) return;
+  el.textContent = text;
+  el.className = `status-val ${className}`.trim();
+}
+
 function getCVBackendSuffix() {
   if (typeof cvDetector === "undefined" || !cvDetector.backendLabel) return "";
   return ` (${cvDetector.backendLabel})`;
@@ -65,10 +72,7 @@ async function initializeCV() {
     updateCVBadge("ready", "Siap");
     setCVModelStatus(`Siap${getCVBackendSuffix()}`);
     if (document.getElementById("cvLoadingStatus")) document.getElementById("cvLoadingStatus").classList.add("hidden");
-    if (document.getElementById("cvSystemStatus")) {
-      document.getElementById("cvSystemStatus").textContent = `Model siap${getCVBackendSuffix()}`;
-      document.getElementById("cvSystemStatus").className   = "status-val ok";
-    }
+    setCVHeadlineStatus(`Model Siap${getCVBackendSuffix()}`, "ok");
     if (document.getElementById("btnStartCV"))   document.getElementById("btnStartCV").disabled   = false;
     if (document.getElementById("btnLoadModel")) document.getElementById("btnLoadModel").disabled = true;
 
@@ -112,10 +116,11 @@ function startCVDetection() {
   if (document.getElementById("btnStopCV"))  document.getElementById("btnStopCV").disabled  = false;
   if (document.getElementById("cvDetectionInfo")) document.getElementById("cvDetectionInfo").style.display = "flex";
   
-  updateCVBadge("active", "Aktif");
-  setCVModelStatus(`Aktif${getCVBackendSuffix()}`);
-  if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
-  showToast("Deteksi CV dimulai", "info");
+    updateCVBadge("active", "Aktif");
+    setCVModelStatus(`Aktif${getCVBackendSuffix()}`);
+    setCVHeadlineStatus("Deteksi Berjalan", "ok");
+    if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
+    showToast("Deteksi CV dimulai", "info");
 }
 
 function stopCVDetection() {
@@ -133,6 +138,7 @@ function stopCVDetection() {
   
   updateCVBadge("ready", "Siap");
   setCVModelStatus(CV.modelLoaded ? `Siap${getCVBackendSuffix()}` : "Idle");
+  setCVHeadlineStatus(CV.modelLoaded ? `Model Siap${getCVBackendSuffix()}` : "Kamera Aktif", CV.modelLoaded ? "ok" : "muted");
   if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
   showToast("Deteksi CV dihentikan", "info");
 }
