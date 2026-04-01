@@ -1103,6 +1103,573 @@ function updateUserCVState(int $userId, array $data, ?PDO $db = null): array
     return getUserCVState($userId, $db, $data);
 }
 
+function iotzyTableExists(PDO $db, string $table): bool
+{
+    static $cache = [];
+    $cacheKey = spl_object_id($db) . ':' . $table;
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+
+    try {
+        $stmt = $db->prepare(
+            "SELECT 1
+             FROM information_schema.tables
+             WHERE table_schema = DATABASE()
+               AND table_name = ?
+             LIMIT 1"
+        );
+        $stmt->execute([$table]);
+        return $cache[$cacheKey] = (bool)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return $cache[$cacheKey] = false;
+    }
+}
+
+function iotzyCameraStreamFeatureReady(?PDO $db = null): bool
+{
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return false;
+    }
+
+    return iotzyTableExists($db, 'camera_stream_sessions')
+        && iotzyTableExists($db, 'camera_stream_candidates');
+}
+
+function iotzyNormalizeCameraStreamKey(mixed $value, int $userId, string $fallbackCameraKey = ''): string
+{
+    $seed = trim((string)$value);
+    if ($seed === '') {
+        $seed = trim($fallbackCameraKey) !== '' ? ($fallbackCameraKey . '-live') : 'camera-live';
+    }
+
+    $normalized = strtolower($seed);
+    $normalized = preg_replace('/[^a-z0-9:_-]+/', '-', $normalized);
+    $normalized = trim((string)$normalized, '-_:');
+    if ($normalized === '') {
+        $normalized = 'camera-live';
+    }
+
+    $prefix = 'u' . max(0, $userId) . '-';
+    if (!str_starts_with($normalized, $prefix)) {
+        $normalized = $prefix . ltrim($normalized, '-');
+    }
+
+    return substr($normalized, 0, 120);
+}
+
+function iotzyNormalizeWebRtcSdp(mixed $value): string
+{
+    $normalized = trim((string)$value);
+    if ($normalized === '') {
+        return '';
+    }
+
+    if (function_exists('mb_substr')) {
+        return mb_substr($normalized, 0, 200000);
+    }
+
+    return substr($normalized, 0, 200000);
+}
+
+function iotzyNormalizeWebRtcCandidatePayload(mixed $value): string
+{
+    if (is_array($value) || is_object($value)) {
+        $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return is_string($encoded) ? $encoded : '';
+    }
+
+    $normalized = trim((string)$value);
+    if ($normalized === '') {
+        return '';
+    }
+
+    if (function_exists('mb_substr')) {
+        return mb_substr($normalized, 0, 120000);
+    }
+
+    return substr($normalized, 0, 120000);
+}
+
+function iotzyCameraStreamFeatureStatus(?PDO $db = null): array
+{
+    $ready = iotzyCameraStreamFeatureReady($db);
+    return [
+        'feature_ready' => $ready,
+        'error' => $ready ? null : 'Fitur live camera butuh tabel camera_stream_sessions dan camera_stream_candidates.',
+    ];
+}
+
+function iotzyCleanupCameraStreamSessions(PDO $db, int $userId = 0): void
+{
+    if (!iotzyCameraStreamFeatureReady($db)) {
+        return;
+    }
+
+    $userClause = $userId > 0 ? ' AND user_id = ?' : '';
+    $params = $userId > 0 ? [$userId] : [];
+
+    $db->prepare(
+        "UPDATE camera_stream_sessions
+         SET status = 'ended',
+             ended_at = COALESCE(ended_at, NOW())
+         WHERE status IN ('awaiting_viewer', 'connecting', 'live')
+           AND last_publisher_heartbeat < DATE_SUB(NOW(), INTERVAL 45 SECOND)" . $userClause
+    )->execute($params);
+
+    $db->prepare(
+        "UPDATE camera_stream_sessions
+         SET viewer_camera_key = NULL,
+             viewer_name = NULL,
+             answer_sdp = NULL,
+             status = 'awaiting_viewer',
+             last_viewer_heartbeat = NULL
+         WHERE status IN ('connecting', 'live')
+           AND viewer_camera_key IS NOT NULL
+           AND last_viewer_heartbeat IS NOT NULL
+           AND last_viewer_heartbeat < DATE_SUB(NOW(), INTERVAL 45 SECOND)" . $userClause
+    )->execute($params);
+
+    $db->exec(
+        "DELETE c
+         FROM camera_stream_candidates c
+         JOIN camera_stream_sessions s ON s.id = c.stream_session_id
+         WHERE c.created_at < DATE_SUB(NOW(), INTERVAL 20 MINUTE)
+            OR (s.status = 'ended' AND s.updated_at < DATE_SUB(NOW(), INTERVAL 1 DAY))"
+    );
+}
+
+function iotzyFetchCameraStreamSession(PDO $db, int $userId, string $streamKey): ?array
+{
+    if (!iotzyCameraStreamFeatureReady($db)) {
+        return null;
+    }
+
+    $stmt = $db->prepare(
+        "SELECT *
+         FROM camera_stream_sessions
+         WHERE user_id = ? AND stream_key = ?
+         LIMIT 1"
+    );
+    $stmt->execute([$userId, $streamKey]);
+    return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+function iotzyBuildCameraStreamSummary(array $row, string $requesterCameraKey = ''): array
+{
+    $publisherKey = trim((string)($row['publisher_camera_key'] ?? ''));
+    $viewerKey = trim((string)($row['viewer_camera_key'] ?? ''));
+    $requesterCameraKey = trim($requesterCameraKey);
+
+    return [
+        'id' => (int)($row['id'] ?? 0),
+        'stream_key' => (string)($row['stream_key'] ?? ''),
+        'camera_id' => (int)($row['camera_id'] ?? 0),
+        'publisher_camera_key' => $publisherKey,
+        'publisher_name' => (string)($row['publisher_name'] ?? 'Browser Camera'),
+        'source_label' => (string)($row['source_label'] ?? ''),
+        'viewer_camera_key' => $viewerKey,
+        'viewer_name' => (string)($row['viewer_name'] ?? ''),
+        'status' => (string)($row['status'] ?? 'idle'),
+        'started_at' => $row['started_at'] ?? null,
+        'updated_at' => $row['updated_at'] ?? null,
+        'last_publisher_heartbeat' => $row['last_publisher_heartbeat'] ?? null,
+        'last_viewer_heartbeat' => $row['last_viewer_heartbeat'] ?? null,
+        'is_owner' => $requesterCameraKey !== '' && hash_equals($publisherKey, $requesterCameraKey),
+        'is_viewer' => $requesterCameraKey !== '' && $viewerKey !== '' && hash_equals($viewerKey, $requesterCameraKey),
+        'watch_available' => (string)($row['status'] ?? '') !== 'ended'
+            && $publisherKey !== ''
+            && ($viewerKey === '' || ($requesterCameraKey !== '' && hash_equals($viewerKey, $requesterCameraKey))),
+        'is_busy' => $viewerKey !== '' && $requesterCameraKey !== '' && !hash_equals($viewerKey, $requesterCameraKey) && !hash_equals($publisherKey, $requesterCameraKey),
+        'offer_ready' => trim((string)($row['offer_sdp'] ?? '')) !== '',
+        'answer_ready' => trim((string)($row['answer_sdp'] ?? '')) !== '',
+    ];
+}
+
+function getUserCameraStreamSessions(int $userId, array $cameraContext = [], ?PDO $db = null): array
+{
+    $db = $db ?: getLocalDB();
+    if (!$db || !iotzyCameraStreamFeatureReady($db)) {
+        return [];
+    }
+
+    iotzyCleanupCameraStreamSessions($db, $userId);
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+
+    $stmt = $db->prepare(
+        "SELECT *
+         FROM camera_stream_sessions
+         WHERE user_id = ?
+           AND status <> 'ended'
+           AND last_publisher_heartbeat >= DATE_SUB(NOW(), INTERVAL 45 SECOND)
+         ORDER BY updated_at DESC
+         LIMIT 12"
+    );
+    $stmt->execute([$userId]);
+
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    return array_map(
+        static fn(array $row): array => iotzyBuildCameraStreamSummary($row, $resolvedContext['camera_key'] ?? ''),
+        $rows
+    );
+}
+
+function startUserCameraStreamSession(int $userId, array $cameraContext, array $payload = [], ?PDO $db = null): array
+{
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return ['success' => false, 'feature_ready' => false, 'error' => 'Database unavailable'];
+    }
+
+    if (!iotzyCameraStreamFeatureReady($db)) {
+        return ['success' => false] + iotzyCameraStreamFeatureStatus($db);
+    }
+
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $bundle = getUserCameraBundle($userId, $db, $cameraContext);
+    $cameraId = (int)($bundle['camera']['id'] ?? 0);
+    if ($cameraId <= 0) {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Kamera publisher tidak ditemukan'];
+    }
+
+    $offerSdp = iotzyNormalizeWebRtcSdp($payload['offer_sdp'] ?? '');
+    if ($offerSdp === '') {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Offer WebRTC belum tersedia'];
+    }
+
+    iotzyCleanupCameraStreamSessions($db, $userId);
+
+    $streamKey = iotzyNormalizeCameraStreamKey($payload['stream_key'] ?? '', $userId, $resolvedContext['camera_key'] ?? '');
+    $publisherName = iotzySanitizeCameraName($payload['publisher_name'] ?? ($resolvedContext['camera_name'] ?? 'Browser Camera'), 'Browser Camera');
+    $sourceLabel = iotzySanitizeCameraName($payload['source_label'] ?? ($resolvedContext['camera_device_label'] ?? ''), '');
+
+    $db->prepare(
+        "UPDATE camera_stream_sessions
+         SET status = 'ended',
+             ended_at = COALESCE(ended_at, NOW())
+         WHERE user_id = ?
+           AND publisher_camera_key = ?
+           AND status <> 'ended'"
+    )->execute([$userId, $resolvedContext['camera_key']]);
+
+    $db->prepare(
+        "INSERT INTO camera_stream_sessions (
+            user_id, camera_id, stream_key, publisher_camera_key, publisher_name, source_label,
+            offer_sdp, answer_sdp, status, started_at, last_publisher_heartbeat, last_viewer_heartbeat, ended_at
+         ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, NULL, 'awaiting_viewer', NOW(), NOW(), NULL, NULL
+         )
+         ON DUPLICATE KEY UPDATE
+            camera_id = VALUES(camera_id),
+            publisher_camera_key = VALUES(publisher_camera_key),
+            publisher_name = VALUES(publisher_name),
+            source_label = VALUES(source_label),
+            offer_sdp = VALUES(offer_sdp),
+            answer_sdp = NULL,
+            viewer_camera_key = NULL,
+            viewer_name = NULL,
+            status = 'awaiting_viewer',
+            started_at = NOW(),
+            last_publisher_heartbeat = NOW(),
+            last_viewer_heartbeat = NULL,
+            ended_at = NULL"
+    )->execute([
+        $userId,
+        $cameraId,
+        $streamKey,
+        $resolvedContext['camera_key'],
+        $publisherName,
+        $sourceLabel !== '' ? $sourceLabel : null,
+        $offerSdp,
+    ]);
+
+    $session = iotzyFetchCameraStreamSession($db, $userId, $streamKey);
+    if (!$session) {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Gagal membuat sesi live'];
+    }
+
+    $db->prepare("DELETE FROM camera_stream_candidates WHERE stream_session_id = ?")->execute([(int)$session['id']]);
+
+    return [
+        'success' => true,
+        'feature_ready' => true,
+        'session' => iotzyBuildCameraStreamSummary($session, $resolvedContext['camera_key']),
+        'stream_key' => $streamKey,
+    ];
+}
+
+function joinUserCameraStreamSession(int $userId, array $cameraContext, string $streamKey, ?PDO $db = null): array
+{
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return ['success' => false, 'feature_ready' => false, 'error' => 'Database unavailable'];
+    }
+
+    if (!iotzyCameraStreamFeatureReady($db)) {
+        return ['success' => false] + iotzyCameraStreamFeatureStatus($db);
+    }
+
+    iotzyCleanupCameraStreamSessions($db, $userId);
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $session = iotzyFetchCameraStreamSession($db, $userId, $streamKey);
+    if (!$session || ($session['status'] ?? '') === 'ended') {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Siaran live tidak tersedia'];
+    }
+
+    if (hash_equals((string)$session['publisher_camera_key'], (string)$resolvedContext['camera_key'])) {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Device publisher tidak perlu masuk sebagai viewer'];
+    }
+
+    $claimedViewer = trim((string)($session['viewer_camera_key'] ?? ''));
+    if ($claimedViewer !== '' && !hash_equals($claimedViewer, (string)$resolvedContext['camera_key'])) {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Siaran ini sedang dipantau device lain'];
+    }
+
+    $viewerName = iotzySanitizeCameraName($resolvedContext['camera_name'] ?? ($resolvedContext['camera_session_label'] ?? 'Viewer'), 'Viewer');
+    $status = trim((string)($session['offer_sdp'] ?? '')) !== '' ? 'connecting' : 'awaiting_viewer';
+
+    $db->prepare(
+        "UPDATE camera_stream_sessions
+         SET viewer_camera_key = ?,
+             viewer_name = ?,
+             status = ?,
+             last_viewer_heartbeat = NOW(),
+             ended_at = NULL
+         WHERE id = ?"
+    )->execute([
+        $resolvedContext['camera_key'],
+        $viewerName,
+        $status,
+        (int)$session['id'],
+    ]);
+
+    $fresh = iotzyFetchCameraStreamSession($db, $userId, $streamKey) ?: $session;
+    return [
+        'success' => true,
+        'feature_ready' => true,
+        'session' => iotzyBuildCameraStreamSummary($fresh, $resolvedContext['camera_key']),
+        'offer_sdp' => iotzyNormalizeWebRtcSdp($fresh['offer_sdp'] ?? ''),
+    ];
+}
+
+function submitUserCameraStreamAnswer(int $userId, array $cameraContext, string $streamKey, mixed $answerSdp, ?PDO $db = null): array
+{
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return ['success' => false, 'feature_ready' => false, 'error' => 'Database unavailable'];
+    }
+
+    if (!iotzyCameraStreamFeatureReady($db)) {
+        return ['success' => false] + iotzyCameraStreamFeatureStatus($db);
+    }
+
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $session = iotzyFetchCameraStreamSession($db, $userId, $streamKey);
+    if (!$session) {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Siaran live tidak ditemukan'];
+    }
+
+    if (!hash_equals((string)($session['viewer_camera_key'] ?? ''), (string)$resolvedContext['camera_key'])) {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Viewer aktif tidak cocok dengan sesi ini'];
+    }
+
+    $normalizedAnswer = iotzyNormalizeWebRtcSdp($answerSdp);
+    if ($normalizedAnswer === '') {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Answer WebRTC belum tersedia'];
+    }
+
+    $db->prepare(
+        "UPDATE camera_stream_sessions
+         SET answer_sdp = ?,
+             status = 'live',
+             last_viewer_heartbeat = NOW()
+         WHERE id = ?"
+    )->execute([
+        $normalizedAnswer,
+        (int)$session['id'],
+    ]);
+
+    $fresh = iotzyFetchCameraStreamSession($db, $userId, $streamKey) ?: $session;
+    return [
+        'success' => true,
+        'feature_ready' => true,
+        'session' => iotzyBuildCameraStreamSummary($fresh, $resolvedContext['camera_key']),
+    ];
+}
+
+function pushUserCameraStreamCandidate(int $userId, array $cameraContext, string $streamKey, mixed $candidate, ?PDO $db = null): array
+{
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return ['success' => false, 'feature_ready' => false, 'error' => 'Database unavailable'];
+    }
+
+    if (!iotzyCameraStreamFeatureReady($db)) {
+        return ['success' => false] + iotzyCameraStreamFeatureStatus($db);
+    }
+
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $session = iotzyFetchCameraStreamSession($db, $userId, $streamKey);
+    if (!$session) {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Siaran live tidak ditemukan'];
+    }
+
+    $senderKey = (string)$resolvedContext['camera_key'];
+    $publisherKey = (string)($session['publisher_camera_key'] ?? '');
+    $viewerKey = (string)($session['viewer_camera_key'] ?? '');
+    $recipientKey = '';
+
+    if ($senderKey !== '' && hash_equals($publisherKey, $senderKey)) {
+        $recipientKey = $viewerKey;
+        $db->prepare("UPDATE camera_stream_sessions SET last_publisher_heartbeat = NOW() WHERE id = ?")->execute([(int)$session['id']]);
+    } elseif ($senderKey !== '' && $viewerKey !== '' && hash_equals($viewerKey, $senderKey)) {
+        $recipientKey = $publisherKey;
+        $db->prepare("UPDATE camera_stream_sessions SET last_viewer_heartbeat = NOW() WHERE id = ?")->execute([(int)$session['id']]);
+    } else {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Konteks device live tidak valid'];
+    }
+
+    $candidateJson = iotzyNormalizeWebRtcCandidatePayload($candidate);
+    if ($candidateJson === '' || $recipientKey === '') {
+        return ['success' => true, 'feature_ready' => true, 'queued' => false];
+    }
+
+    $db->prepare(
+        "INSERT INTO camera_stream_candidates (
+            stream_session_id, sender_camera_key, recipient_camera_key, candidate_json
+         ) VALUES (?, ?, ?, ?)"
+    )->execute([
+        (int)$session['id'],
+        $senderKey,
+        $recipientKey,
+        $candidateJson,
+    ]);
+
+    return ['success' => true, 'feature_ready' => true, 'queued' => true];
+}
+
+function pollUserCameraStreamUpdates(int $userId, array $cameraContext, string $streamKey, int $lastCandidateId = 0, ?PDO $db = null): array
+{
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return ['success' => false, 'feature_ready' => false, 'error' => 'Database unavailable'];
+    }
+
+    if (!iotzyCameraStreamFeatureReady($db)) {
+        return ['success' => false] + iotzyCameraStreamFeatureStatus($db);
+    }
+
+    iotzyCleanupCameraStreamSessions($db, $userId);
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $session = iotzyFetchCameraStreamSession($db, $userId, $streamKey);
+    if (!$session) {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Siaran live tidak ditemukan'];
+    }
+
+    $requesterKey = (string)$resolvedContext['camera_key'];
+    $sessionId = (int)$session['id'];
+    $publisherKey = (string)($session['publisher_camera_key'] ?? '');
+    $viewerKey = (string)($session['viewer_camera_key'] ?? '');
+
+    if ($requesterKey !== '' && hash_equals($publisherKey, $requesterKey)) {
+        $db->prepare("UPDATE camera_stream_sessions SET last_publisher_heartbeat = NOW() WHERE id = ?")->execute([$sessionId]);
+    } elseif ($requesterKey !== '' && $viewerKey !== '' && hash_equals($viewerKey, $requesterKey)) {
+        $db->prepare("UPDATE camera_stream_sessions SET last_viewer_heartbeat = NOW() WHERE id = ?")->execute([$sessionId]);
+    }
+
+    $candidateStmt = $db->prepare(
+        "SELECT id, candidate_json
+         FROM camera_stream_candidates
+         WHERE stream_session_id = ?
+           AND recipient_camera_key = ?
+           AND id > ?
+         ORDER BY id ASC
+         LIMIT 50"
+    );
+    $candidateStmt->execute([$sessionId, $requesterKey, max(0, $lastCandidateId)]);
+    $candidateRows = $candidateStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($candidateRows) {
+        $ids = array_map(static fn(array $row): int => (int)$row['id'], $candidateRows);
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $db->prepare("UPDATE camera_stream_candidates SET delivered_at = NOW() WHERE id IN ($placeholders)")->execute($ids);
+    }
+
+    $fresh = iotzyFetchCameraStreamSession($db, $userId, $streamKey) ?: $session;
+    return [
+        'success' => true,
+        'feature_ready' => true,
+        'session' => iotzyBuildCameraStreamSummary($fresh, $requesterKey),
+        'offer_sdp' => hash_equals((string)($fresh['viewer_camera_key'] ?? ''), $requesterKey)
+            ? iotzyNormalizeWebRtcSdp($fresh['offer_sdp'] ?? '')
+            : null,
+        'answer_sdp' => hash_equals((string)($fresh['publisher_camera_key'] ?? ''), $requesterKey)
+            ? iotzyNormalizeWebRtcSdp($fresh['answer_sdp'] ?? '')
+            : null,
+        'candidates' => array_map(
+            static fn(array $row): array => [
+                'id' => (int)$row['id'],
+                'candidate' => iotzyJsonDecode($row['candidate_json'] ?? '', $row['candidate_json'] ?? ''),
+            ],
+            $candidateRows
+        ),
+    ];
+}
+
+function stopUserCameraStreamSession(int $userId, array $cameraContext, string $streamKey, ?PDO $db = null): array
+{
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return ['success' => false, 'feature_ready' => false, 'error' => 'Database unavailable'];
+    }
+
+    if (!iotzyCameraStreamFeatureReady($db)) {
+        return ['success' => false] + iotzyCameraStreamFeatureStatus($db);
+    }
+
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $session = iotzyFetchCameraStreamSession($db, $userId, $streamKey);
+    if (!$session) {
+        return ['success' => true, 'feature_ready' => true, 'session' => null];
+    }
+
+    $requesterKey = (string)$resolvedContext['camera_key'];
+    $sessionId = (int)$session['id'];
+    if ($requesterKey !== '' && hash_equals((string)($session['publisher_camera_key'] ?? ''), $requesterKey)) {
+        $db->prepare(
+            "UPDATE camera_stream_sessions
+             SET status = 'ended',
+                 answer_sdp = NULL,
+                 viewer_camera_key = NULL,
+                 viewer_name = NULL,
+                 last_viewer_heartbeat = NULL,
+                 ended_at = NOW()
+             WHERE id = ?"
+        )->execute([$sessionId]);
+    } elseif ($requesterKey !== '' && hash_equals((string)($session['viewer_camera_key'] ?? ''), $requesterKey)) {
+        $db->prepare(
+            "UPDATE camera_stream_sessions
+             SET viewer_camera_key = NULL,
+                 viewer_name = NULL,
+                 answer_sdp = NULL,
+                 status = 'awaiting_viewer',
+                 last_viewer_heartbeat = NULL
+             WHERE id = ?"
+        )->execute([$sessionId]);
+    } else {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Konteks device live tidak valid'];
+    }
+
+    $db->prepare("DELETE FROM camera_stream_candidates WHERE stream_session_id = ?")->execute([$sessionId]);
+    $fresh = iotzyFetchCameraStreamSession($db, $userId, $streamKey);
+
+    return [
+        'success' => true,
+        'feature_ready' => true,
+        'session' => $fresh ? iotzyBuildCameraStreamSummary($fresh, $requesterKey) : null,
+    ];
+}
+
 function addActivityLog(
     int $userId,
     string $deviceName,

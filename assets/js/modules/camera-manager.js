@@ -124,6 +124,9 @@ async function startCamera() {
     if (typeof refreshCameraSessionContext === "function") {
       refreshCameraSessionContext({ persist: true });
     }
+    if (typeof cameraLive !== "undefined" && typeof cameraLive.onCameraStateChange === "function") {
+      cameraLive.onCameraStateChange(true);
+    }
     return true;
   } catch (error) {
     showToast(`Gagal akses kamera: ${error.message}`, "error");
@@ -150,6 +153,9 @@ function stopCamera() {
   resetCVStageReadouts();
   const hud = document.getElementById("cvDetectionInfo");
   if (hud) hud.style.display = "none";
+  if (typeof cameraLive !== "undefined" && typeof cameraLive.onCameraStateChange === "function") {
+    cameraLive.onCameraStateChange(false);
+  }
 }
 
 async function toggleCamera() {
@@ -214,6 +220,9 @@ function closeCameraSelector() {
 }
 
 async function switchCamera(deviceId) {
+  if (typeof cameraLive !== "undefined" && typeof cameraLive.isPublishing === "function" && cameraLive.isPublishing()) {
+    await cameraLive.stopPublishing({ notifyServer: true, silent: true });
+  }
   STATE.camera.selectedDeviceId = deviceId || null;
   STATE.camera.selectedDeviceLabel = getSelectedCameraDeviceLabel();
   if (typeof refreshCameraSessionContext === "function") {

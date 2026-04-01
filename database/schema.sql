@@ -367,6 +367,42 @@ CREATE TABLE `cv_state` (
   PRIMARY KEY (`camera_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE `camera_stream_sessions` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int UNSIGNED NOT NULL,
+  `camera_id` int UNSIGNED NOT NULL,
+  `stream_key` varchar(120) NOT NULL,
+  `publisher_camera_key` varchar(100) NOT NULL,
+  `publisher_name` varchar(100) NOT NULL,
+  `source_label` varchar(100) DEFAULT NULL,
+  `viewer_camera_key` varchar(100) DEFAULT NULL,
+  `viewer_name` varchar(100) DEFAULT NULL,
+  `offer_sdp` longtext DEFAULT NULL,
+  `answer_sdp` longtext DEFAULT NULL,
+  `status` enum('idle','awaiting_viewer','connecting','live','ended') NOT NULL DEFAULT 'idle',
+  `started_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `last_publisher_heartbeat` datetime DEFAULT CURRENT_TIMESTAMP,
+  `last_viewer_heartbeat` datetime DEFAULT NULL,
+  `ended_at` datetime DEFAULT NULL,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_camera_stream_sessions_stream_key` (`stream_key`),
+  KEY `idx_camera_stream_sessions_user_status` (`user_id`,`status`,`updated_at`),
+  KEY `idx_camera_stream_sessions_camera` (`camera_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `camera_stream_candidates` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `stream_session_id` int UNSIGNED NOT NULL,
+  `sender_camera_key` varchar(100) NOT NULL,
+  `recipient_camera_key` varchar(100) NOT NULL,
+  `candidate_json` longtext NOT NULL,
+  `delivered_at` datetime DEFAULT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_camera_stream_candidates_recipient` (`stream_session_id`,`recipient_camera_key`,`delivered_at`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ========================
 -- SEEDS
 -- ========================
@@ -447,5 +483,12 @@ ALTER TABLE `camera_settings`
 
 ALTER TABLE `cv_state`
   ADD CONSTRAINT `fk_cv_state_camera` FOREIGN KEY (`camera_id`) REFERENCES `cameras` (`id`) ON DELETE CASCADE;
+
+ALTER TABLE `camera_stream_sessions`
+  ADD CONSTRAINT `fk_camera_stream_sessions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_camera_stream_sessions_camera` FOREIGN KEY (`camera_id`) REFERENCES `cameras` (`id`) ON DELETE CASCADE;
+
+ALTER TABLE `camera_stream_candidates`
+  ADD CONSTRAINT `fk_camera_stream_candidates_session` FOREIGN KEY (`stream_session_id`) REFERENCES `camera_stream_sessions` (`id`) ON DELETE CASCADE;
 
 COMMIT;

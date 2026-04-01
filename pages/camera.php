@@ -81,6 +81,60 @@
           Hasil paling stabil didapat saat wajah atau tubuh berada di tengah frame dan pencahayaan tidak terlalu backlight.
         </div>
       </div>
+
+      <div class="card cv-live-card">
+        <div class="card-header">
+          <span class="card-title"><i class="fas fa-tower-broadcast"></i> Live Monitor Antar Device</span>
+          <span id="cameraLiveStatusChip" class="cv-summary-chip">Siap</span>
+        </div>
+        <div class="card-body">
+          <div class="cv-live-toolbar">
+            <div class="cv-live-toolbar-copy">
+              <div class="cv-panel-kicker">Publisher / Viewer</div>
+              <div id="cameraLivePublisherMeta" class="cv-live-meta">Gunakan tombol ini agar device lain pada akun yang sama bisa memantau kamera browser ini seperti monitor live.</div>
+            </div>
+            <div class="cv-live-actions">
+              <button id="btnStartLiveCamera" class="btn-primary btn-sm" onclick="cameraLive.startPublishing()" disabled>
+                <i class="fas fa-wifi"></i> Siarkan Live
+              </button>
+              <button id="btnStopLiveCamera" class="btn-secondary btn-sm" onclick="cameraLive.stopPublishing()" style="display:none">
+                <i class="fas fa-stop"></i> Stop Siaran
+              </button>
+            </div>
+          </div>
+
+          <div class="cv-live-grid">
+            <div class="cv-live-panel">
+              <div class="cv-live-panel-head">
+                <span>Sesi Live di Akun Ini</span>
+                <small>1 viewer aktif per siaran</small>
+              </div>
+              <div id="cameraLiveSessionList" class="cv-live-session-list">
+                <div class="cv-live-empty">Belum ada siaran aktif.</div>
+              </div>
+            </div>
+
+            <div class="cv-live-panel">
+              <div class="cv-live-panel-head">
+                <span>Monitor Viewer</span>
+                <small>Pantau device lain tanpa membuka kamera lokal</small>
+              </div>
+              <div class="cv-live-remote-stage">
+                <video id="cameraLiveRemoteVideo" autoplay playsinline muted style="display:none"></video>
+                <div id="cameraLiveViewerPlaceholder" class="cv-live-empty">
+                  Pilih sesi live dari daftar agar device ini bisa menjadi monitor.
+                </div>
+              </div>
+              <div id="cameraLiveViewerMeta" class="cv-live-meta">Mode ini menonton stream device lain pada akun yang sama.</div>
+              <div class="cv-live-actions">
+                <button id="btnStopWatchingLive" class="btn-secondary btn-sm" onclick="cameraLive.stopWatching()" style="display:none">
+                  <i class="fas fa-eye-slash"></i> Keluar dari Monitor
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="cv-stats-panel">

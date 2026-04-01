@@ -80,6 +80,12 @@ const STATE = {
     displayName:      "",
     listError:        "",
     restoreAttempted: false,
+    live: {
+      featureReady:   true,
+      sessions:       [],
+      publishedStreamKey: "",
+      watchedStreamKey: "",
+    },
   },
   cvAutoStartRequested: false,
   sessionStart: Date.now(),
@@ -835,7 +841,7 @@ async function apiPost(action, data = {}, opts = {}) {
     }
     return json;
   } catch (e) {
-    if (e.name !== "AbortError") showToast(`API error: ${action}`, "error");
+    if (e.name !== "AbortError" && opts.silentError !== true) showToast(`API error: ${action}`, "error");
     return { success: false, error: e.message };
   } finally {
     if (key && controller && ACTIVE_REQ[key] === controller) delete ACTIVE_REQ[key];

@@ -185,6 +185,14 @@ $routes = [
     'get_cv_config' => 'CVController.php',
     'save_cv_config' => 'CVController.php',
 
+    'get_camera_stream_sessions' => 'CameraStreamController.php',
+    'start_camera_stream' => 'CameraStreamController.php',
+    'join_camera_stream' => 'CameraStreamController.php',
+    'submit_camera_stream_answer' => 'CameraStreamController.php',
+    'push_camera_stream_candidate' => 'CameraStreamController.php',
+    'poll_camera_stream_updates' => 'CameraStreamController.php',
+    'stop_camera_stream' => 'CameraStreamController.php',
+
     'get_settings' => 'SettingsController.php',
     'save_settings' => 'SettingsController.php',
     'get_mqtt_templates' => 'SettingsController.php',

@@ -67,6 +67,7 @@
 <script defer src="<?= iotzyAssetUrl('js/modules/automation-engine.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/automation-ui.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/camera-manager.js') ?>"></script>
+<script defer src="<?= iotzyAssetUrl('js/modules/camera-live.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/cv-config.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/cv-detector.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/light-analyzer.js') ?>"></script>
