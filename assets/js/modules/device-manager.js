@@ -198,17 +198,25 @@ function updateDeviceUI(deviceId) {
   if (!device) return;
 
   const isOn = !!STATE.deviceStates[id];
+  const isUpdating = !!(STATE.deviceUpdating && STATE.deviceUpdating[id]);
   const dtype = getDeviceType(device);
   const isLock = (dtype === 'lock' || dtype === 'door');
   const onLabel = device.resolved_state_on_label || device.state_on_label || 'ON';
   const offLabel = device.resolved_state_off_label || device.state_off_label || 'OFF';
-
-  const g = (s) => document.getElementById(s);
+  const statusText = isLock ? (isOn ? "Terbuka" : "Terkunci") : (isOn ? "Aktif" : "Standby");
+  const iconClass = getDeviceCardIcon(device, isOn);
+  const title = `${device.name} • ${isOn ? 'ON' : 'OFF'}`;
   
   // 1. Update Every Possible Card Instance (Main Grid, Quick Control, etc.)
-  document.querySelectorAll(`[id^="card-${id}"], [id^="qc-${id}"]`).forEach(card => {
+  document.querySelectorAll(`[id^="card-${id}"], [id="qc-${id}"]`).forEach(card => {
     card.classList.toggle("on", isOn);
     card.classList.toggle("active", isOn);
+    card.classList.toggle("is-pending", isUpdating);
+    if (card.tagName === "BUTTON") {
+      card.disabled = isUpdating;
+      card.setAttribute("aria-pressed", isOn ? "true" : "false");
+      card.title = title;
+    }
     
     const pill = card.querySelector(".device-status-pill");
     if (pill) {
@@ -218,14 +226,33 @@ function updateDeviceUI(deviceId) {
 
     const dur = card.querySelector(".device-usage");
     if (dur) {
-        if (isLock) dur.textContent = isOn ? "Terbuka" : "Terkunci";
-        else dur.textContent = isOn ? "Aktif" : "Standby";
+        dur.textContent = statusText;
     }
 
     const icon = card.querySelector(".device-icon");
     if (icon && isLock) {
       icon.classList.remove("fa-lock", "fa-lock-open");
       icon.classList.add(isOn ? "fa-lock-open" : "fa-lock");
+    }
+
+    const qcIcon = card.querySelector(".qc-btn-icon i");
+    if (qcIcon) {
+      qcIcon.className = `fas ${iconClass}`;
+    }
+
+    const qcLabel = card.querySelector(".qc-btn-label");
+    if (qcLabel) {
+      qcLabel.textContent = device.name;
+    }
+
+    const qcType = card.querySelector(".qc-btn-type");
+    if (qcType) {
+      qcType.textContent = device.template_name || getDeviceTypeName(device);
+    }
+
+    const qcState = card.querySelector(".qc-btn-state");
+    if (qcState) {
+      qcState.textContent = isUpdating ? "Menyimpan..." : (isOn ? (onLabel || "ON") : (offLabel || "OFF"));
     }
     
     // Update Extra Controls visibility within this card
@@ -242,6 +269,7 @@ function updateDeviceUI(deviceId) {
  */
 function toggleDeviceState(deviceId, newState) {
   const id   = String(deviceId);
+  if (!STATE.devices[id]) return;
   const prev = STATE.deviceStates[id];
   STATE.deviceStates[id] = newState;
 
@@ -258,11 +286,17 @@ function toggleDeviceState(deviceId, newState) {
   // Optimistic UI Lock
   STATE.deviceUpdating = STATE.deviceUpdating || {};
   STATE.deviceUpdating[id] = true;
+  updateDeviceUI(id);
 
   // Update Database Backend (Tidak blocking)
-  apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: "Manual" })
+  apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: "Manual" }, { key: `update_device_state:${id}` })
     .catch(() => {})
-    .finally(() => { setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000); });
+    .finally(() => {
+      setTimeout(() => {
+        STATE.deviceUpdating[id] = false;
+        updateDeviceUI(id);
+      }, 180);
+    });
   
   // Logging lokal
   addLog(STATE.devices[id]?.name, newState ? "Dinyalakan" : "Dimatikan", "Manual", "info", { device_id: Number(id) });
@@ -312,14 +346,23 @@ function applyDeviceState(deviceId, newState, reason = "Automation") {
   // Optimistic UI Lock
   STATE.deviceUpdating = STATE.deviceUpdating || {};
   STATE.deviceUpdating[id] = true;
+  updateDeviceUI(id);
 
   // Update Database Backend (Skip jika sudah diupdate server AI)
   if (reason !== "AI Assistant (Sync)") {
-    apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: reason })
+    apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: reason }, { key: `update_device_state:${id}` })
       .catch(() => {})
-      .finally(() => { setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000); });
+      .finally(() => {
+        setTimeout(() => {
+          STATE.deviceUpdating[id] = false;
+          updateDeviceUI(id);
+        }, 180);
+      });
   } else {
-    setTimeout(() => { STATE.deviceUpdating[id] = false; }, 2000);
+    setTimeout(() => {
+      STATE.deviceUpdating[id] = false;
+      updateDeviceUI(id);
+    }, 180);
   }
   
   addLog(STATE.devices[id]?.name, `${newState ? "ON" : "OFF"} (${reason})`, "Automation", newState ? "success" : "info", { device_id: Number(id) });
@@ -530,10 +573,15 @@ function buildQuickControlButtonHTML(deviceId) {
   const accent = getDeviceAccent(dtype);
   const title = `${device.name} • ${isOn ? 'ON' : 'OFF'}`;
   return `
-    <button class="qc-btn ${isOn ? 'on' : ''}" title="${escHtml(title)}"
+    <button id="qc-${id}" class="qc-btn ${isOn ? 'on' : ''}" title="${escHtml(title)}"
             onclick="event.preventDefault(); toggleDeviceState('${id}', ${isOn ? 'false' : 'true'});"
-            style="--qc-accent:${accent}">
-      <i class="fas ${iconClass}"></i>
+            style="--qc-accent:${accent}" aria-pressed="${isOn ? 'true' : 'false'}">
+      <span class="qc-btn-icon"><i class="fas ${iconClass}"></i></span>
+      <span class="qc-btn-copy">
+        <span class="qc-btn-label">${escHtml(device.name)}</span>
+        <span class="qc-btn-type">${escHtml(device.template_name || getDeviceTypeName(device))}</span>
+      </span>
+      <span class="qc-btn-state">${escHtml(isOn ? 'ON' : 'OFF')}</span>
     </button>
   `;
 }
