@@ -928,11 +928,20 @@ function scheduleNextSync(delayMs = null) {
   }, nextDelay);
 }
 
+function mergeSyncRequestOptions(base = {}, extra = {}) {
+  return {
+    includeAnalytics: !!(base.includeAnalytics || extra.includeAnalytics),
+    includeCamera: !!(base.includeCamera || extra.includeCamera),
+    includeCameraSettings: !!(base.includeCameraSettings || extra.includeCameraSettings),
+  };
+}
+
 /**
  * Sinkronisasi data utama dari server (Stale-While-Revalidate)
  */
 async function syncAllFromServer(forceSync = false, options = {}) {
   const cacheKey = "iotzy_cache_main_sync";
+  const requestedOptions = mergeSyncRequestOptions({}, options);
   
   // 1. Ambil dari cache dulu untuk responsivitas instan
   if (typeof PerformanceOptimizer !== "undefined" && PerformanceOptimizer.Cache) {
@@ -943,42 +952,64 @@ async function syncAllFromServer(forceSync = false, options = {}) {
   }
 
   if (typeof document !== "undefined" && document.hidden && !forceSync) return;
-  if (syncAllFromServer._inFlight && !forceSync) return;
-  syncAllFromServer._inFlight = true;
-
-  try {
-    const now = Date.now();
-    const syncContext = getSyncContext();
-    const includeAnalytics = !!options.includeAnalytics
-      || (syncContext.needsAnalytics
-        && (forceSync || (now - (STATE.sync.lastAnalyticsSyncAt || 0)) >= CONFIG.app.analyticsSyncInterval));
-    const includeCameraSettings = !!options.includeCameraSettings
-      || (syncContext.needsCameraSettings
-        && (forceSync || (now - (STATE.sync.lastCameraSettingsAt || 0)) >= CONFIG.app.cameraSettingsSyncInterval));
-    const includeCamera = !!options.includeCamera || syncContext.needsCameraState;
-
-    const requestBody = {
-      include_analytics: includeAnalytics ? 1 : 0,
-      include_camera: includeCamera ? 1 : 0,
-      include_camera_settings: includeCameraSettings ? 1 : 0,
-    };
-
-    const res = await apiPost("get_dashboard_data", requestBody);
-    if (res && res.success) {
-      if (typeof PerformanceOptimizer !== "undefined" && PerformanceOptimizer.Cache) {
-        PerformanceOptimizer.Cache.set(cacheKey, res);
-      }
-      applySyncData(res, now);
-    }
-  } catch (e) {
-    STATE.sync.failureCount += 1;
-    console.warn("syncAllFromServer Error:", e);
-  } finally {
-    syncAllFromServer._inFlight = false;
-    if (typeof document === "undefined" || !document.hidden) {
-      scheduleNextSync();
-    }
+  if (syncAllFromServer._inFlight) {
+    syncAllFromServer._queuedForce = !!(syncAllFromServer._queuedForce || forceSync);
+    syncAllFromServer._queuedOptions = mergeSyncRequestOptions(syncAllFromServer._queuedOptions || {}, requestedOptions);
+    return syncAllFromServer._currentPromise || null;
   }
+  syncAllFromServer._inFlight = true;
+  syncAllFromServer._currentPromise = (async () => {
+    try {
+      const now = Date.now();
+      const syncContext = getSyncContext();
+      const includeAnalytics = !!requestedOptions.includeAnalytics
+        || (syncContext.needsAnalytics
+          && (forceSync || (now - (STATE.sync.lastAnalyticsSyncAt || 0)) >= CONFIG.app.analyticsSyncInterval));
+      const includeCameraSettings = !!requestedOptions.includeCameraSettings
+        || (syncContext.needsCameraSettings
+          && (forceSync || (now - (STATE.sync.lastCameraSettingsAt || 0)) >= CONFIG.app.cameraSettingsSyncInterval));
+      const includeCamera = !!requestedOptions.includeCamera || syncContext.needsCameraState;
+
+      const requestBody = {
+        include_analytics: includeAnalytics ? 1 : 0,
+        include_camera: includeCamera ? 1 : 0,
+        include_camera_settings: includeCameraSettings ? 1 : 0,
+      };
+
+      const res = await apiPost("get_dashboard_data", requestBody);
+      if (res && res.success) {
+        if (typeof PerformanceOptimizer !== "undefined" && PerformanceOptimizer.Cache) {
+          PerformanceOptimizer.Cache.set(cacheKey, res);
+        }
+        applySyncData(res, now);
+      }
+    } catch (e) {
+      STATE.sync.failureCount += 1;
+      console.warn("syncAllFromServer Error:", e);
+    } finally {
+      syncAllFromServer._inFlight = false;
+      syncAllFromServer._currentPromise = null;
+
+      const rerunForce = !!syncAllFromServer._queuedForce;
+      const rerunOptions = syncAllFromServer._queuedOptions || null;
+      syncAllFromServer._queuedForce = false;
+      syncAllFromServer._queuedOptions = null;
+
+      const shouldRerun = !!(rerunForce || (rerunOptions && (rerunOptions.includeAnalytics || rerunOptions.includeCamera || rerunOptions.includeCameraSettings)));
+      if (shouldRerun) {
+        setTimeout(() => {
+          syncAllFromServer(rerunForce, rerunOptions || {}).catch(() => {});
+        }, 0);
+        return;
+      }
+
+      if (typeof document === "undefined" || !document.hidden) {
+        scheduleNextSync();
+      }
+    }
+  })();
+
+  return syncAllFromServer._currentPromise;
 }
 
 /**
