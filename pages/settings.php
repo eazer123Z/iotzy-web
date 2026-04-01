@@ -1,9 +1,8 @@
 <div id="settings" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
-      <span class="view-kicker view-kicker-info">Halaman Informasi</span>
       <h3><i class="fas fa-gear"></i> Pengaturan Sistem</h3>
-      <p>Konfigurasi profil, koneksi MQTT, Telegram, dan keamanan akun.</p>
+      <p>Profil, koneksi, dan keamanan.</p>
     </div>
   </div>
 

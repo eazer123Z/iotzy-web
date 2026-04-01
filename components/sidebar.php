@@ -4,14 +4,12 @@
       <div class="sidebar-logo"><i class="fas fa-bolt"></i></div>
       <div class="brand-copy">
         <span class="brand-name">IoTzy</span>
-        <span class="brand-caption">Dashboard perangkat, sensor, dan otomasi</span>
       </div>
     </div>
     <nav class="sidebar-nav">
       <div class="nav-cluster">
         <div class="nav-group-head">
           <div class="nav-group-label">Dashboard IoT</div>
-          <p class="nav-group-sub">Area operasional untuk memantau perangkat, sensor, otomasi, dan kamera.</p>
         </div>
         <a href="javascript:void(0)" onclick="switchPage('dashboard',this)" class="nav-item active" data-page="dashboard">
           <span class="nav-icon"><i class="fas fa-house"></i></span>
@@ -41,7 +39,6 @@
       <div class="nav-cluster nav-cluster-secondary">
         <div class="nav-group-head">
           <div class="nav-group-label">Halaman Informasi</div>
-          <p class="nav-group-sub">Analitik, konfigurasi, dan informasi sistem yang lebih administratif.</p>
         </div>
         <a href="javascript:void(0)" onclick="switchPage('analytics',this)" class="nav-item" data-page="analytics">
           <span class="nav-icon"><i class="fas fa-chart-bar"></i></span>

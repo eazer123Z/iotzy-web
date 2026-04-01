@@ -62,37 +62,37 @@ const PAGE_META = {
   dashboard: {
     title: "Overview",
     section: "Dashboard IoT",
-    description: "Ringkasan operasional perangkat, sensor, dan kondisi rumah pintar."
+    description: ""
   },
   devices: {
     title: "Perangkat",
     section: "Dashboard IoT",
-    description: "Kontrol dan status perangkat aktif dalam satu panel yang mudah dibaca."
+    description: ""
   },
   sensors: {
     title: "Sensor",
     section: "Dashboard IoT",
-    description: "Pemantauan data sensor lingkungan secara real-time dan rapi."
+    description: ""
   },
   automation: {
     title: "Rules Engine",
     section: "Dashboard IoT",
-    description: "Atur alur otomatisasi berbasis kondisi, jadwal, dan status perangkat."
+    description: ""
   },
   camera: {
     title: "Computer Vision",
     section: "Dashboard IoT",
-    description: "Pantau kamera, deteksi orang, dan analisis cahaya dari browser."
+    description: ""
   },
   analytics: {
     title: "Log & Analitik",
     section: "Halaman Informasi",
-    description: "Lihat histori, statistik harian, dan ringkasan energi sistem."
+    description: ""
   },
   settings: {
     title: "Pengaturan",
     section: "Halaman Informasi",
-    description: "Kelola profil, koneksi, keamanan, dan konfigurasi sistem."
+    description: ""
   },
 };
 
@@ -143,10 +143,8 @@ function switchPage(page, el) {
     description: "Halaman sistem IoT."
   };
   const pt = document.getElementById("pageTitle");
-  const pd = document.getElementById("pageDescription");
   const ps = document.getElementById("pageSectionBadge");
   if (pt) pt.textContent = meta.title;
-  if (pd) pd.textContent = meta.description;
   if (ps) ps.textContent = meta.section;
   if (typeof document !== "undefined") {
     document.title = `${meta.title} | IoTzy`;

@@ -1,9 +1,8 @@
 <div id="analytics" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
-      <span class="view-kicker view-kicker-info">Halaman Informasi</span>
       <h3><i class="fas fa-chart-bar"></i> Log & Analytics</h3>
-      <p>Ringkasan harian perangkat, sensor, durasi aktif, dan energi opsional dari INA219.</p>
+      <p>Ringkasan log dan energi.</p>
     </div>
     <div class="v-actions" style="gap:12px; flex-wrap:wrap">
       <input

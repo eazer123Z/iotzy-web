@@ -26,7 +26,7 @@
   <div class="mobile-nav-hub-header">
     <div>
       <div class="mobile-nav-title">Menu Lainnya</div>
-      <p class="mobile-nav-subtitle">Halaman otomasi, informasi, dan pengaturan sistem.</p>
+      <p class="mobile-nav-subtitle">Akses halaman tambahan.</p>
     </div>
     <button class="icon-btn mobile-nav-close" type="button" onclick="closeMobileHub()" title="Tutup menu">
       <i class="fas fa-times"></i>

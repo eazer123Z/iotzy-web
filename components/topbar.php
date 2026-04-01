@@ -5,11 +5,9 @@
         <div class="topbar-context">
           <div class="topbar-context-meta">
             <span id="pageSectionBadge" class="page-section-badge">Dashboard IoT</span>
-            <span class="topbar-app-label">IoTzy Smart Home Panel</span>
           </div>
           <div class="topbar-context-copy">
             <div id="pageTitle" class="topbar-page-title">Overview</div>
-            <div id="pageDescription" class="topbar-page-description">Ringkasan operasional perangkat, sensor, dan kondisi sistem.</div>
           </div>
         </div>
       </div>
