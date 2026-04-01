@@ -270,27 +270,43 @@ function updateDeviceUI(deviceId) {
 function toggleDeviceState(deviceId, newState) {
   const id   = String(deviceId);
   if (!STATE.devices[id]) return;
-  const prev = STATE.deviceStates[id];
-  STATE.deviceStates[id] = newState;
+  STATE.deviceUpdating = STATE.deviceUpdating || {};
+  if (STATE.deviceUpdating[id]) return;
+
+  const nextState = !!newState;
+  const prev = !!STATE.deviceStates[id];
+  const previousOnAt = STATE.deviceOnAt[id];
+  STATE.deviceStates[id] = nextState;
 
   // Track durasi penggunaan
-  if (newState && !prev) STATE.deviceOnAt[id] = Date.now();
-  else if (!newState)    delete STATE.deviceOnAt[id];
+  if (nextState && !prev) STATE.deviceOnAt[id] = Date.now();
+  else if (!nextState)    delete STATE.deviceOnAt[id];
 
   updateDeviceUI(id);
 
   // Komunikasi MQTT
   const t = STATE.deviceTopics[id];
-  if (t?.pub) publishMQTT(t.pub, buildDevicePayload(id, newState));
+  if (t?.pub) publishMQTT(t.pub, buildDevicePayload(id, nextState));
 
   // Optimistic UI Lock
-  STATE.deviceUpdating = STATE.deviceUpdating || {};
   STATE.deviceUpdating[id] = true;
   updateDeviceUI(id);
 
   // Update Database Backend (Tidak blocking)
-  apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: "Manual" }, { key: `update_device_state:${id}` })
-    .catch(() => {})
+  apiPost("update_device_state", { id, state: nextState ? 1 : 0, trigger: "Manual" }, { key: `update_device_state:${id}` })
+    .then((result) => {
+      if (!result || result.success === false) {
+        throw new Error(result?.error || "Gagal memperbarui status perangkat.");
+      }
+    })
+    .catch((error) => {
+      STATE.deviceStates[id] = prev;
+      if (typeof previousOnAt !== "undefined") STATE.deviceOnAt[id] = previousOnAt;
+      else delete STATE.deviceOnAt[id];
+      updateDeviceUI(id);
+      updateDashboardStats();
+      showToast(error?.message || "Gagal memperbarui status perangkat.", "error");
+    })
     .finally(() => {
       setTimeout(() => {
         STATE.deviceUpdating[id] = false;
@@ -299,7 +315,7 @@ function toggleDeviceState(deviceId, newState) {
     });
   
   // Logging lokal
-  addLog(STATE.devices[id]?.name, newState ? "Dinyalakan" : "Dimatikan", "Manual", "info", { device_id: Number(id) });
+  addLog(STATE.devices[id]?.name, nextState ? "Dinyalakan" : "Dimatikan", "Manual", "info", { device_id: Number(id) });
   updateDashboardStats();
 
   // Built-in Automation Trigger (Smart Lock)
@@ -332,16 +348,18 @@ function buildDevicePayload(deviceId, state) {
  */
 function applyDeviceState(deviceId, newState, reason = "Automation") {
   const id = String(deviceId);
-  if (STATE.deviceStates[id] === newState) return;
+  if (!STATE.devices[id]) return;
+  const nextState = !!newState;
+  if (!!STATE.deviceStates[id] === nextState) return;
 
-  STATE.deviceStates[id] = newState;
-  if (newState) STATE.deviceOnAt[id] = Date.now();
+  STATE.deviceStates[id] = nextState;
+  if (nextState) STATE.deviceOnAt[id] = Date.now();
   else delete STATE.deviceOnAt[id];
 
   updateDeviceUI(id);
 
   const t = STATE.deviceTopics[id];
-  if (t?.pub) publishMQTT(t.pub, buildDevicePayload(id, newState));
+  if (t?.pub) publishMQTT(t.pub, buildDevicePayload(id, nextState));
 
   // Optimistic UI Lock
   STATE.deviceUpdating = STATE.deviceUpdating || {};
@@ -350,7 +368,7 @@ function applyDeviceState(deviceId, newState, reason = "Automation") {
 
   // Update Database Backend (Skip jika sudah diupdate server AI)
   if (reason !== "AI Assistant (Sync)") {
-    apiPost("update_device_state", { id, state: newState ? 1 : 0, trigger: reason }, { key: `update_device_state:${id}` })
+    apiPost("update_device_state", { id, state: nextState ? 1 : 0, trigger: reason }, { key: `update_device_state:${id}` })
       .catch(() => {})
       .finally(() => {
         setTimeout(() => {
@@ -365,7 +383,7 @@ function applyDeviceState(deviceId, newState, reason = "Automation") {
     }, 180);
   }
   
-  addLog(STATE.devices[id]?.name, `${newState ? "ON" : "OFF"} (${reason})`, "Automation", newState ? "success" : "info", { device_id: Number(id) });
+  addLog(STATE.devices[id]?.name, `${nextState ? "ON" : "OFF"} (${reason})`, "Automation", nextState ? "success" : "info", { device_id: Number(id) });
   updateDashboardStats();
 
   // Built-in Automation Trigger (Smart Lock)
