@@ -35,6 +35,77 @@ CREATE TABLE `sessions` (
   KEY `idx_sessions_user_expires` (`user_id`,`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE `mobile_devices` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int UNSIGNED NOT NULL,
+  `device_uid` varchar(120) NOT NULL,
+  `platform` enum('android','ios','web','unknown') NOT NULL DEFAULT 'android',
+  `device_name` varchar(100) DEFAULT NULL,
+  `app_version` varchar(40) DEFAULT NULL,
+  `last_login_at` datetime DEFAULT NULL,
+  `last_seen` datetime DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_mobile_devices_user_uid` (`user_id`,`device_uid`),
+  KEY `idx_mobile_devices_user_active` (`user_id`,`is_active`,`last_seen`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `auth_access_tokens` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int UNSIGNED NOT NULL,
+  `mobile_device_id` bigint UNSIGNED DEFAULT NULL,
+  `token_hash` char(64) NOT NULL,
+  `token_prefix` char(12) NOT NULL,
+  `scopes` json DEFAULT NULL,
+  `issued_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` datetime NOT NULL,
+  `last_used_at` datetime DEFAULT NULL,
+  `revoked_at` datetime DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_auth_access_tokens_hash` (`token_hash`),
+  KEY `idx_auth_access_tokens_user_exp` (`user_id`,`expires_at`,`revoked_at`),
+  KEY `idx_auth_access_tokens_device_exp` (`mobile_device_id`,`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `auth_refresh_tokens` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int UNSIGNED NOT NULL,
+  `mobile_device_id` bigint UNSIGNED DEFAULT NULL,
+  `token_hash` char(64) NOT NULL,
+  `token_prefix` char(12) NOT NULL,
+  `issued_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` datetime NOT NULL,
+  `last_used_at` datetime DEFAULT NULL,
+  `revoked_at` datetime DEFAULT NULL,
+  `replaced_by_token_id` bigint UNSIGNED DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_auth_refresh_tokens_hash` (`token_hash`),
+  KEY `idx_auth_refresh_tokens_user_exp` (`user_id`,`expires_at`,`revoked_at`),
+  KEY `idx_auth_refresh_tokens_device_exp` (`mobile_device_id`,`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `mobile_push_tokens` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int UNSIGNED NOT NULL,
+  `mobile_device_id` bigint UNSIGNED NOT NULL,
+  `provider` enum('fcm','apns') NOT NULL DEFAULT 'fcm',
+  `push_token` varchar(255) NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `last_seen` datetime DEFAULT CURRENT_TIMESTAMP,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_mobile_push_tokens_token` (`push_token`),
+  KEY `idx_mobile_push_tokens_user_active` (`user_id`,`is_active`,`last_seen`),
+  KEY `idx_mobile_push_tokens_device_active` (`mobile_device_id`,`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE `persistent_sessions` (
   `id` varchar(128) NOT NULL,
   `data` mediumtext NOT NULL,
@@ -228,11 +299,14 @@ CREATE TABLE `activity_logs` (
   `device_name` varchar(100) NOT NULL,
   `activity` varchar(200) NOT NULL,
   `trigger_type` varchar(50) NOT NULL,
+  `source_channel` enum('web','mobile','automation','mqtt','cv','api','system','unknown') NOT NULL DEFAULT 'unknown',
+  `request_id` varchar(64) DEFAULT NULL,
   `log_type` enum('info','success','warning','error') DEFAULT 'info',
   `metadata` json DEFAULT NULL,
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_activity_logs_user_time` (`user_id`,`created_at`),
+  KEY `idx_activity_logs_user_source_time` (`user_id`,`source_channel`,`created_at`),
   KEY `idx_activity_logs_device_time` (`device_id`,`created_at`),
   KEY `idx_activity_logs_sensor_time` (`sensor_id`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -375,6 +449,10 @@ CREATE TABLE `camera_stream_sessions` (
   `publisher_camera_key` varchar(100) NOT NULL,
   `publisher_name` varchar(100) NOT NULL,
   `source_label` varchar(100) DEFAULT NULL,
+  `stream_mode` enum('single_viewer','multi_viewer') NOT NULL DEFAULT 'multi_viewer',
+  `max_viewers` smallint UNSIGNED NOT NULL DEFAULT 5,
+  `started_by_platform` enum('web','android','ios','desktop','unknown') NOT NULL DEFAULT 'web',
+  `publisher_device_uid` varchar(120) DEFAULT NULL,
   `viewer_camera_key` varchar(100) DEFAULT NULL,
   `viewer_name` varchar(100) DEFAULT NULL,
   `offer_sdp` longtext DEFAULT NULL,
@@ -384,10 +462,13 @@ CREATE TABLE `camera_stream_sessions` (
   `last_publisher_heartbeat` datetime DEFAULT CURRENT_TIMESTAMP,
   `last_viewer_heartbeat` datetime DEFAULT NULL,
   `ended_at` datetime DEFAULT NULL,
+  `ended_reason` varchar(50) DEFAULT NULL,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_camera_stream_sessions_stream_key` (`stream_key`),
   KEY `idx_camera_stream_sessions_user_status` (`user_id`,`status`,`updated_at`),
+  KEY `idx_camera_stream_sessions_status_updated` (`status`,`updated_at`),
+  KEY `idx_camera_stream_sessions_user_camera_status` (`user_id`,`camera_id`,`status`),
   KEY `idx_camera_stream_sessions_camera` (`camera_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -401,6 +482,22 @@ CREATE TABLE `camera_stream_candidates` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_camera_stream_candidates_recipient` (`stream_session_id`,`recipient_camera_key`,`delivered_at`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `camera_stream_viewers` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `stream_session_id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
+  `viewer_camera_key` varchar(100) NOT NULL,
+  `viewer_name` varchar(100) DEFAULT NULL,
+  `status` enum('joining','live','left') NOT NULL DEFAULT 'joining',
+  `joined_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_heartbeat` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `left_at` datetime DEFAULT NULL,
+  `meta` json DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_camera_stream_viewers_session_key` (`stream_session_id`,`viewer_camera_key`),
+  KEY `idx_camera_stream_viewers_user_status` (`user_id`,`status`,`last_heartbeat`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ========================
@@ -439,6 +536,22 @@ VALUES
 
 ALTER TABLE `sessions`
   ADD CONSTRAINT `fk_sessions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+ALTER TABLE `mobile_devices`
+  ADD CONSTRAINT `fk_mobile_devices_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+ALTER TABLE `auth_access_tokens`
+  ADD CONSTRAINT `fk_auth_access_tokens_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_auth_access_tokens_mobile_device` FOREIGN KEY (`mobile_device_id`) REFERENCES `mobile_devices` (`id`) ON DELETE SET NULL;
+
+ALTER TABLE `auth_refresh_tokens`
+  ADD CONSTRAINT `fk_auth_refresh_tokens_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_auth_refresh_tokens_mobile_device` FOREIGN KEY (`mobile_device_id`) REFERENCES `mobile_devices` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_auth_refresh_tokens_replaced_by` FOREIGN KEY (`replaced_by_token_id`) REFERENCES `auth_refresh_tokens` (`id`) ON DELETE SET NULL;
+
+ALTER TABLE `mobile_push_tokens`
+  ADD CONSTRAINT `fk_mobile_push_tokens_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_mobile_push_tokens_device` FOREIGN KEY (`mobile_device_id`) REFERENCES `mobile_devices` (`id`) ON DELETE CASCADE;
 
 ALTER TABLE `user_settings`
   ADD CONSTRAINT `fk_user_settings_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
@@ -490,5 +603,9 @@ ALTER TABLE `camera_stream_sessions`
 
 ALTER TABLE `camera_stream_candidates`
   ADD CONSTRAINT `fk_camera_stream_candidates_session` FOREIGN KEY (`stream_session_id`) REFERENCES `camera_stream_sessions` (`id`) ON DELETE CASCADE;
+
+ALTER TABLE `camera_stream_viewers`
+  ADD CONSTRAINT `fk_camera_stream_viewers_session` FOREIGN KEY (`stream_session_id`) REFERENCES `camera_stream_sessions` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_camera_stream_viewers_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 COMMIT;

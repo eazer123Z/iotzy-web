@@ -131,6 +131,12 @@ if (!$db) {
     jsonOut(['success' => false, 'error' => 'Database unavailable'], 500);
 }
 
+if (str_starts_with($action, 'mobile_')) {
+    require_once __DIR__ . '/../controllers/MobileController.php';
+    handleMobileAction($action, is_array($body) ? $body : [], $db);
+    exit;
+}
+
 if (in_array($action, ['login', 'register', 'logout'], true)) {
     require_once __DIR__ . '/../controllers/AuthController.php';
     handleAuthAction($action, $body, $db);
