@@ -43,6 +43,7 @@ foreach ($_SERVER as $key => $val) {
 
 require_once $baseDir . '/config/app.php';
 require_once $baseDir . '/config/database.php';
+require_once $baseDir . '/config/ai.php';
 require_once $baseDir . '/config/telegram.php';
 require_once $baseDir . '/core/helpers.php';
 

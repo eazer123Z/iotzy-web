@@ -40,6 +40,51 @@ function jsonOut(mixed $data, int $code = 200): never {
     exit;
 }
 
+function iotzyClientIp(): string {
+    $chain = trim((string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''));
+    if ($chain !== '') {
+        $parts = explode(',', $chain);
+        $candidate = trim((string)($parts[0] ?? ''));
+        if ($candidate !== '') return $candidate;
+    }
+    return trim((string)($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0')) ?: '0.0.0.0';
+}
+
+function iotzyAllowApiRateLimit(int $userId, string $action, int $maxHits, int $windowSeconds, ?PDO $db = null): bool {
+    if ($maxHits <= 0 || $windowSeconds <= 0) return true;
+    $db = $db ?: getLocalDB();
+    if (!$db) return true;
+
+    $action = trim($action);
+    if ($action === '') return true;
+    $rateAction = 'api_' . strtolower($action);
+
+    try {
+        $db->prepare(
+            "DELETE FROM ai_rate_limits
+             WHERE user_id = ?
+               AND action_name = ?
+               AND created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)"
+        )->execute([$userId, $rateAction, $windowSeconds]);
+
+        $countStmt = $db->prepare(
+            "SELECT COUNT(*) FROM ai_rate_limits
+             WHERE user_id = ? AND action_name = ?"
+        );
+        $countStmt->execute([$userId, $rateAction]);
+        $count = (int)$countStmt->fetchColumn();
+        if ($count >= $maxHits) return false;
+
+        $db->prepare(
+            "INSERT INTO ai_rate_limits (user_id, action_name) VALUES (?, ?)"
+        )->execute([$userId, $rateAction]);
+        return true;
+    } catch (\Throwable $e) {
+        error_log('[IoTzy API RateLimit] ' . $e->getMessage());
+        return true;
+    }
+}
+
 function registerApiErrorHandler(): void {
     register_shutdown_function(function() {
         $err = error_get_last();

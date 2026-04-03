@@ -2514,7 +2514,8 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
                AND l.activity <> ''
              )
            )
-         ORDER BY l.created_at DESC"
+         ORDER BY l.created_at DESC
+         LIMIT 1500"
     );
     $logsStmt->execute([$userId, $start, $end]);
     $logs = $logsStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -2744,6 +2745,6 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
         'summary' => $summary,
         'timeline' => $timeline,
         'devices' => $devicesOut,
-        'recent_logs' => $recentLogs,
+        'recent_logs' => array_slice($recentLogs, 0, 500),
     ];
 }

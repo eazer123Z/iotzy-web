@@ -138,6 +138,13 @@ function requireCsrf(): void
         ?? $_SERVER['HTTP_X_CSRF_TOKEN']
         ?? null;
 
+    if ($token === null && function_exists('getallheaders')) {
+        $headers = getallheaders();
+        $token = $headers['X-CSRF-TOKEN']
+            ?? $headers['X-CSRF-Token']
+            ?? null;
+    }
+
     if (!validateCsrfToken($token)) {
         jsonOut(['success' => false, 'error' => 'Invalid CSRF token'], 403);
     }

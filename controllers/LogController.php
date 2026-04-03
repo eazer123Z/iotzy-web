@@ -76,6 +76,7 @@ function handleLogAction(string $action, int $userId, array $body, PDO $db): voi
     }
 
     if ($action === 'add_log') {
+        requireCsrf();
         $dev = trim((string)($body['device'] ?? ''));
         $act = trim((string)($body['activity'] ?? ''));
         $trig = trim((string)($body['trigger'] ?? 'System'));
@@ -90,6 +91,7 @@ function handleLogAction(string $action, int $userId, array $body, PDO $db): voi
     }
 
     if ($action === 'clear_logs') {
+        requireCsrf();
         dbWrite("DELETE FROM activity_logs WHERE user_id = ?", [$userId]);
         jsonOut(['success' => true, 'message' => 'Log berhasil dibersihkan']);
     }

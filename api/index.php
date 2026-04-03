@@ -36,7 +36,7 @@ if ($origin !== '' && $isCorsOriginAllowed) {
 }
 
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN, X-CSRF-Token');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code($isCorsOriginAllowed ? 200 : 403);
     exit;
@@ -131,12 +131,6 @@ if (!$db) {
     jsonOut(['success' => false, 'error' => 'Database unavailable'], 500);
 }
 
-if (str_starts_with($action, 'mobile_')) {
-    require_once __DIR__ . '/../controllers/MobileController.php';
-    handleMobileAction($action, is_array($body) ? $body : [], $db);
-    exit;
-}
-
 if (in_array($action, ['login', 'register', 'logout'], true)) {
     require_once __DIR__ . '/../controllers/AuthController.php';
     handleAuthAction($action, $body, $db);
@@ -149,8 +143,49 @@ if (!isLoggedIn()) {
 
 $userId = (int)$_SESSION['user_id'];
 
-if ($action === 'update_cv_state') {
+$readOnlyActions = [
+    'get_devices',
+    'get_device_templates',
+    'get_device_sessions',
+    'get_sensors',
+    'get_sensor_templates',
+    'get_sensor_readings',
+    'get_sensor_history',
+    'get_automation_rules',
+    'get_schedules',
+    'get_cv_rules',
+    'get_cv_config',
+    'get_camera_stream_sessions',
+    'get_settings',
+    'get_mqtt_templates',
+    'get_logs',
+    'get_logs_daily_summary',
+    'get_device_daily_summary',
+    'get_user',
+    'get_ai_chat_history',
+    'get_ai_token_metrics',
+    'db_status',
+    'get_dashboard_data',
+];
+if (!in_array($action, $readOnlyActions, true)) {
     requireCsrf();
+}
+
+$rateLimits = [
+    'update_sensor_value' => [60, 60],
+    'add_log' => [60, 60],
+    'poll_camera_stream_updates' => [180, 60],
+    'ai_chat_process' => [20, 60],
+    'ai_chat_fast_track' => [30, 60],
+];
+if (isset($rateLimits[$action])) {
+    [$maxHits, $windowSeconds] = $rateLimits[$action];
+    if (!iotzyAllowApiRateLimit($userId, $action, $maxHits, $windowSeconds, $db)) {
+        jsonOut(['success' => false, 'error' => 'Too many requests'], 429);
+    }
+}
+
+if ($action === 'update_cv_state') {
     require_once __DIR__ . '/../core/UserDataService.php';
     $state = updateUserCVState($userId, $body, $db);
     jsonOut([

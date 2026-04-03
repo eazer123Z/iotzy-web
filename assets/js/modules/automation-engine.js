@@ -15,13 +15,15 @@ const automationEngine = (() => {
 
     // Helper untuk URL API Endpoint
     const _api = (action) => {
-        const base = (typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : '') + '/api/index.php';
+        const base = typeof API_BASE !== 'undefined'
+            ? API_BASE
+            : ((typeof APP_BASE !== 'undefined' ? APP_BASE.replace(/\/$/, "") : '') + '/api/router.php');
         return `${base}?action=${action}`;
     };
 
     const _post = async (action, body = {}) => {
         const hdrs = { 'Content-Type': 'application/json' };
-        if (typeof CSRF_TOKEN !== 'undefined') hdrs['X-CSRF-Token'] = CSRF_TOKEN;
+        if (typeof CSRF_TOKEN !== 'undefined') hdrs['X-CSRF-TOKEN'] = CSRF_TOKEN;
         const res = await fetch(_api(action), {
             method:  'POST',
             headers: hdrs,

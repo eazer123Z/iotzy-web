@@ -37,16 +37,17 @@
 
 <script>
   const APP_BASE     = '<?= rtrim(APP_URL, "/") ?>';
+  const API_BASE     = APP_BASE + '/api/router.php';
   const IOTZY_RELEASE = '<?= APP_RELEASE ?>';
   const IOTZY_BUILD   = '<?= APP_BUILD ?>';
   const IOTZY_VERSION = '<?= APP_VERSION ?>';
-  const PHP_USER     = <?= json_encode($user ?? []) ?>;
-  const PHP_SETTINGS = <?= json_encode($settings ?? []) ?>;
-  const PHP_DEVICES  = <?= json_encode($devices ?? []) ?>;
-  const PHP_SENSORS  = <?= json_encode($sensors ?? []) ?>;
-  const PHP_CV_STATE = <?= json_encode($cvState ?? []) ?>;
-  const PHP_CAMERA   = <?= json_encode($camera ?? null) ?>;
-  const PHP_CAMERA_SETTINGS = <?= json_encode($cameraSettings ?? []) ?>;
+  const PHP_USER     = <?= json_encode($user ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const PHP_SETTINGS = <?= json_encode($settings ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const PHP_DEVICES  = <?= json_encode($devices ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const PHP_SENSORS  = <?= json_encode($sensors ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const PHP_CV_STATE = <?= json_encode($cvState ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const PHP_CAMERA   = <?= json_encode($camera ?? null, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const PHP_CAMERA_SETTINGS = <?= json_encode($cameraSettings ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 </script>
 
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>

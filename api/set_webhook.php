@@ -47,7 +47,27 @@ $url = "https://api.telegram.org/bot{$botToken}/setWebhook?url=" . urlencode($we
 echo "<h3>Telegram Webhook Registration</h3>";
 echo "URL Webhook: <b>" . $webhookUrl . "</b><br><br>";
 
-$response = @file_get_contents($url);
+$response = false;
+if (function_exists('curl_init')) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_CONNECTTIMEOUT => 8,
+    ]);
+    $raw = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($raw !== false && $status >= 200 && $status < 300) {
+        $response = $raw;
+    }
+}
+if ($response === false) {
+    $raw = @file_get_contents($url);
+    if ($raw !== false) {
+        $response = $raw;
+    }
+}
 if ($response === false) {
     echo "❌ Gagal menghubungi API Telegram. Pastikan Token Bot Anda benar.";
 } else {

@@ -31,9 +31,9 @@ const CONFIG = {
   app: {
     maxLogs: 500,
     maxRenderedLogs: 180,
-    liveSyncInterval: 900,
-    fullSyncInterval: 2200,
-    mqttLiveSyncInterval: 1600,
+    liveSyncInterval: 3000,
+    fullSyncInterval: 6000,
+    mqttLiveSyncInterval: 4500,
     analyticsSyncInterval: 15000,
     cameraSettingsSyncInterval: 30000,
     syncBackoffMax: 12000,
@@ -808,9 +808,11 @@ async function apiPost(action, data = {}, opts = {}) {
     }
     controller = new AbortController();
     if (key) ACTIVE_REQ[key] = controller;
-    const base = (typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/index.php";
+    const base = typeof API_BASE !== "undefined"
+      ? API_BASE
+      : ((typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/router.php");
     const hdrs = { "Content-Type": "application/json" };
-    if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-Token"] = CSRF_TOKEN;
+    if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-TOKEN"] = CSRF_TOKEN;
     const timeoutMs = opts.timeout || 8000;
     const requestData = cameraScopedActions.has(action)
       ? getCameraRequestContext(data && typeof data === "object" ? { ...data } : {})

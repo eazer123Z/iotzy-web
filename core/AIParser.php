@@ -924,7 +924,9 @@ function parse_nl_to_action(
     ?array  $cvState      = null,
     ?float  $sessionStart = null
 ): array {
-    $apiKey = defined('OPENROUTER_API_KEY') ? OPENROUTER_API_KEY : '';
+    $apiKey = defined('AI_OPENROUTER_API_KEY')
+        ? AI_OPENROUTER_API_KEY
+        : (defined('OPENROUTER_API_KEY') ? OPENROUTER_API_KEY : '');
     if (!$apiKey) return ['success' => false, 'error' => 'API key belum dikonfigurasi.'];
 
     $db = getLocalDB();
