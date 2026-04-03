@@ -38,7 +38,7 @@
     <div class="mobile-nav-grid">
       <button class="mobile-nav-link" data-page="automation" onclick="switchPageMobile('automation', this); closeMobileHub();">
         <i class="fas fa-robot"></i>
-        <span>Rules Engine</span>
+        <span>Otomasi</span>
       </button>
     </div>
   </div>

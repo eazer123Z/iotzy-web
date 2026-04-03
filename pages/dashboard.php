@@ -90,7 +90,7 @@
 
       <div class="card">
         <div class="card-header">
-          <span class="card-title"><i class="fas fa-eye"></i> Computer Vision</span>
+          <span class="card-title"><i class="fas fa-eye"></i> Kamera Pintar</span>
           <button onclick="switchPage('camera')" class="ov-link">Detail <i class="fas fa-arrow-right"></i></button>
         </div>
         <div class="card-body camera-mini-wrap">

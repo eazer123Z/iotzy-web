@@ -1,7 +1,7 @@
 <div id="camera" class="view app-section hidden">
   <div class="view-header">
     <div class="v-title">
-      <h3><i class="fas fa-eye"></i> Computer Vision</h3>
+      <h3><i class="fas fa-eye"></i> Kamera Pintar</h3>
       <p>Deteksi orang dan cahaya dari kamera.</p>
     </div>
   </div>
@@ -12,7 +12,7 @@
         <div>
           <div class="cv-panel-kicker">Realtime Browser Camera</div>
           <h4 class="cv-panel-title">Monitor Frame, Deteksi Orang, dan Cahaya</h4>
-          <p class="cv-panel-subtitle">Pilih kamera, nyalakan stream, lalu aktifkan deteksi AI saat Anda siap.</p>
+          <p class="cv-panel-subtitle">Pilih kamera, nyalakan stream, lalu aktifkan deteksi saat Anda siap.</p>
         </div>
         <div class="cv-status-rail">
           <span id="cvModelBadge" class="cv-status-badge idle">Idle</span>
@@ -39,7 +39,7 @@
             <i class="fas fa-stop"></i> Stop Kamera
           </button>
           <button id="btnStartCV" class="btn-secondary btn-sm" onclick="startDetection()" style="display:none">
-            <i class="fas fa-brain"></i> Mulai Deteksi AI
+            <i class="fas fa-brain"></i> Mulai Deteksi
           </button>
           <button id="btnStopCV" class="btn-danger btn-sm" onclick="stopDetection()" style="display:none">
             <i class="fas fa-square"></i> Stop Deteksi
@@ -91,7 +91,7 @@
             <div class="cv-panel-kicker">Insight Real-time</div>
             <h4 class="cv-summary-title">Ringkasan Deteksi</h4>
           </div>
-          <span class="cv-summary-chip">Browser + AI Lokal</span>
+          <span class="cv-summary-chip">Browser + Model Lokal</span>
         </div>
 
         <div class="cv-stat-grid">
@@ -116,7 +116,7 @@
           <div class="cv-stat-card">
             <div class="cv-stat-icon cv-green"><i class="fas fa-microchip"></i></div>
             <div class="cv-stat-value" id="cvModelStatus">Idle</div>
-            <div class="cv-stat-label">AI Status</div>
+            <div class="cv-stat-label">Status Model</div>
             <div class="cv-stat-sub">Status model dan backend aktif</div>
           </div>
         </div>
@@ -125,7 +125,7 @@
           <div class="cv-perf-meta">
             <div class="cv-stat-icon cv-muted"><i class="fas fa-gauge"></i></div>
             <div>
-              <div class="cv-perf-title" id="cvPerfLabel" title="Laju inferensi model AI per detik, bukan FPS video kamera">AI Deteksi / Detik</div>
+              <div class="cv-perf-title" id="cvPerfLabel" title="Laju inferensi model per detik, bukan FPS video kamera">Deteksi / Detik</div>
               <div class="cv-perf-sub">Menggambarkan seberapa cepat model menganalisis frame</div>
             </div>
           </div>

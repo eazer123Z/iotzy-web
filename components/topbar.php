@@ -5,7 +5,7 @@
           <button onclick="toggleSidebar()" class="menu-btn"><i class="fas fa-bars"></i></button>
           <div class="topbar-context">
             <div class="topbar-context-copy">
-              <div id="pageTitle" class="topbar-page-title">Overview</div>
+              <div id="pageTitle" class="topbar-page-title">Beranda</div>
             </div>
           </div>
         </div>

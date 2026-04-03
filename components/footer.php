@@ -3,14 +3,14 @@
 <!-- Toast container -->
 <div id="toastContainer"></div>
 
-<!-- AI Chat Floating Action Button & Modal -->
-<div class="ai-chat-btn" id="aiChatBtn" title="Tanya AI untuk Automasi">
+<!-- Chat Asisten Otomasi -->
+<div class="ai-chat-btn" id="aiChatBtn" title="Tanya Asisten Otomasi">
     <i class="fas fa-robot"></i>
 </div>
 
 <div class="ai-chat-modal" id="aiChatModal">
     <div class="ai-chat-header">
-        <span><i class="fas fa-robot"></i> IoTzy AI Assistant</span>
+        <span><i class="fas fa-robot"></i> IoTzy Asisten Otomasi</span>
         <div class="ai-chat-header-actions">
             <button class="ai-chat-clear" id="aiChatClear" title="Hapus Riwayat">
                 <i class="fas fa-broom"></i>
@@ -22,7 +22,7 @@
     </div>
     <div class="ai-chat-body" id="aiChatBody">
         <div class="chat-bubble bot">
-            Halo! Saya asisten AI untuk sistem IoT Anda. Ada yang bisa saya bantu hari ini?
+            Halo! Saya asisten otomasi untuk sistem IoT Anda. Ada yang bisa saya bantu hari ini?
         </div>
     </div>
     <div class="ai-chat-footer">

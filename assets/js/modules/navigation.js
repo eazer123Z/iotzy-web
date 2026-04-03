@@ -54,7 +54,7 @@ function updateAllDurations() {
 /* ── Page Meta Mapping ── */
 const PAGE_META = {
   dashboard: {
-    title: "Overview",
+    title: "Beranda",
     description: ""
   },
   devices: {
@@ -66,11 +66,11 @@ const PAGE_META = {
     description: ""
   },
   automation: {
-    title: "Rules Engine",
+    title: "Otomasi",
     description: ""
   },
   camera: {
-    title: "Computer Vision",
+    title: "Kamera Pintar",
     description: ""
   },
   analytics: {
@@ -87,6 +87,7 @@ const MOBILE_HUB_PAGES = new Set(["automation", "analytics", "settings"]);
 
 /* ── Variabel state halaman aktif ── */
 let _currentPage = 'dashboard';
+let _switchTimer = null;
 
 /* ── SPA Page Switch dengan Animasi ── */
 function switchPage(page, el) {
@@ -106,10 +107,8 @@ function switchPage(page, el) {
   if (targetView) {
     targetView.classList.remove("hidden");
     targetView.classList.add("entering");
-    // Gunakan requestAnimationFrame untuk transisi yang lebih smooth
-    requestAnimationFrame(() => {
-      setTimeout(() => targetView.classList.remove("entering"), 300);
-    });
+    if (_switchTimer) clearTimeout(_switchTimer);
+    _switchTimer = setTimeout(() => targetView.classList.remove("entering"), 220);
   }
   
   _currentPage = page;

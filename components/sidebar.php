@@ -13,7 +13,7 @@
         </div>
         <a href="javascript:void(0)" onclick="switchPage('dashboard',this)" class="nav-item active" data-page="dashboard">
           <span class="nav-icon"><i class="fas fa-house"></i></span>
-          <span class="nav-label">Overview</span>
+          <span class="nav-label">Beranda</span>
         </a>
         <a href="javascript:void(0)" onclick="switchPage('devices',this)" class="nav-item" data-page="devices">
           <span class="nav-icon"><i class="fas fa-microchip"></i></span>
@@ -27,11 +27,11 @@
         </a>
         <a href="javascript:void(0)" onclick="switchPage('automation',this)" class="nav-item" data-page="automation">
           <span class="nav-icon"><i class="fas fa-robot"></i></span>
-          <span class="nav-label">Rules Engine</span>
+          <span class="nav-label">Otomasi</span>
         </a>
         <a href="javascript:void(0)" onclick="switchPage('camera',this)" class="nav-item" data-page="camera">
           <span class="nav-icon"><i class="fas fa-eye"></i></span>
-          <span class="nav-label">Computer Vision</span>
+          <span class="nav-label">Kamera Pintar</span>
           <span class="nav-dot" id="cvNavDot"></span>
         </a>
       </div>

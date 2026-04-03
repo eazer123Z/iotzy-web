@@ -24,7 +24,7 @@
         <i class="fas fa-robot"></i> Otomasi
       </button>
       <button class="settings-tab" data-panel="cvPanel" onclick="switchSettingsTab(this)">
-        <i class="fas fa-eye"></i> Computer Vision
+        <i class="fas fa-eye"></i> Kamera Pintar
       </button>
       <button class="settings-tab" data-panel="aboutPanel" onclick="switchSettingsTab(this)">
         <i class="fas fa-info-circle"></i> Tentang
@@ -229,15 +229,15 @@
 
       <!-- CV Panel -->
       <div id="cvPanel" class="settings-panel">
-        <h4><i class="fas fa-eye"></i> Computer Vision AI</h4>
-        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:20px">Konfigurasi sensitivitas deteksi objek dan analisis cahaya AI.</p>
+        <h4><i class="fas fa-eye"></i> Kamera Pintar</h4>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:20px">Konfigurasi sensitivitas deteksi objek dan analisis cahaya.</p>
         
         <div class="sett-section">
           <div class="sett-header">
             <div class="sett-icon lp" style="background:var(--primary)"><i class="fas fa-bullseye"></i></div>
             <div class="sett-meta">
-              <h5>AI Confidence Level</h5>
-              <span>Minimal tingkat kepercayaan AI untuk mengenali objek.</span>
+              <h5>Tingkat Kepercayaan Deteksi</h5>
+              <span>Minimal tingkat kepercayaan model untuk mengenali objek.</span>
             </div>
           </div>
           <div class="sett-body">
@@ -279,7 +279,7 @@
           </div>
         </div>
 
-        <button id="btnSaveCV" class="btn-primary" onclick="saveCVSettings()"><i class="fas fa-save"></i> Simpan AI Setting</button>
+        <button id="btnSaveCV" class="btn-primary" onclick="saveCVSettings()"><i class="fas fa-save"></i> Simpan Pengaturan Deteksi</button>
       </div>
 
       <!-- About Panel -->
@@ -288,9 +288,9 @@
         <div style="display:flex;flex-direction:column;gap:12px;font-size:.88rem;color:var(--text-secondary)">
           <div><strong>Versi:</strong> <?= APP_RELEASE ?> <span style="color:var(--text-muted)">build <?= APP_BUILD ?></span></div>
           <div><strong>Platform:</strong> Vercel Serverless + Supabase MySQL</div>
-          <div><strong>AI Engine:</strong> Gemini Pro via Telegram & Web</div>
+          <div><strong>Asisten Otomasi:</strong> Gemini Pro via Telegram & Web</div>
           <div><strong>MQTT:</strong> Paho WebSocket Client</div>
-          <div><strong>Computer Vision:</strong> TensorFlow.js + COCO-SSD</div>
+          <div><strong>Kamera Pintar:</strong> TensorFlow.js + COCO-SSD</div>
           <div style="margin-top:8px">
             <p style="color:var(--text-muted);font-size:.8rem">Dibangun dengan ❤️ untuk Smart Home Indonesia.</p>
           </div>
