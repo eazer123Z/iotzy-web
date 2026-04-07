@@ -13,13 +13,14 @@ function handleSettingsAction(string $action, int $userId, array $body, PDO $db)
     if ($action === 'save_settings') {
         requireCsrf();
         $mqttDefaults = [
-            'mqtt_broker'  => getenv('MQTT_HOST') ?: 'broker.hivemq.com',
-            'mqtt_port'    => (int)(getenv('MQTT_PORT') ?: 8884),
-            'mqtt_use_ssl' => (getenv('MQTT_USE_SSL') === 'true' || getenv('MQTT_USE_SSL') === '1') ? 1 : 0,
+            'mqtt_broker'  => getenv('MQTT_HOST') ?: getenv('MQTT_DEFAULT_HOST') ?: 'broker.hivemq.com',
+            'mqtt_port'    => (int)(getenv('MQTT_PORT') ?: getenv('MQTT_DEFAULT_PORT') ?: 8884),
+            'mqtt_use_ssl' => ((string)(getenv('MQTT_USE_SSL') ?: getenv('MQTT_DEFAULT_USE_SSL') ?: '1') === 'true' || (string)(getenv('MQTT_USE_SSL') ?: getenv('MQTT_DEFAULT_USE_SSL') ?: '1') === '1') ? 1 : 0,
+            'mqtt_path'    => substr('/' . ltrim(trim((string)(getenv('MQTT_PATH') ?: getenv('MQTT_DEFAULT_PATH') ?: '/mqtt')), '/'), 0, 100),
         ];
         dbWrite(
-            "INSERT IGNORE INTO user_settings (user_id, mqtt_broker, mqtt_port, mqtt_use_ssl) VALUES (?, ?, ?, ?)",
-            [$userId, $mqttDefaults['mqtt_broker'], $mqttDefaults['mqtt_port'], $mqttDefaults['mqtt_use_ssl']]
+            "INSERT IGNORE INTO user_settings (user_id, mqtt_broker, mqtt_port, mqtt_use_ssl, mqtt_path) VALUES (?, ?, ?, ?, ?)",
+            [$userId, $mqttDefaults['mqtt_broker'], $mqttDefaults['mqtt_port'], $mqttDefaults['mqtt_use_ssl'], $mqttDefaults['mqtt_path']]
         );
         $lampOn = array_key_exists('lamp_on_threshold', $body) ? max(0.0, min(1.0, (float)$body['lamp_on_threshold'])) : null;
         $lampOff = array_key_exists('lamp_off_threshold', $body) ? max(0.0, min(1.0, (float)$body['lamp_off_threshold'])) : null;

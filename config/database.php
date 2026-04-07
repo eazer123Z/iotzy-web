@@ -27,7 +27,11 @@ function getLocalDB(): ?PDO {
 
         // SSL Handling (Aiven Cloud / Managed DB)
         $sslCa = trim((string)(getenv('MYSQL_SSL_CA') ?: ''));
-        $sslVerify = !in_array(strtolower(trim((string)(getenv('MYSQL_SSL_VERIFY') ?: 'true'))), ['0', 'false', 'off', 'no'], true);
+        $sslVerifyRaw = getenv('MYSQL_SSL_VERIFY');
+        if ($sslVerifyRaw === false || $sslVerifyRaw === '') {
+            $sslVerifyRaw = getenv('MYSQL_SSL_VERIFY_SERVER_CERT');
+        }
+        $sslVerify = !in_array(strtolower(trim((string)($sslVerifyRaw !== false ? $sslVerifyRaw : 'true'))), ['0', 'false', 'off', 'no'], true);
 
         // Check if SSL CA file exists if provided
         $caExists = ($sslCa !== '' && file_exists($sslCa));
