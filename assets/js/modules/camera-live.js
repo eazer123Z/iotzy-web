@@ -19,6 +19,7 @@ const cameraLive = (() => {
       lastCandidateId: 0,
       answerApplied: false,
       pollTimer: null,
+      recoverTimer: null,
       starting: false,
       startPromise: null,
       stopping: false,
@@ -248,10 +249,14 @@ const cameraLive = (() => {
       if (!state.publisher.streamKey) return;
       const conn = pc.connectionState;
       if (conn === "connected") {
+        clearPublisherRecovery();
         setStatusChip("Live Tersambung", "ok");
         setPublisherMeta("Monitor berhasil tersambung. Saat ini satu viewer aktif didukung untuk tiap siaran.");
       } else if (["failed", "disconnected"].includes(conn)) {
-        setPublisherMeta("Koneksi monitor terputus. Klik Siarkan Live lagi jika ingin menyambung ulang.");
+        setPublisherMeta("Koneksi monitor terputus. Source live sedang disiapkan ulang otomatis.");
+        if (state.publisher.answerApplied) {
+          schedulePublisherRecovery("Koneksi monitor terputus. Source live disiapkan ulang otomatis.", 1400);
+        }
       }
     };
 
@@ -298,6 +303,32 @@ const cameraLive = (() => {
     if (!state.publisher.pollTimer) return;
     clearTimeout(state.publisher.pollTimer);
     state.publisher.pollTimer = null;
+  }
+
+  function clearPublisherRecovery() {
+    if (!state.publisher.recoverTimer) return;
+    clearTimeout(state.publisher.recoverTimer);
+    state.publisher.recoverTimer = null;
+  }
+
+  async function recoverPublisherSession(reason = "Menyiapkan ulang source live...") {
+    if (state.publisher.starting || state.publisher.stopping) return false;
+    if (!STATE.camera.active || !STATE.camera.stream) return false;
+
+    clearPublisherRecovery();
+    setStatusChip("Menyiapkan Ulang", "warn");
+    setPublisherMeta(reason);
+
+    await stopPublishing({ notifyServer: false, silent: true });
+    return startPublishing({ silent: true });
+  }
+
+  function schedulePublisherRecovery(reason, delay = 1200) {
+    if (state.publisher.recoverTimer || state.publisher.starting || state.publisher.stopping) return;
+    state.publisher.recoverTimer = setTimeout(() => {
+      state.publisher.recoverTimer = null;
+      recoverPublisherSession(reason).catch(() => {});
+    }, delay);
   }
 
   function clearViewerPoll() {
@@ -380,6 +411,7 @@ const cameraLive = (() => {
 
     try {
       clearPublisherPoll();
+      clearPublisherRecovery();
       if (state.publisher.pc) {
         try { state.publisher.pc.close(); } catch (_) {}
       }
@@ -419,6 +451,7 @@ const cameraLive = (() => {
     if (state.publisher.startPromise) return state.publisher.startPromise;
     const silent = options.silent === true;
 
+    clearPublisherRecovery();
     state.publisher.starting = true;
     updateButtons();
     setStatusChip("Menyiapkan Live", "warn");
@@ -512,7 +545,12 @@ const cameraLive = (() => {
 
     if (!session || session.status === "ended") {
       await stopPublishing({ notifyServer: false, silent: true });
-      setPublisherMeta("Sesi live berakhir. Klik Siarkan Live lagi untuk memulai ulang.");
+      if (STATE.camera.active && STATE.camera.stream) {
+        setPublisherMeta("Sesi live berakhir. Source live sedang disiapkan ulang otomatis.");
+        schedulePublisherRecovery("Sesi live berakhir. Source live disiapkan ulang otomatis.", 500);
+      } else {
+        setPublisherMeta("Sesi live berakhir. Klik Siarkan Live lagi untuk memulai ulang.");
+      }
       return;
     }
 
@@ -529,17 +567,24 @@ const cameraLive = (() => {
       try {
         await state.publisher.pc.setRemoteDescription({ type: "answer", sdp: result.answer_sdp });
         state.publisher.answerApplied = true;
+        clearPublisherRecovery();
         setStatusChip("Live Tersambung", "ok");
       } catch (_) {
         await stopPublishing({ notifyServer: false, silent: true });
-        setPublisherMeta("Answer viewer tidak valid. Klik Siarkan Live lagi untuk membuat sesi baru.");
+        if (STATE.camera.active && STATE.camera.stream) {
+          setPublisherMeta("Answer viewer tidak valid. Source live sedang disiapkan ulang otomatis.");
+          schedulePublisherRecovery("Answer viewer tidak valid. Source live disiapkan ulang otomatis.", 500);
+        } else {
+          setPublisherMeta("Answer viewer tidak valid. Klik Siarkan Live lagi untuk membuat sesi baru.");
+        }
         return;
       }
     }
 
     if (state.publisher.answerApplied && session.status === "awaiting_viewer") {
-      await stopPublishing({ notifyServer: false, silent: true });
-      setPublisherMeta("Viewer keluar. Untuk koneksi baru, klik Siarkan Live lagi.");
+      setStatusChip("Menunggu Monitor", "live");
+      setPublisherMeta("Viewer keluar. Source live tetap aktif dan sedang disiapkan ulang otomatis.");
+      schedulePublisherRecovery("Viewer keluar. Source live disiapkan ulang otomatis.", 300);
       return;
     }
 
@@ -586,7 +631,7 @@ const cameraLive = (() => {
         }).catch(() => {});
       }
 
-      removeSessionSummary(streamKey);
+      refreshSessions({ force: true }).catch(() => {});
       if (!silent) {
         showToast("Mode monitor dihentikan", "info");
       }
