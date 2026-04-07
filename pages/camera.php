@@ -47,54 +47,6 @@
         </div>
       </div>
 
-      <div class="cv-live-card">
-        <div class="cv-live-toolbar">
-          <div class="cv-live-toolbar-copy">
-            <div class="cv-panel-kicker">Live Bridge</div>
-            <h4 class="cv-summary-title">Pantau dari device lain</h4>
-            <p id="cameraLivePublisherMeta" class="cv-live-meta">Source live belum aktif. Nyalakan kamera agar browser ini bisa dipantau dari HP atau device lain pada akun yang sama.</p>
-            <p id="cameraLiveViewerMeta" class="cv-live-meta">Pilih source device lain di daftar kamera untuk mode pantau seperti CCTV.</p>
-          </div>
-          <div class="cv-live-actions">
-            <span id="cameraLiveStatusChip" class="cv-summary-chip">Siap</span>
-            <button id="btnStartLiveCamera" type="button" class="btn-secondary btn-sm" onclick="cameraLive.startPublishing()">
-              <i class="fas fa-tower-broadcast"></i> Siarkan Live
-            </button>
-            <button id="btnStopLiveCamera" type="button" class="btn-secondary btn-sm" onclick="cameraLive.stopPublishing()" style="display:none">
-              <i class="fas fa-stop-circle"></i> Stop Siaran
-            </button>
-            <button id="btnStopWatchingLive" type="button" class="btn-secondary btn-sm" onclick="cameraLive.stopWatching()" style="display:none">
-              <i class="fas fa-eye-slash"></i> Stop Pantau
-            </button>
-          </div>
-        </div>
-
-        <div class="cv-live-grid">
-          <div class="cv-live-panel">
-            <div class="cv-live-panel-head">
-              <span>Sesi Live Aktif</span>
-              <small>Untuk akun yang sama</small>
-            </div>
-            <div id="cameraLiveSessionList" class="cv-live-session-list">
-              <div class="cv-live-empty">Memuat sesi live...</div>
-            </div>
-          </div>
-
-          <div class="cv-live-panel">
-            <div class="cv-live-panel-head">
-              <span>Preview Pantau</span>
-              <small>Viewer device lain</small>
-            </div>
-            <div class="cv-live-remote-stage">
-              <video id="cameraLiveRemoteVideo" autoplay playsinline muted style="display:none"></video>
-              <div id="cameraLiveViewerPlaceholder" class="cv-live-empty">
-                Preview viewer akan muncul saat device lain mulai memantau source ini.
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div class="cv-camera-stage">
         <div class="camera-feed" id="cameraFocusContainer">
           <video id="cameraFocus" autoplay playsinline muted style="display:none"></video>
