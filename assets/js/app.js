@@ -40,6 +40,154 @@ const CONFIG = {
   },
 };
 
+const LAZY_ASSET_MANIFEST = typeof window !== "undefined"
+  ? (window.IOTZY_LAZY_ASSETS || { libs: {}, scripts: {} })
+  : { libs: {}, scripts: {} };
+
+const LAZY_ASSET_PROMISES = {};
+const LAZY_GROUP_PROMISES = {};
+
+const LAZY_FEATURE_GROUPS = {
+  analytics: [
+    { bucket: "libs", keys: ["chart"] },
+  ],
+  automation: [
+    { bucket: "scripts", keys: ["scheduleManager", "automationEngine", "automationUI"] },
+  ],
+  camera: [
+    { bucket: "scripts", keys: ["cameraManager", "cameraLive", "cvConfig", "cvDetector", "lightAnalyzer", "cvManager", "cvUI"] },
+  ],
+  settings: [
+    { bucket: "scripts", keys: ["settingsManager"] },
+  ],
+  aiChat: [
+    { bucket: "libs", keys: ["dompurify"] },
+    { bucket: "scripts", keys: ["aiChat"] },
+  ],
+};
+
+function getLazyAssetUrl(bucket, key) {
+  return String(LAZY_ASSET_MANIFEST?.[bucket]?.[key] || "");
+}
+
+function loadLazyAsset(bucket, key) {
+  const cacheKey = `${bucket}:${key}`;
+  if (LAZY_ASSET_PROMISES[cacheKey]) {
+    return LAZY_ASSET_PROMISES[cacheKey];
+  }
+
+  const url = getLazyAssetUrl(bucket, key);
+  if (!url || typeof document === "undefined") {
+    return Promise.resolve();
+  }
+
+  const existing = Array.from(document.scripts || []).find((script) => script.src === url);
+  if (existing) {
+    LAZY_ASSET_PROMISES[cacheKey] = Promise.resolve();
+    return LAZY_ASSET_PROMISES[cacheKey];
+  }
+
+  LAZY_ASSET_PROMISES[cacheKey] = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = url;
+    script.async = false;
+    script.defer = true;
+    script.dataset.iotzyLazy = cacheKey;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load lazy asset: ${cacheKey}`));
+    document.head.appendChild(script);
+  });
+
+  return LAZY_ASSET_PROMISES[cacheKey];
+}
+
+function syncLightAnalyzerBridge() {
+  if (typeof lightAnalyzer !== "undefined") {
+    lightAnalyzer.setCallbacks({
+      _tag: "app",
+      onLightChange: (condition, brightness) => {
+        if (typeof automationEngine !== "undefined") automationEngine.notifyLight(condition, brightness);
+      },
+    });
+  }
+}
+
+async function ensureFeatureGroup(groupName) {
+  if (!groupName || LAZY_GROUP_PROMISES[groupName]) {
+    return LAZY_GROUP_PROMISES[groupName] || Promise.resolve();
+  }
+
+  const group = LAZY_FEATURE_GROUPS[groupName];
+  if (!Array.isArray(group) || !group.length) {
+    return Promise.resolve();
+  }
+
+  LAZY_GROUP_PROMISES[groupName] = (async () => {
+    for (const entry of group) {
+      for (const key of entry.keys) {
+        await loadLazyAsset(entry.bucket, key);
+      }
+    }
+
+    if (groupName === "camera") {
+      if (typeof window.initCameraManager === "function") window.initCameraManager();
+      if (typeof window.initCameraLive === "function") window.initCameraLive();
+      syncLightAnalyzerBridge();
+    }
+
+    if (groupName === "settings" && typeof window.initSettingsManager === "function") {
+      window.initSettingsManager();
+    }
+
+    if (groupName === "aiChat" && typeof window.initAiChatModule === "function") {
+      window.initAiChatModule();
+    }
+  })().catch((error) => {
+    delete LAZY_GROUP_PROMISES[groupName];
+    throw error;
+  });
+
+  return LAZY_GROUP_PROMISES[groupName];
+}
+
+function bootstrapAIChatTrigger() {
+  const chatBtn = document.getElementById("aiChatBtn");
+  if (!chatBtn || chatBtn.dataset.aiLazyBound === "1") return;
+
+  chatBtn.dataset.aiLazyBound = "1";
+  chatBtn.addEventListener("click", async (event) => {
+    if (window.__IOTZY_AI_CHAT_READY) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
+    }
+
+    chatBtn.classList.add("is-loading");
+    chatBtn.setAttribute("aria-busy", "true");
+
+    try {
+      await ensureFeatureGroup("aiChat");
+      setTimeout(() => {
+        chatBtn.click();
+      }, 0);
+    } catch (error) {
+      console.warn("AI chat assets failed to load:", error);
+      if (typeof showToast === "function") {
+        showToast("Asisten AI gagal dimuat. Coba lagi sebentar.", "error");
+      }
+    } finally {
+      chatBtn.classList.remove("is-loading");
+      chatBtn.removeAttribute("aria-busy");
+    }
+  }, true);
+}
+
+if (typeof window !== "undefined") {
+  window.ensureFeatureGroup = ensureFeatureGroup;
+}
+
 /* ============================================================
    STATE APLIKASI (Reactive-like store)
    ============================================================ */
@@ -1491,18 +1639,27 @@ function revealMainApp() {
 
 async function bootstrapDeferredServices() {
   try {
+    const automationGroup = ensureFeatureGroup("automation").catch(() => {});
+    const shouldPrepareCamera = !!STATE.cvAutoStartRequested;
+
     await Promise.allSettled([
-      typeof loadCVConfig === "function" ? loadCVConfig() : Promise.resolve(),
-      typeof initAutomationRules === "function" ? initAutomationRules() : Promise.resolve(),
+      automationGroup.then(() => (
+        typeof initAutomationRules === "function" ? initAutomationRules() : Promise.resolve()
+      )),
+      shouldPrepareCamera
+        ? ensureFeatureGroup("camera")
+            .then(() => (typeof loadCVConfig === "function" ? loadCVConfig() : Promise.resolve()))
+            .catch(() => {})
+        : Promise.resolve(),
     ]);
 
     if (typeof automationEngine !== "undefined") automationEngine.initialize();
-    else if (typeof loadCVRules === "function") loadCVRules().catch(() => {});
 
-    if (STATE.cvAutoStartRequested && typeof initializeCV === "function" && !CV.detecting && !CV.modelLoading) {
+    if (STATE.cvAutoStartRequested && !CV.detecting && !CV.modelLoading) {
       STATE.camera.restoreAttempted = true;
       const runAutoCV = () => {
-        Promise.resolve(typeof startDetection === "function" ? startDetection() : initializeCV())
+        ensureFeatureGroup("camera")
+          .then(() => Promise.resolve(typeof startDetection === "function" ? startDetection() : initializeCV()))
           .catch(() => {});
       };
       if (typeof window.requestIdleCallback === "function") {
@@ -1513,6 +1670,9 @@ async function bootstrapDeferredServices() {
     }
 
     const startRealtimeServices = () => {
+      if (typeof loadLogs === "function" && getSyncContext().isDashboardView) {
+        loadLogs(typeof getAnalyticsDate === "function" ? getAnalyticsDate() : undefined).catch(() => {});
+      }
       syncAllFromServer(true).catch(() => {});
       if (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS.mqtt_broker) {
         if (typeof connectMQTT === 'function') connectMQTT();
@@ -1540,6 +1700,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Ekspor ke window agar modul bisa akses
   window.STATE = STATE;
   window.CV    = CV;
+  document.documentElement.setAttribute("data-active-page", "dashboard");
 
   initTheme();
   initClock();         // navigation.js
@@ -1549,6 +1710,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadFromPHP();
   renderAll();
   revealMainApp();
+  bootstrapAIChatTrigger();
 
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {
@@ -1564,15 +1726,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // Hook light analyzer ke automation engine
-  if (typeof lightAnalyzer !== "undefined") {
-    lightAnalyzer.setCallbacks({
-      _tag: "app",
-      onLightChange: (condition, brightness) => {
-        if (typeof automationEngine !== "undefined") automationEngine.notifyLight(condition, brightness);
-      },
-    });
-  }
+  syncLightAnalyzerBridge();
 
   bootstrapDeferredServices();
   scheduleNextSync();

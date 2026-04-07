@@ -773,8 +773,18 @@ const cameraLive = (() => {
 
 window.cameraLive = cameraLive;
 
-document.addEventListener("DOMContentLoaded", () => {
+function initCameraLive() {
+  if (initCameraLive._initialized) return;
+  initCameraLive._initialized = true;
   if (typeof cameraLive !== "undefined" && typeof cameraLive.initialize === "function") {
     cameraLive.initialize();
   }
-});
+}
+
+window.initCameraLive = initCameraLive;
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initCameraLive);
+} else {
+  initCameraLive();
+}

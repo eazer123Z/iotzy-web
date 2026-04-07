@@ -55,31 +55,31 @@ function updateAllDurations() {
 const PAGE_META = {
   dashboard: {
     title: "Overview",
-    description: ""
+    description: "Ringkasan kondisi rumah dan kontrol favorit Anda."
   },
   devices: {
     title: "Perangkat",
-    description: ""
+    description: "Kelola aktuator, status, dan kontrol perangkat utama."
   },
   sensors: {
     title: "Sensor",
-    description: ""
+    description: "Pantau pembacaan sensor realtime dengan tampilan yang lebih fokus."
   },
   automation: {
     title: "Rules Engine",
-    description: ""
+    description: "Atur automasi, jadwal, dan logika respons pintar."
   },
   camera: {
     title: "Computer Vision",
-    description: ""
+    description: "Pantau live camera, analisis visual, dan workflow CV."
   },
   analytics: {
     title: "Log & Analitik",
-    description: ""
+    description: "Tinjau histori aktivitas, durasi aktif, dan insight harian."
   },
   settings: {
     title: "Pengaturan",
-    description: ""
+    description: "Atur profil, integrasi, keamanan, dan preferensi sistem."
   },
 };
 
@@ -88,12 +88,36 @@ const MOBILE_HUB_PAGES = new Set(["automation", "analytics", "settings"]);
 /* ── Variabel state halaman aktif ── */
 let _currentPage = 'dashboard';
 
+async function ensurePageAssets(page) {
+  if (typeof ensureFeatureGroup !== "function") return;
+
+  const tasks = [];
+  if (page === "automation") {
+    tasks.push(ensureFeatureGroup("automation"));
+  }
+  if (page === "camera") {
+    tasks.push(ensureFeatureGroup("camera"));
+    tasks.push(ensureFeatureGroup("automation"));
+  }
+  if (page === "analytics") {
+    tasks.push(ensureFeatureGroup("analytics"));
+  }
+  if (page === "settings") {
+    tasks.push(ensureFeatureGroup("settings"));
+  }
+
+  if (!tasks.length) return;
+  await Promise.allSettled(tasks);
+}
+
 /* ── SPA Page Switch dengan Animasi ── */
-function switchPage(page, el) {
+async function switchPage(page, el) {
   // Guard: jika sudah di halaman yang sama, skip
   if (page === _currentPage && document.getElementById(page) && !document.getElementById(page).classList.contains('hidden')) {
     return;
   }
+
+  await ensurePageAssets(page);
 
   // Sembunyikan semua view
   document.querySelectorAll(".view").forEach((v) => {
@@ -130,8 +154,14 @@ function switchPage(page, el) {
   };
   const pt = document.getElementById("pageTitle");
   if (pt) pt.textContent = meta.title;
+  const pd = document.getElementById("pageDescription");
+  if (pd) {
+    pd.textContent = meta.description || "";
+    pd.hidden = !meta.description;
+  }
   if (typeof document !== "undefined") {
     document.title = `${meta.title} | IoTzy`;
+    document.documentElement.setAttribute("data-active-page", page);
   }
 
   // Sync dengan bottom-nav mobile

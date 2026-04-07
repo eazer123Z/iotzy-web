@@ -352,10 +352,20 @@ document.addEventListener("input", (e) => {
   }
 });
 
-document.addEventListener("DOMContentLoaded", () => {
+function initSettingsManager() {
+  if (initSettingsManager._initialized) return;
+  initSettingsManager._initialized = true;
   if (!document.getElementById("settings")) return;
   const activePanel = document.querySelector(".settings-panel.active")?.id;
   if (activePanel) {
     ensureSettingsPanelData(activePanel).catch(() => {});
   }
-});
+}
+
+window.initSettingsManager = initSettingsManager;
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initSettingsManager);
+} else {
+  initSettingsManager();
+}

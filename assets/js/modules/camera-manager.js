@@ -515,9 +515,19 @@ function updateCameraElements(isActive) {
   toggleCVActionButtons();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+function initCameraManager() {
+  if (initCameraManager._initialized) return;
+  initCameraManager._initialized = true;
   renderCameraDeviceSelect();
   if (window.isSecureContext || /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)) {
     listCameraDevices({ ensureLabels: false }).catch(() => {});
   }
-});
+}
+
+window.initCameraManager = initCameraManager;
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initCameraManager);
+} else {
+  initCameraManager();
+}

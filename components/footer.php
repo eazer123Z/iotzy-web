@@ -48,34 +48,39 @@
   const PHP_CV_STATE = <?= json_encode($cvState ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   const PHP_CAMERA   = <?= json_encode($camera ?? null, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   const PHP_CAMERA_SETTINGS = <?= json_encode($cameraSettings ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  window.IOTZY_LAZY_ASSETS = {
+    libs: {
+      chart: 'https://cdn.jsdelivr.net/npm/chart.js',
+      dompurify: 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js',
+    },
+    scripts: {
+      scheduleManager: '<?= iotzyAssetUrl('js/modules/schedule-manager.js') ?>',
+      automationEngine: '<?= iotzyAssetUrl('js/modules/automation-engine.js') ?>',
+      automationUI: '<?= iotzyAssetUrl('js/modules/automation-ui.js') ?>',
+      cameraManager: '<?= iotzyAssetUrl('js/modules/camera-manager.js') ?>',
+      cameraLive: '<?= iotzyAssetUrl('js/modules/camera-live.js') ?>',
+      cvConfig: '<?= iotzyAssetUrl('js/modules/cv-config.js') ?>',
+      cvDetector: '<?= iotzyAssetUrl('js/modules/cv-detector.js') ?>',
+      lightAnalyzer: '<?= iotzyAssetUrl('js/modules/light-analyzer.js') ?>',
+      cvManager: '<?= iotzyAssetUrl('js/modules/cv-manager.js') ?>',
+      cvUI: '<?= iotzyAssetUrl('js/modules/cv-ui.js') ?>',
+      settingsManager: '<?= iotzyAssetUrl('js/modules/settings-manager.js') ?>',
+      aiChat: '<?= iotzyAssetUrl('js/modules/ai-chat.js') ?>',
+    },
+  };
 </script>
-
-<script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
 
 <!-- Core Orchestrator -->
 <script defer src="<?= iotzyAssetUrl('js/app.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/performance-optimizer.js') ?>"></script>
 
-<!-- Modul Fungsional -->
+<!-- Core UI -->
 <script defer src="<?= iotzyAssetUrl('js/modules/navigation.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/overview-manager.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/mqtt-manager.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/device-manager.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/sensor-manager.js') ?>"></script>
 <script defer src="<?= iotzyAssetUrl('js/modules/log-manager.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/schedule-manager.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/automation-engine.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/automation-ui.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/camera-manager.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/camera-live.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/cv-config.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/cv-detector.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/light-analyzer.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/cv-manager.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/cv-ui.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/settings-manager.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/ai-chat.js') ?>"></script>
 
 </body>
 </html>

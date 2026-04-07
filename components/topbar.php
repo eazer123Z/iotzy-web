@@ -6,6 +6,7 @@
           <div class="topbar-context">
             <div class="topbar-context-copy">
               <div id="pageTitle" class="topbar-page-title">Overview</div>
+              <div id="pageDescription" class="topbar-page-description">Ringkasan kondisi rumah dan kontrol favorit Anda.</div>
             </div>
           </div>
         </div>

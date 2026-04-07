@@ -16,7 +16,9 @@
  *  - Retry JS tidak double-retry dengan retry PHP
  */
 
-document.addEventListener('DOMContentLoaded', () => {
+function initAiChatModule() {
+    if (window.__IOTZY_AI_CHAT_READY) return;
+    window.__IOTZY_AI_CHAT_READY = true;
 
     /* ── Referensi elemen DOM ── */
     const chatBtn   = document.getElementById('aiChatBtn');
@@ -39,12 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ════════════════════════════════════════════════════
        INIT: Tampilkan tombol setelah halaman load
        ════════════════════════════════════════════════════ */
-    window.addEventListener('load', () => {
-        setTimeout(() => {
-            chatBtn.classList.remove('hidden');
-            chatBtn.style.opacity = '1';
-        }, 500);
-    });
+    chatBtn.classList.remove('hidden');
+    chatBtn.style.opacity = '1';
 
     /* ════════════════════════════════════════════════════
        MODAL TOGGLE
@@ -511,4 +509,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof syncCVConfigFromServer === 'function') await syncCVConfigFromServer();
     }
 
-});
+}
+
+window.initAiChatModule = initAiChatModule;
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAiChatModule);
+} else {
+    initAiChatModule();
+}
