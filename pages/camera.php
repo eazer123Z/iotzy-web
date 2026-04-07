@@ -29,7 +29,6 @@
           <select id="cameraSelect" class="form-select" onchange="switchCamera(this.value)">
             <option value="">Memuat daftar kamera...</option>
           </select>
-          <div id="cvSessionMeta" class="cv-session-meta">Pilih kamera browser ini atau source device lain pada akun yang sama.</div>
         </div>
         <div class="cv-control-actions">
           <button id="btnStartCam" class="btn-primary btn-sm" onclick="startCamera()">
@@ -45,6 +44,7 @@
             <i class="fas fa-square"></i> Stop Deteksi
           </button>
         </div>
+        <div id="cvSessionMeta" class="cv-session-meta">Pilih kamera browser ini atau source device lain pada akun yang sama.</div>
       </div>
 
       <div class="cv-camera-stage">

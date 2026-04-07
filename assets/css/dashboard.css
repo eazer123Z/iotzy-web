@@ -992,7 +992,7 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
 .cv-control-bar{
   display:grid;
   grid-template-columns:minmax(0,1fr) minmax(260px, 360px);
-  align-items:end;
+  align-items:start;
   gap:16px;
   padding:16px;
   border-radius:18px;
@@ -1010,6 +1010,7 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
   min-width:0;
   display:flex;
   flex-direction:column;
+  gap:6px;
 }
 
 .cv-toolbar-label{
@@ -1036,6 +1037,7 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
   align-items:stretch;
   gap:10px;
   min-width:0;
+  align-self:end;
 }
 
 .camera-controls-top button{
@@ -1824,7 +1826,9 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
 @keyframes fan-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 .cv-session-meta {
-  margin-top: 8px;
+  grid-column: 1 / -1;
+  margin-top: -6px;
+  padding-left: 2px;
   font-size: 0.76rem;
   line-height: 1.45;
   color: var(--text-muted);
