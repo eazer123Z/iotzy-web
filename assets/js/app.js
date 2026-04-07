@@ -1306,7 +1306,11 @@ function replaceSensorsFromSnapshot(data) {
   });
 
   if (typeof renderSensors === "function") renderSensors();
-  if (typeof Overview !== "undefined" && typeof Overview.initChartSelect === "function") {
+  const dashboardView = document.getElementById("dashboard");
+  if (dashboardView
+      && !dashboardView.classList.contains("hidden")
+      && typeof Overview !== "undefined"
+      && typeof Overview.initChartSelect === "function") {
     Overview.initChartSelect();
   }
 }
@@ -1502,7 +1506,12 @@ async function applySyncData(res, timestamp = Date.now()) {
       }
     });
     if (shouldRenderSensors && typeof renderSensors === 'function') renderSensors();
-    if (shouldRenderSensors && typeof Overview !== "undefined" && typeof Overview.initChartSelect === "function") {
+    const dashboardView = document.getElementById("dashboard");
+    if (shouldRenderSensors
+        && dashboardView
+        && !dashboardView.classList.contains("hidden")
+        && typeof Overview !== "undefined"
+        && typeof Overview.initChartSelect === "function") {
       Overview.initChartSelect();
     }
   }
@@ -1553,9 +1562,12 @@ async function applySyncData(res, timestamp = Date.now()) {
    RENDER ALL & DASHBOARD STATS
    ============================================================ */
 function renderAll() {
-  if (typeof renderDevices     === 'function') renderDevices();
-  if (typeof renderSensors     === 'function') renderSensors();
-  if (typeof renderQuickControls === 'function') renderQuickControls();
+  const dashboardView = document.getElementById("dashboard");
+  const isDashboardVisible = !!dashboardView && !dashboardView.classList.contains("hidden");
+
+  if (typeof renderDevices === 'function') renderDevices();
+  if (typeof renderSensors === 'function') renderSensors();
+  if (isDashboardVisible && typeof renderQuickControls === 'function') renderQuickControls();
   const automationView = document.getElementById("automation");
   if (typeof renderAutomationView === 'function' && automationView && !automationView.classList.contains("hidden")) {
     renderAutomationView();
@@ -1701,6 +1713,48 @@ function scheduleIdleTask(task, timeout = 2500) {
   setTimeout(task, Math.min(timeout, 1200));
 }
 
+function scheduleMQTTBootstrap() {
+  if (scheduleMQTTBootstrap._scheduled || typeof window === "undefined") return;
+  if (typeof PHP_SETTINGS === "undefined" || !PHP_SETTINGS?.mqtt_broker || typeof connectMQTT !== "function") return;
+
+  scheduleMQTTBootstrap._scheduled = true;
+
+  const kickoff = () => {
+    if (STATE.mqtt.connected || document.hidden) return;
+    scheduleIdleTask(() => {
+      if (!STATE.mqtt.connected && !document.hidden) {
+        connectMQTT();
+      }
+    }, 1400);
+  };
+
+  const cleanup = () => {
+    window.removeEventListener("pointerdown", startOnInteraction, true);
+    window.removeEventListener("keydown", startOnInteraction, true);
+    document.removeEventListener("visibilitychange", startOnVisible, true);
+  };
+
+  const startOnInteraction = () => {
+    cleanup();
+    setTimeout(kickoff, 900);
+  };
+
+  const startOnVisible = () => {
+    if (document.hidden) return;
+    cleanup();
+    setTimeout(kickoff, 1200);
+  };
+
+  window.addEventListener("pointerdown", startOnInteraction, { once: true, passive: true, capture: true });
+  window.addEventListener("keydown", startOnInteraction, { once: true, capture: true });
+  document.addEventListener("visibilitychange", startOnVisible, { once: true, capture: true });
+
+  setTimeout(() => {
+    cleanup();
+    kickoff();
+  }, 9000);
+}
+
 async function bootstrapDeferredServices() {
   try {
     const realtimeCoreGroup = ensureFeatureGroup("realtimeCore").catch(() => {});
@@ -1715,11 +1769,7 @@ async function bootstrapDeferredServices() {
         }
       }, 3200);
 
-      scheduleIdleTask(() => {
-        if (typeof PHP_SETTINGS !== "undefined" && PHP_SETTINGS.mqtt_broker && typeof connectMQTT === "function") {
-          connectMQTT();
-        }
-      }, 2600);
+      scheduleMQTTBootstrap();
     };
 
     const startAutomationServices = async () => {

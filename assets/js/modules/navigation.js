@@ -36,6 +36,8 @@ function initUptimeCounter() {
 
 /* ── Device Duration Labels ── */
 function updateAllDurations() {
+  const devicesView = document.getElementById("devices");
+  if (devicesView && devicesView.classList.contains("hidden")) return;
   Object.keys(STATE.devices).forEach((id) => {
     const el = document.getElementById(`dur-${id}`);
     if (!el) return;
@@ -116,6 +118,28 @@ async function ensurePageAssets(page) {
 
 function runPageSetup(page, ticket) {
   if (ticket !== _pageSwitchTicket || _currentPage !== page) return;
+
+  if (page === "dashboard") {
+    if (typeof renderQuickControls === "function") {
+      renderQuickControls();
+    }
+    if (typeof Overview !== "undefined" && typeof Overview.init === "function") {
+      Overview.init();
+    }
+  }
+
+  if (page === "devices" && typeof renderDevices === "function") {
+    renderDevices(true);
+  }
+
+  if (page === "sensors") {
+    if (typeof renderSensors === "function") {
+      renderSensors(true);
+    }
+    if (typeof Overview !== "undefined" && typeof Overview.initChartSelect === "function") {
+      Overview.initChartSelect();
+    }
+  }
 
   if (page === "automation") {
     if (typeof renderAutomationView === "function") {

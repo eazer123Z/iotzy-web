@@ -1139,9 +1139,3 @@ function initCameraLive() {
 }
 
 window.initCameraLive = initCameraLive;
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initCameraLive);
-} else {
-  initCameraLive();
-}

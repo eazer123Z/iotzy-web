@@ -73,9 +73,3 @@ function initOverviewManager() {
 
 window.Overview = Overview;
 window.initOverviewManager = initOverviewManager;
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initOverviewManager, { once: true });
-} else {
-  initOverviewManager();
-}

@@ -662,10 +662,12 @@ function handleDeviceCardClick(id, context = 'grid') {
 /**
  * Merender daftar semua perangkat ke Grid Utama.
  */
-function renderDevices() {
+function renderDevices(force = false) {
   const grid = document.getElementById('devicesGrid');
   const empty = document.getElementById('emptyDevices');
+  const view = document.getElementById('devices');
   if (!grid) return;
+  if (!force && view && view.classList.contains('hidden')) return;
 
   const keys = Object.keys(STATE.devices || {});
   grid.innerHTML = '';

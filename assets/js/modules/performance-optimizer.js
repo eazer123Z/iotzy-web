@@ -14,7 +14,6 @@ const CACHE_CONFIG = {
 const CACHE_KEYS = {
   DEVICES: "iotzy_cache_devices",
   SENSORS: "iotzy_cache_sensors",
-  AUTOMATION: "iotzy_cache_automation",
   ANALYTICS: "iotzy_cache_analytics",
   DASHBOARD: "iotzy_cache_dashboard",
 };
@@ -110,7 +109,6 @@ const PerformanceOptimizer = {
     async run() {
       if (PerformanceOptimizer.shouldDeferOptionalWork()) return;
       const tasks = [
-        { action: "get_automation_rules", data: {}, key: CACHE_KEYS.AUTOMATION },
         { action: "get_schedules", data: {}, key: "iotzy_cache_schedules" }
       ];
 
@@ -175,9 +173,3 @@ function initPerformanceOptimizer() {
 }
 
 window.initPerformanceOptimizer = initPerformanceOptimizer;
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initPerformanceOptimizer, { once: true });
-} else {
-  initPerformanceOptimizer();
-}

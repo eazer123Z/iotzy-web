@@ -363,9 +363,3 @@ function initSettingsManager() {
 }
 
 window.initSettingsManager = initSettingsManager;
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initSettingsManager);
-} else {
-  initSettingsManager();
-}

@@ -208,10 +208,12 @@ function renderSensorCard(sensorId) {
   return card;
 }
 
-function renderSensors() {
+function renderSensors(force = false) {
   const grid = document.getElementById("sensorsGrid");
   const empty = document.getElementById("emptySensors");
+  const view = document.getElementById("sensors");
   if (!grid) return;
+  if (!force && view && view.classList.contains("hidden")) return;
 
   const keys = Object.keys(STATE.sensors || {});
   grid.innerHTML = "";

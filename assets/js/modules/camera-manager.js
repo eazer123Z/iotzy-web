@@ -616,9 +616,3 @@ function initCameraManager() {
 }
 
 window.initCameraManager = initCameraManager;
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initCameraManager);
-} else {
-  initCameraManager();
-}

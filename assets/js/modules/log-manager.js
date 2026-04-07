@@ -563,9 +563,3 @@ function initLogManager() {
 }
 
 window.initLogManager = initLogManager;
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initLogManager, { once: true });
-} else {
-  initLogManager();
-}

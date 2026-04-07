@@ -512,9 +512,3 @@ function initAiChatModule() {
 }
 
 window.initAiChatModule = initAiChatModule;
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initAiChatModule);
-} else {
-    initAiChatModule();
-}
