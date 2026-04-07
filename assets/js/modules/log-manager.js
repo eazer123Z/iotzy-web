@@ -145,8 +145,8 @@ async function loadLogs(date = getAnalyticsDate()) {
   const cacheKeySummary = `iotzy_cache_summary_${date}`;
 
   // 1. Tampilkan dari Cache dulu (Instant)
-  const cachedLogs = PerformanceOptimizer.Cache.get(cacheKey);
-  const cachedSummary = PerformanceOptimizer.Cache.get(cacheKeySummary);
+  const cachedLogs = typeof PerformanceOptimizer !== "undefined" ? PerformanceOptimizer.Cache.get(cacheKey) : null;
+  const cachedSummary = typeof PerformanceOptimizer !== "undefined" ? PerformanceOptimizer.Cache.get(cacheKeySummary) : null;
 
   if (cachedLogs) {
     STATE.logs = cachedLogs.map(normalizeLogRecord).filter(isUserFacingLog);
@@ -171,12 +171,16 @@ async function loadLogs(date = getAnalyticsDate()) {
 
     if (Array.isArray(logsResult)) {
       STATE.logs = logsResult.map(normalizeLogRecord).filter(isUserFacingLog);
-      PerformanceOptimizer.Cache.set(cacheKey, logsResult);
+      if (typeof PerformanceOptimizer !== "undefined") {
+        PerformanceOptimizer.Cache.set(cacheKey, logsResult);
+      }
     }
 
     if (summaryResult?.success && summaryResult.data) {
       STATE.analytics = summaryResult.data;
-      PerformanceOptimizer.Cache.set(cacheKeySummary, summaryResult.data);
+      if (typeof PerformanceOptimizer !== "undefined") {
+        PerformanceOptimizer.Cache.set(cacheKeySummary, summaryResult.data);
+      }
     }
 
     updateLogDisplay();
@@ -497,8 +501,10 @@ function clearAllLogs() {
       
       // 2. Bersihkan Cache agar tidak muncul lagi saat refresh/pindah menu
       const date = getAnalyticsDate();
-      PerformanceOptimizer.Cache.set(`iotzy_cache_logs_${date}`, []);
-      PerformanceOptimizer.Cache.set(`iotzy_cache_summary_${date}`, null);
+      if (typeof PerformanceOptimizer !== "undefined") {
+        PerformanceOptimizer.Cache.set(`iotzy_cache_logs_${date}`, []);
+        PerformanceOptimizer.Cache.set(`iotzy_cache_summary_${date}`, null);
+      }
       
       // 3. Update UI
       updateLogDisplay();
@@ -546,10 +552,20 @@ function updateLogStats() {
   if (g("logStatTotal")) g("logStatTotal").textContent = summary.total_logs ?? 0;
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+function initLogManager() {
+  if (initLogManager._started) return;
+  initLogManager._started = true;
   const dateInput = document.getElementById("logSummaryDate");
   if (dateInput) {
     dateInput.value = getAnalyticsDate();
     dateInput.addEventListener("change", () => loadLogs(dateInput.value || getAnalyticsDate()));
   }
-});
+}
+
+window.initLogManager = initLogManager;
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initLogManager, { once: true });
+} else {
+  initLogManager();
+}

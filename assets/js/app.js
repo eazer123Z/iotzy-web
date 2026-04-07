@@ -48,8 +48,12 @@ const LAZY_ASSET_PROMISES = {};
 const LAZY_GROUP_PROMISES = {};
 
 const LAZY_FEATURE_GROUPS = {
+  realtimeCore: [
+    { bucket: "scripts", keys: ["performanceOptimizer", "logManager", "deviceManager", "sensorManager", "overviewManager", "mqttLib", "mqttManager"] },
+  ],
   analytics: [
     { bucket: "libs", keys: ["chart"] },
+    { bucket: "scripts", keys: ["performanceOptimizer", "logManager"] },
   ],
   automation: [
     { bucket: "scripts", keys: ["scheduleManager", "automationEngine", "automationUI"] },
@@ -127,6 +131,17 @@ async function ensureFeatureGroup(groupName) {
       for (const key of entry.keys) {
         await loadLazyAsset(entry.bucket, key);
       }
+    }
+
+    if (groupName === "realtimeCore") {
+      if (typeof window.initPerformanceOptimizer === "function") window.initPerformanceOptimizer();
+      if (typeof window.initLogManager === "function") window.initLogManager();
+      if (typeof Overview !== "undefined" && typeof Overview.init === "function") {
+        Overview.init();
+      }
+      renderAll();
+      if (typeof updateDashboardActivityFeed === "function") updateDashboardActivityFeed();
+      if (typeof updateLogStats === "function") updateLogStats();
     }
 
     if (groupName === "camera") {
@@ -844,7 +859,6 @@ function scheduleOptionalWarmups() {
     if (typeof ensureSensorTemplatesLoaded === "function") warmups.push(ensureSensorTemplatesLoaded().catch(() => {}));
     if (typeof ensureSchedulesLoaded === "function") warmups.push(ensureSchedulesLoaded().catch(() => {}));
     if (typeof loadMQTTTemplates === "function") warmups.push(Promise.resolve(loadMQTTTemplates()).catch(() => {}));
-    if (typeof ensureFeatureGroup === "function") warmups.push(ensureFeatureGroup("camera").catch(() => {}));
     if (warmups.length) Promise.allSettled(warmups).catch(() => {});
   };
 
@@ -1663,44 +1677,70 @@ function revealMainApp() {
   const app = document.getElementById("mainApp");
   if (app) app.classList.remove("opacity-0");
   if (ls) {
-    ls.style.opacity = "0";
-    setTimeout(() => { ls.style.display = "none"; }, 220);
+    ls.classList.add("done");
+    setTimeout(() => { ls.style.display = "none"; }, 140);
   }
   const aiBtn = document.getElementById("aiChatBtn");
   if (aiBtn) aiBtn.classList.add("show");
 }
 
+function scheduleAfterFirstPaint(task, delay = 0) {
+  const run = () => setTimeout(task, Math.max(0, delay));
+  if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+    window.requestAnimationFrame(() => run());
+    return;
+  }
+  run();
+}
+
+function scheduleIdleTask(task, timeout = 2500) {
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(() => task(), { timeout });
+    return;
+  }
+  setTimeout(task, Math.min(timeout, 1200));
+}
+
 async function bootstrapDeferredServices() {
   try {
-    const automationGroup = ensureFeatureGroup("automation").catch(() => {});
+    const realtimeCoreGroup = ensureFeatureGroup("realtimeCore").catch(() => {});
 
-    await Promise.allSettled([
-      automationGroup.then(() => (
-        typeof initAutomationRules === "function" ? initAutomationRules() : Promise.resolve()
-      )),
-    ]);
-
-    if (typeof automationEngine !== "undefined") automationEngine.initialize();
-
-    const startRealtimeServices = () => {
-      if (typeof loadLogs === "function" && getSyncContext().isDashboardView) {
-        loadLogs(typeof getAnalyticsDate === "function" ? getAnalyticsDate() : undefined).catch(() => {});
-      }
+    const startRealtimeServices = async () => {
       syncAllFromServer(true).catch(() => {});
-      if (typeof PHP_SETTINGS !== 'undefined' && PHP_SETTINGS.mqtt_broker) {
-        if (typeof connectMQTT === 'function') connectMQTT();
-      }
+      await realtimeCoreGroup;
+
+      scheduleIdleTask(() => {
+        if (typeof loadLogs === "function" && getSyncContext().isDashboardView) {
+          loadLogs(typeof getAnalyticsDate === "function" ? getAnalyticsDate() : undefined).catch(() => {});
+        }
+      }, 3200);
+
+      scheduleIdleTask(() => {
+        if (typeof PHP_SETTINGS !== "undefined" && PHP_SETTINGS.mqtt_broker && typeof connectMQTT === "function") {
+          connectMQTT();
+        }
+      }, 2600);
     };
 
-    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
-      window.requestAnimationFrame(() => {
-        setTimeout(startRealtimeServices, 120);
-      });
-    } else {
-      setTimeout(startRealtimeServices, 120);
-    }
+    const startAutomationServices = async () => {
+      await ensureFeatureGroup("automation");
+      if (typeof initAutomationRules === "function") {
+        await initAutomationRules();
+      }
+      if (typeof automationEngine !== "undefined") automationEngine.initialize();
+    };
 
-    scheduleOptionalWarmups();
+    scheduleAfterFirstPaint(() => {
+      startRealtimeServices().catch(() => {});
+    }, 80);
+
+    scheduleIdleTask(() => {
+      startAutomationServices().catch(() => {});
+    }, 2200);
+
+    realtimeCoreGroup.finally(() => {
+      scheduleOptionalWarmups();
+    });
   } catch (e) {
     console.warn("bootstrapDeferredServices error:", e);
   }

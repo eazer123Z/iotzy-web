@@ -109,10 +109,7 @@ const PerformanceOptimizer = {
 
     async run() {
       if (PerformanceOptimizer.shouldDeferOptionalWork()) return;
-      const today = new Date().toISOString().slice(0, 10);
       const tasks = [
-        { action: "get_logs", data: { date: today, limit: 100 }, key: `iotzy_cache_logs_${today}` },
-        { action: "get_logs_daily_summary", data: { date: today }, key: `iotzy_cache_summary_${today}` },
         { action: "get_automation_rules", data: {}, key: CACHE_KEYS.AUTOMATION },
         { action: "get_schedules", data: {}, key: "iotzy_cache_schedules" }
       ];
@@ -171,7 +168,16 @@ const PerformanceOptimizer = {
   }
 };
 
-// Auto-start Prefetching
-document.addEventListener("DOMContentLoaded", () => {
+function initPerformanceOptimizer() {
+  if (initPerformanceOptimizer._started) return;
+  initPerformanceOptimizer._started = true;
   PerformanceOptimizer.Prefetch.start();
-});
+}
+
+window.initPerformanceOptimizer = initPerformanceOptimizer;
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initPerformanceOptimizer, { once: true });
+} else {
+  initPerformanceOptimizer();
+}

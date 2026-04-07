@@ -63,10 +63,19 @@ const Overview = {
   }
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+function initOverviewManager() {
+  if (initOverviewManager._started) return;
+  initOverviewManager._started = true;
   if (document.getElementById('dashboard')) {
     Overview.init();
   }
-});
+}
 
 window.Overview = Overview;
+window.initOverviewManager = initOverviewManager;
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initOverviewManager, { once: true });
+} else {
+  initOverviewManager();
+}

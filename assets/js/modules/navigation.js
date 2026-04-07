@@ -93,6 +93,9 @@ async function ensurePageAssets(page) {
   if (typeof ensureFeatureGroup !== "function") return;
 
   const tasks = [];
+  if (["dashboard", "devices", "sensors", "analytics"].includes(page)) {
+    tasks.push(ensureFeatureGroup("realtimeCore"));
+  }
   if (page === "automation") {
     tasks.push(ensureFeatureGroup("automation"));
   }

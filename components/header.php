@@ -10,9 +10,9 @@
 <meta name="iotzy-build" content="<?= htmlspecialchars(APP_VERSION, ENT_QUOTES, 'UTF-8') ?>">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<script defer src="<?= iotzyAssetUrl('js/lib/mqttws31.min.js') ?>"></script>
 <script>const CSRF_TOKEN = "<?= $_SESSION['csrf_token'] ?? '' ?>";</script>
 <link rel="stylesheet" href="<?= iotzyAssetUrl('css/dashboard.css') ?>">
 </head>

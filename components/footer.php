@@ -77,6 +77,13 @@ $webrtcRuntimeConfig = [
       dompurify: 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js',
     },
     scripts: {
+      performanceOptimizer: '<?= iotzyAssetUrl('js/modules/performance-optimizer.js') ?>',
+      overviewManager: '<?= iotzyAssetUrl('js/modules/overview-manager.js') ?>',
+      mqttLib: '<?= iotzyAssetUrl('js/lib/mqttws31.min.js') ?>',
+      mqttManager: '<?= iotzyAssetUrl('js/modules/mqtt-manager.js') ?>',
+      deviceManager: '<?= iotzyAssetUrl('js/modules/device-manager.js') ?>',
+      sensorManager: '<?= iotzyAssetUrl('js/modules/sensor-manager.js') ?>',
+      logManager: '<?= iotzyAssetUrl('js/modules/log-manager.js') ?>',
       scheduleManager: '<?= iotzyAssetUrl('js/modules/schedule-manager.js') ?>',
       automationEngine: '<?= iotzyAssetUrl('js/modules/automation-engine.js') ?>',
       automationUI: '<?= iotzyAssetUrl('js/modules/automation-ui.js') ?>',
@@ -95,15 +102,9 @@ $webrtcRuntimeConfig = [
 
 <!-- Core Orchestrator -->
 <script defer src="<?= iotzyAssetUrl('js/app.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/performance-optimizer.js') ?>"></script>
 
 <!-- Core UI -->
 <script defer src="<?= iotzyAssetUrl('js/modules/navigation.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/overview-manager.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/mqtt-manager.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/device-manager.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/sensor-manager.js') ?>"></script>
-<script defer src="<?= iotzyAssetUrl('js/modules/log-manager.js') ?>"></script>
 
 </body>
 </html>
