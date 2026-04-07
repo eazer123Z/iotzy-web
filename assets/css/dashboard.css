@@ -2979,9 +2979,17 @@ body {
   backdrop-filter: blur(18px) !important;
 }
 
-.page-wrapper {
-  max-width: 1420px;
-  margin: 0 auto;
+.topbar-inner,
+.page-wrapper,
+.app-section,
+.view {
+  width: 100%;
+  max-width: none;
+}
+
+.page-wrapper,
+.app-section {
+  margin: 0;
 }
 
 .user-pill,
