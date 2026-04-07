@@ -2,7 +2,7 @@
   <div class="view-header">
     <div class="v-title">
       <h3><i class="fas fa-eye"></i> Computer Vision</h3>
-      <p>Deteksi orang dan cahaya dari kamera.</p>
+      <p>Pantau kamera dan deteksi AI.</p>
     </div>
   </div>
 
@@ -11,8 +11,8 @@
       <div class="cv-panel-head">
         <div>
           <div class="cv-panel-kicker">Realtime Browser Camera</div>
-          <h4 class="cv-panel-title">Monitor Frame, Deteksi Orang, dan Cahaya</h4>
-          <p class="cv-panel-subtitle">Pilih kamera, nyalakan stream, muat model AI saat dibutuhkan, lalu aktifkan deteksi saat Anda siap.</p>
+          <h4 class="cv-panel-title">Monitor Kamera</h4>
+          <p class="cv-panel-subtitle">Nyalakan kamera, lalu aktifkan AI saat perlu.</p>
         </div>
         <div class="cv-status-rail">
           <span id="cvModelBadge" class="cv-status-badge idle">Idle</span>
@@ -47,7 +47,7 @@
             <i class="fas fa-square"></i> Stop Deteksi
           </button>
         </div>
-        <div id="cvSessionMeta" class="cv-session-meta">Pilih kamera browser ini atau source device lain pada akun yang sama.</div>
+        <div id="cvSessionMeta" class="cv-session-meta">Pilih kamera lokal atau source live.</div>
       </div>
 
       <div class="cv-camera-stage">
@@ -58,7 +58,7 @@
           <div class="cv-camera-empty">
             <i id="cameraFocusTag" class="fas fa-video-slash"></i>
             <span id="cameraFocusPlaceholder">Kamera belum aktif</span>
-            <small>Nyalakan kamera untuk mulai memantau frame.</small>
+            <small>Nyalakan kamera untuk mulai memantau.</small>
           </div>
 
           <div id="cvDetectionInfo" class="cv-detection-hud" style="display:none">
@@ -82,7 +82,7 @@
 
         <div class="cv-stage-note">
           <i class="fas fa-circle-info"></i>
-          Hasil paling stabil didapat saat wajah atau tubuh berada di tengah frame dan pencahayaan tidak terlalu backlight.
+          Posisikan objek di tengah frame dan hindari backlight.
         </div>
       </div>
 
@@ -93,7 +93,7 @@
         <div class="cv-summary-head">
           <div>
             <div class="cv-panel-kicker">Insight Real-time</div>
-            <h4 class="cv-summary-title">Ringkasan Deteksi</h4>
+            <h4 class="cv-summary-title">Deteksi</h4>
           </div>
           <span class="cv-summary-chip">Browser + AI Lokal</span>
         </div>
@@ -129,7 +129,7 @@
           <div class="cv-perf-meta">
             <div class="cv-stat-icon cv-muted"><i class="fas fa-gauge"></i></div>
             <div>
-              <div class="cv-perf-title" id="cvPerfLabel" title="Laju inferensi model AI per detik, bukan FPS video kamera">AI Deteksi / Detik</div>
+              <div class="cv-perf-title" id="cvPerfLabel" title="Laju inferensi model AI per detik, bukan FPS video kamera">Deteksi / dtk</div>
               <div class="cv-perf-sub">Menggambarkan seberapa cepat model menganalisis frame</div>
             </div>
           </div>
@@ -143,7 +143,7 @@
           <span class="cv-summary-chip">Rule Engine</span>
         </div>
         <div class="card-body" id="cvAutomationSettings">
-          <p class="muted cv-automation-empty">Pengaturan otomasi CV akan muncul saat kamera aktif.</p>
+          <p class="muted cv-automation-empty">Pengaturan CV muncul saat kamera aktif.</p>
         </div>
       </div>
     </div>
