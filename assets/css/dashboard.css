@@ -3310,3 +3310,422 @@ body {
 #camera .cv-automation-card .card-body {
   padding: 12px 14px 14px !important;
 }
+
+/* ==================== GLOBAL MINIMAL TONE OVERRIDE ==================== */
+.topbar-page-description,
+.view-header .v-title p,
+.overview-header .ov-title p,
+.page-section-badge,
+.view-kicker,
+.quick-control-hint,
+.qc-btn-type,
+.sensor-type-label,
+.auto-card-sub,
+.stats-grid .stat-sub,
+.log-stats-grid .stat-sub {
+  display: none !important;
+}
+
+.view-header::after,
+.overview-header::after,
+.nav-item.active::before,
+.stat-card::after,
+.sensor-card::before {
+  display: none !important;
+}
+
+.topbar {
+  min-height: 56px !important;
+  padding: 0 18px !important;
+}
+
+.topbar-inner {
+  min-height: 56px !important;
+  padding: 8px 0 !important;
+}
+
+.topbar-page-title,
+.v-title h3,
+.ov-title h1 {
+  letter-spacing: -0.02em !important;
+}
+
+.topbar-page-title {
+  font-size: 1.02rem !important;
+}
+
+.v-title h3 {
+  font-size: 1.24rem !important;
+  gap: 8px !important;
+}
+
+.ov-title h1 {
+  font-size: 1.46rem !important;
+}
+
+.sidebar-logo,
+.user-avatar,
+.stat-icon,
+.activity-icon,
+.sensor-big-icon,
+.device-icon-wrap,
+.qc-btn-icon,
+.qc-picker-icon,
+.sett-icon,
+.auto-icon {
+  background: var(--accent-bg) !important;
+  color: var(--accent-strong) !important;
+  box-shadow: none !important;
+}
+
+.sidebar-logo,
+.user-avatar {
+  border-radius: 12px !important;
+}
+
+.stat-icon,
+.activity-icon,
+.sensor-big-icon,
+.device-icon-wrap,
+.qc-btn-icon,
+.qc-picker-icon,
+.sett-icon,
+.auto-icon {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 10px !important;
+}
+
+.stat-icon.green,
+.stat-icon.sky,
+.stat-icon.amber,
+.stat-icon.purple,
+.device-card.active .device-icon-wrap,
+.device-card.on .device-icon-wrap,
+.sett-icon.lp,
+.sett-icon.fn,
+.sett-icon.lk {
+  background: var(--accent-bg) !important;
+  color: var(--accent-strong) !important;
+}
+
+.device-icon {
+  font-size: 1.02rem !important;
+}
+
+.sensor-big-icon,
+.activity-icon,
+.qc-btn-icon,
+.qc-picker-icon,
+.sett-icon,
+.auto-icon {
+  font-size: 0.92rem !important;
+}
+
+.v-title h3 i,
+.card-title i,
+.nav-icon i,
+.settings-tab i,
+.settings-panel h4 i,
+.mobile-nav-link i,
+.empty-state i,
+.quick-controls-grid .muted i,
+.mqtt-pill i {
+  color: var(--accent-strong) !important;
+}
+
+.nav-item {
+  gap: 10px !important;
+  padding: 9px 12px !important;
+  border-radius: 10px !important;
+}
+
+.nav-item.active,
+.bn-item.active,
+.mobile-nav-link.active,
+.settings-tab.active {
+  background: var(--accent-bg) !important;
+  color: var(--accent-strong) !important;
+  border-color: transparent !important;
+}
+
+.nav-badge,
+.quick-control-count,
+.mqtt-badge {
+  background: var(--accent-bg) !important;
+  color: var(--accent-strong) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.nav-badge {
+  min-width: 20px !important;
+  padding: 1px 7px !important;
+  font-size: 0.66rem !important;
+}
+
+.status-val,
+.cv-status-badge,
+.cv-inline-loading,
+.rule-badge-on,
+.rule-badge-off,
+.rule-badge-speed,
+.rule-time-window,
+.auto-val-badge,
+.template-chip:hover {
+  background: var(--accent-bg) !important;
+  color: var(--accent-strong) !important;
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border)) !important;
+  box-shadow: none !important;
+}
+
+.nav-dot,
+.mqtt-dot,
+.presence-dot.detected {
+  background: var(--accent) !important;
+  box-shadow: none !important;
+}
+
+.presence-dot.detected + .presence-text {
+  color: var(--accent-strong) !important;
+}
+
+.menu-btn,
+.icon-btn,
+.topbar .icon-btn,
+.sidebar-bottom-row .icon-btn {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 10px !important;
+  background: color-mix(in srgb, var(--accent-bg) 72%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent) !important;
+  color: var(--accent-strong) !important;
+}
+
+.card,
+.stat-card,
+.device-card,
+.sensor-card,
+.automation-card,
+.auto-card,
+.settings-layout,
+.modal-content,
+.user-pill,
+.search-box,
+.camera-panel,
+.cv-summary-card,
+.cv-automation-card,
+.cv-stat-card,
+.cv-perf-card,
+.cv-live-session,
+.cv-live-remote-stage,
+.bottom-nav,
+.mobile-nav-hub {
+  border-radius: 16px !important;
+  box-shadow: none !important;
+  border-color: color-mix(in srgb, var(--border) 74%, transparent) !important;
+}
+
+.settings-sidebar,
+.settings-content,
+.card-header,
+.card-body,
+.modal-header,
+.modal-body,
+.modal-footer {
+  background: transparent !important;
+}
+
+.card-header,
+.modal-header {
+  padding: 14px 16px !important;
+}
+
+.card-body,
+.modal-body {
+  padding: 16px !important;
+}
+
+.modal-footer {
+  padding: 12px 16px !important;
+}
+
+.card-title {
+  gap: 6px !important;
+  font-size: 0.84rem !important;
+}
+
+.card-title i {
+  font-size: 0.76rem !important;
+}
+
+.stat-card {
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 16px !important;
+}
+
+.stat-value {
+  font-size: 1.34rem !important;
+}
+
+.stat-label {
+  font-size: 0.74rem !important;
+}
+
+.device-card {
+  min-height: 196px !important;
+  border-radius: 18px !important;
+  padding: 16px 14px !important;
+  gap: 10px !important;
+}
+
+.device-card.active,
+.device-card.on {
+  background: var(--shell-panel) !important;
+  border-color: var(--border-hover) !important;
+}
+
+.sensor-card,
+.auto-card,
+.automation-card {
+  padding: 16px !important;
+}
+
+.motion-indicator,
+.rules-empty,
+.rule-row,
+.cv-empty-state,
+.cv-no-dev,
+.cv-automation-empty {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.motion-indicator.active,
+.toggle-switch.on,
+.toggle-switch:has(input:checked),
+.toggle-input:checked + .toggle-track {
+  background: var(--accent-bg) !important;
+  border-color: var(--accent) !important;
+}
+
+.motion-icon {
+  color: var(--accent-strong) !important;
+}
+
+.temp-bar,
+.humidity-bar,
+.air-bar,
+.smoke-bar,
+.gas-bar,
+.brightness-bar,
+.default-bar {
+  background: linear-gradient(90deg, var(--accent), var(--accent-light)) !important;
+}
+
+.qc-btn,
+.qc-picker-card,
+.mobile-nav-link {
+  border-radius: 14px !important;
+  box-shadow: none !important;
+}
+
+.qc-btn,
+.qc-picker-card {
+  background: transparent !important;
+  border-color: color-mix(in srgb, var(--border) 74%, transparent) !important;
+}
+
+.qc-btn.on,
+.qc-picker-card.active {
+  background: color-mix(in srgb, var(--accent-bg) 70%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border)) !important;
+}
+
+.settings-sidebar {
+  padding: 10px !important;
+  border-right-color: color-mix(in srgb, var(--border) 70%, transparent) !important;
+}
+
+.settings-tab {
+  width: 100% !important;
+  margin: 0 0 6px !important;
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
+  gap: 8px !important;
+}
+
+.settings-tab.active {
+  border-right: none !important;
+  border-bottom: none !important;
+}
+
+.settings-panel h4 {
+  margin-bottom: 16px !important;
+  gap: 6px !important;
+}
+
+.form-group label {
+  font-size: 0.74rem !important;
+  margin-bottom: 5px !important;
+}
+
+input,
+select,
+textarea,
+.search-box,
+.ov-select,
+.camera-controls-top .form-select,
+.form-select {
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+.search-box {
+  padding: 0 10px !important;
+}
+
+.search-box input {
+  min-width: 180px !important;
+}
+
+.empty-state {
+  padding: 40px 16px !important;
+}
+
+.empty-state i {
+  font-size: 1.8rem !important;
+  opacity: 0.2 !important;
+}
+
+.card:hover,
+.stat-card:hover,
+.device-card:hover,
+.sensor-card:hover,
+.automation-card:hover,
+.auto-card:hover,
+.qc-btn:hover,
+.qc-picker-card:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: var(--border-hover) !important;
+}
+
+@media (max-width: 768px) {
+  .topbar-page-title {
+    font-size: 0.94rem !important;
+  }
+
+  .v-title h3 {
+    font-size: 1.12rem !important;
+  }
+
+  .ov-title h1 {
+    font-size: 1.26rem !important;
+  }
+
+  .search-box input {
+    min-width: 0 !important;
+  }
+}
