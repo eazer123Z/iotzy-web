@@ -38,7 +38,10 @@ function getRemoteCameraLabel(session) {
   if (!session) return "Source live";
   const name = String(session.publisher_name || "Source live").trim();
   const source = String(session.source_label || "").trim();
-  return source ? `${name} - ${source}` : name;
+  if (source && source.toLowerCase() !== name.toLowerCase()) {
+    return `Live: ${name} - ${source}`;
+  }
+  return `Live: ${name}`;
 }
 
 function getSelectedCameraSource() {
@@ -82,16 +85,21 @@ function updateCameraSelectionMetaUI() {
   if (!el) return;
 
   const selection = getSelectedCameraSource();
+  const remoteCount = getAvailableRemoteCameraSessions().length;
   if (selection.type === "remote") {
     const remoteLabel = selection.label || STATE.camera.selectedRemoteLabel || "source live device lain";
     const watcherState = STATE.camera.mode === "remote" && STATE.camera.active ? "Sedang memantau" : "Siap memantau";
-    el.textContent = `${watcherState}: ${remoteLabel}. Device ini bertindak sebagai viewer, bukan source kamera.`;
+    el.textContent = `${watcherState}: ${remoteLabel}. Device ini bertindak sebagai viewer, bukan source kamera utama.`;
     return;
   }
 
   const sessionLabel = sanitizeCameraNameValue(STATE.camera.sessionLabel, "Browser Ini");
   const deviceLabel = sanitizeCameraNameValue(getSelectedCameraDeviceLabel(), "kamera browser");
-  el.textContent = `Sesi aktif: ${sessionLabel} • Source lokal: ${deviceLabel}. Device lain pada akun ini bisa melihat source ini.`;
+  const remoteHint = remoteCount > 0
+    ? ` ${remoteCount} source live device lain tersedia di dropdown ini untuk mode pantau.`
+    : " Device lain pada akun ini bisa melihat source ini saat kamera aktif.";
+  el.textContent = `Sesi aktif: ${sessionLabel} - Source utama: ${deviceLabel}.${remoteHint}`;
+  return;
 }
 
 function updateCameraPrimaryActionLabels() {
@@ -101,7 +109,7 @@ function updateCameraPrimaryActionLabels() {
 
   if (startBtn) {
     startBtn.innerHTML = selection.type === "remote"
-      ? `<i class="fas fa-eye"></i> Pantau Kamera`
+      ? `<i class="fas fa-eye"></i> Pantau Source`
       : `<i class="fas fa-play"></i> Mulai Kamera`;
   }
 
@@ -194,10 +202,10 @@ function renderCameraDeviceSelect(error = null) {
     groups.push(`<optgroup label="Kamera Browser Ini">${localOptions}</optgroup>`);
   }
   if (remoteOptions) {
-    groups.push(`<optgroup label="Source Device Lain">${remoteOptions}</optgroup>`);
+    groups.push(`<optgroup label="Pantau Device Lain">${remoteOptions}</optgroup>`);
   }
 
-  const placeholderLabel = groups.length ? "Pilih source kamera" : hint;
+  const placeholderLabel = groups.length ? "Pilih sumber kamera utama atau live source" : hint;
   select.innerHTML = `<option value="">${escHtml(placeholderLabel)}</option>${groups.join("")}`;
   select.disabled = !groups.length;
 
