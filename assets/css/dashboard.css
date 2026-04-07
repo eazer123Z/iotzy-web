@@ -218,6 +218,7 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
 
 /* ── 8. VIEW SYSTEM ───────────────────────────────────── */
 .view{display:block}
+.hidden{display:none!important}
 .view.hidden{display:none!important}
 .view.entering{animation:fadeSlideIn .25s ease}
 @keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
