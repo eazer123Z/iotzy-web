@@ -61,6 +61,66 @@ function iotzy_parse_http_status(array $headers): int
     return 0;
 }
 
+function iotzy_extract_ai_error_message(string $raw): string
+{
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return '';
+    }
+
+    $message = $decoded['error']['message'] ?? $decoded['message'] ?? '';
+    return is_string($message) ? trim($message) : '';
+}
+
+function iotzy_map_ai_error_to_user_message(int $statusCode, string $rawError): string
+{
+    $error = strtolower(trim($rawError));
+
+    if (
+        $statusCode === 401
+        || str_contains($error, 'user not found')
+        || str_contains($error, 'unauthorized')
+        || str_contains($error, 'invalid api key')
+        || str_contains($error, 'invalid authentication')
+    ) {
+        return 'AI belum aktif: API key OpenRouter tidak valid atau sudah tidak aktif.';
+    }
+
+    if (
+        $statusCode === 402
+        || str_contains($error, 'insufficient credits')
+        || str_contains($error, 'quota')
+        || str_contains($error, 'billing')
+        || str_contains($error, 'payment')
+    ) {
+        return 'Kuota AI habis atau billing provider sedang bermasalah.';
+    }
+
+    if (
+        $statusCode === 429
+        || str_contains($error, 'rate limit')
+        || str_contains($error, 'too many requests')
+    ) {
+        return 'Layanan AI sedang kena limit. Coba lagi sebentar.';
+    }
+
+    if (
+        $statusCode >= 500
+        || str_contains($error, 'timeout')
+        || str_contains($error, 'timed out')
+        || str_contains($error, 'gateway')
+        || str_contains($error, 'temporarily unavailable')
+    ) {
+        return 'Server AI sedang lambat atau bermasalah. Coba lagi sebentar.';
+    }
+
+    if ($statusCode === 0 && $error === '') {
+        return 'Koneksi ke provider AI gagal. Cek internet atau konfigurasi server.';
+    }
+
+    return 'AI sedang bermasalah. Coba lagi beberapa saat.';
+}
+
 function iotzy_call_api_via_stream(string $apiKey, array $payload): array
 {
     $allowUrlFopen = ini_get('allow_url_fopen');
@@ -94,7 +154,11 @@ function iotzy_call_api_via_stream(string $apiKey, array $payload): array
             'error' => $err['message'] ?? 'HTTP stream request failed',
         ];
     }
-    return ['code' => $statusCode, 'body' => $raw, 'error' => ''];
+    return [
+        'code' => $statusCode,
+        'body' => $raw,
+        'error' => $statusCode === 200 ? '' : iotzy_extract_ai_error_message($raw),
+    ];
 }
 
 // ============================================================================
@@ -736,6 +800,7 @@ function iotzy_validate_builtin_automation_column(?string $target): ?string
 function iotzy_call_api(string $apiKey, array $payload): array
 {
     $lastErr = '';
+    $lastCode = 0;
     $useCurl = function_exists('curl_init');
     // Loop AI_MAX_RETRIES kali (bukan +1)
     for ($i = 1; $i <= AI_MAX_RETRIES; $i++) {
@@ -759,11 +824,13 @@ function iotzy_call_api(string $apiKey, array $payload): array
             $err  = curl_error($ch);
             $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
+            $providerError = (!$err && is_string($raw) && $raw !== '') ? iotzy_extract_ai_error_message($raw) : '';
         } else {
             $streamResponse = iotzy_call_api_via_stream($apiKey, $payload);
             $raw = $streamResponse['body'];
             $err = $streamResponse['error'];
             $code = (int)$streamResponse['code'];
+            $providerError = $streamResponse['error'] ?? '';
         }
 
         if (!$err && $code === 200) {
@@ -772,12 +839,15 @@ function iotzy_call_api(string $apiKey, array $payload): array
             if ($c !== null) return ['ok' => true, 'content' => $c];
             $lastErr = $res['error']['message'] ?? 'Empty response.';
         } else {
-            $lastErr = $err ?: "HTTP $code";
+            $lastErr = $err ?: $providerError ?: "HTTP $code";
         }
+
+        $lastCode = $code;
+        error_log("[IoTzy AI] API failure code={$code} err=" . $lastErr);
 
         if ($i < AI_MAX_RETRIES) usleep(AI_RETRY_DELAY_MS * 1000);
     }
-    return ['ok' => false, 'error' => $lastErr];
+    return ['ok' => false, 'error' => $lastErr, 'code' => $lastCode];
 }
 
 // ============================================================================
@@ -986,7 +1056,7 @@ function parse_nl_to_action(
     ]);
 
     if (!$res['ok']) {
-        $msg = "Koneksi AI sibuk, coba lagi ya! 🔄";
+        $msg = iotzy_map_ai_error_to_user_message((int)($res['code'] ?? 0), (string)($res['error'] ?? ''));
         iotzy_save_message($userId, $db, 'bot', $msg, $platform);
         return ['success' => false, 'error' => $msg];
     }
