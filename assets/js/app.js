@@ -257,7 +257,8 @@ const STATE = {
   },
 };
 
-const CAMERA_SESSION_STORAGE_KEY = `iotzy_cv_camera_session_u${String(PHP_USER?.id || 0)}`;
+const CAMERA_SESSION_STORAGE_KEY = `iotzy_cv_camera_profile_u${String(PHP_USER?.id || 0)}`;
+const CAMERA_SESSION_TAB_KEY_STORAGE_KEY = `iotzy_cv_camera_tab_key_u${String(PHP_USER?.id || 0)}`;
 
 function sanitizeCameraNameValue(value, fallback = "") {
   const normalized = String(value ?? "")
@@ -333,8 +334,18 @@ function writeCameraSessionState() {
   STATE.camera.sessionLabel = payload.sessionLabel;
 
   try {
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem(CAMERA_SESSION_TAB_KEY_STORAGE_KEY, payload.key);
+    }
+  } catch (_) {}
+
+  try {
     if (typeof localStorage !== "undefined") {
-      localStorage.setItem(CAMERA_SESSION_STORAGE_KEY, JSON.stringify(payload));
+      localStorage.setItem(CAMERA_SESSION_STORAGE_KEY, JSON.stringify({
+        sessionLabel: payload.sessionLabel,
+        selectedDeviceId: payload.selectedDeviceId,
+        selectedDeviceLabel: payload.selectedDeviceLabel,
+      }));
     }
   } catch (_) {}
 
@@ -393,19 +404,29 @@ function refreshCameraSessionContext(options = {}) {
 }
 
 function initializeCameraSessionState() {
-  let stored = null;
+  let storedProfile = null;
+  let storedTabKey = "";
   try {
     if (typeof localStorage !== "undefined") {
-      stored = JSON.parse(localStorage.getItem(CAMERA_SESSION_STORAGE_KEY) || "null");
+      storedProfile = JSON.parse(localStorage.getItem(CAMERA_SESSION_STORAGE_KEY) || "null");
     }
   } catch (_) {
-    stored = null;
+    storedProfile = null;
   }
 
-  STATE.camera.sessionKey = sanitizeCameraKeyValue(stored?.key || stored?.cameraKey || "", { allowEmpty: true }) || generateCameraSessionKey();
-  STATE.camera.sessionLabel = sanitizeCameraNameValue(stored?.sessionLabel || stored?.label || "", detectCameraSessionLabel());
-  STATE.camera.selectedDeviceId = stored?.selectedDeviceId || STATE.camera.selectedDeviceId || null;
-  STATE.camera.selectedDeviceLabel = sanitizeCameraNameValue(stored?.selectedDeviceLabel || "", "");
+  try {
+    if (typeof sessionStorage !== "undefined") {
+      storedTabKey = String(sessionStorage.getItem(CAMERA_SESSION_TAB_KEY_STORAGE_KEY) || "");
+    }
+  } catch (_) {
+    storedTabKey = "";
+  }
+
+  const legacyStoredKey = sanitizeCameraKeyValue(storedProfile?.key || storedProfile?.cameraKey || "", { allowEmpty: true });
+  STATE.camera.sessionKey = sanitizeCameraKeyValue(storedTabKey || legacyStoredKey || "", { allowEmpty: true }) || generateCameraSessionKey();
+  STATE.camera.sessionLabel = sanitizeCameraNameValue(storedProfile?.sessionLabel || storedProfile?.label || "", detectCameraSessionLabel());
+  STATE.camera.selectedDeviceId = storedProfile?.selectedDeviceId || STATE.camera.selectedDeviceId || null;
+  STATE.camera.selectedDeviceLabel = sanitizeCameraNameValue(storedProfile?.selectedDeviceLabel || "", "");
 
   refreshCameraSessionContext({ persist: true });
 }
@@ -1703,6 +1724,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
+        refreshCameraSessionContext({ persist: true });
+      }
+      if (!document.hidden) {
         scheduleOptionalWarmups();
         const syncContext = getSyncContext();
         syncAllFromServer(true, {
@@ -1711,6 +1735,12 @@ document.addEventListener("DOMContentLoaded", async () => {
           includeCameraSettings: syncContext.needsCameraSettings,
         }).catch(() => {});
       }
+    });
+  }
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("focus", () => {
+      refreshCameraSessionContext({ persist: true });
     });
   }
 
