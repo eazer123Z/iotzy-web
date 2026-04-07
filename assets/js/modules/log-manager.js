@@ -2,6 +2,103 @@ const LOG_CHARTS = {
   timeline: null,
   devices: null,
 };
+const LOG_PERSIST_QUEUE = [];
+const LOG_RECENT_PERSIST = new Map();
+const LOG_PERSIST_INTERVAL_MS = 700;
+const LOG_PERSIST_DEDUPE_MS = 4000;
+const LOG_PERSIST_MAX_QUEUE = 80;
+let logPersistTimer = null;
+let logPersistBusy = false;
+let logPersistBlockedUntil = 0;
+
+function buildLogPersistPayload(device, activity, trigger, extra = {}) {
+  return {
+    device: device || "System",
+    activity,
+    trigger,
+    device_id: extra.device_id ?? null,
+    sensor_id: extra.sensor_id ?? null,
+    metadata: extra.metadata ?? null,
+  };
+}
+
+function buildLogPersistKey(payload) {
+  return [
+    String(payload.device || "").trim().toLowerCase(),
+    String(payload.activity || "").trim().toLowerCase(),
+    String(payload.trigger || "").trim().toLowerCase(),
+    String(payload.device_id ?? ""),
+    String(payload.sensor_id ?? ""),
+  ].join("|");
+}
+
+function pruneRecentPersistLogKeys(now = Date.now()) {
+  const ttl = LOG_PERSIST_DEDUPE_MS * 6;
+  LOG_RECENT_PERSIST.forEach((ts, key) => {
+    if ((now - ts) > ttl) {
+      LOG_RECENT_PERSIST.delete(key);
+    }
+  });
+}
+
+function scheduleLogPersist(delay = LOG_PERSIST_INTERVAL_MS) {
+  if (logPersistBusy || logPersistTimer || !LOG_PERSIST_QUEUE.length) return;
+  const wait = Math.max(delay, logPersistBlockedUntil - Date.now(), 0);
+  logPersistTimer = setTimeout(() => {
+    flushQueuedLogPersist().catch(() => {});
+  }, wait);
+}
+
+async function flushQueuedLogPersist() {
+  if (logPersistBusy) return;
+  if (logPersistTimer) {
+    clearTimeout(logPersistTimer);
+    logPersistTimer = null;
+  }
+
+  const nextPayload = LOG_PERSIST_QUEUE.shift();
+  if (!nextPayload) return;
+
+  logPersistBusy = true;
+  try {
+    const result = await apiPost("add_log", nextPayload, {
+      key: null,
+      refresh: false,
+      timeout: 6000,
+      silentError: true,
+    });
+
+    if (result?.success === false && String(result.error || "").includes("429")) {
+      logPersistBlockedUntil = Date.now() + 5000;
+      LOG_PERSIST_QUEUE.unshift(nextPayload);
+    } else {
+      logPersistBlockedUntil = 0;
+    }
+  } finally {
+    logPersistBusy = false;
+    if (LOG_PERSIST_QUEUE.length) {
+      scheduleLogPersist();
+    }
+  }
+}
+
+function enqueueLogPersist(payload) {
+  const now = Date.now();
+  pruneRecentPersistLogKeys(now);
+
+  const key = buildLogPersistKey(payload);
+  const lastPersistAt = LOG_RECENT_PERSIST.get(key) || 0;
+  if ((now - lastPersistAt) < LOG_PERSIST_DEDUPE_MS) {
+    return;
+  }
+
+  LOG_RECENT_PERSIST.set(key, now);
+  if (LOG_PERSIST_QUEUE.length >= LOG_PERSIST_MAX_QUEUE) {
+    LOG_PERSIST_QUEUE.shift();
+  }
+  LOG_PERSIST_QUEUE.push(payload);
+  scheduleLogPersist();
+}
 
 function getAnalyticsDate() {
   return STATE.analyticsDate || new Date().toISOString().slice(0, 10);
@@ -113,14 +210,7 @@ async function addLog(device, activity, trigger, _type = "info", extra = {}) {
   updateDashboardActivityFeed();
   updateLogStats();
 
-  apiPost("add_log", {
-    device: device || "System",
-    activity,
-    trigger,
-    device_id: extra.device_id ?? null,
-    sensor_id: extra.sensor_id ?? null,
-    metadata: extra.metadata ?? null,
-  }).catch(() => {});
+  enqueueLogPersist(buildLogPersistPayload(device, activity, trigger, extra));
 }
 
 function filterLogSearch(value) {

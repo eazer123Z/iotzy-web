@@ -205,12 +205,15 @@ function renderCameraDeviceSelect(error = null) {
     groups.push(`<optgroup label="Pantau Device Lain">${remoteOptions}</optgroup>`);
   }
 
-  const placeholderLabel = groups.length ? "Pilih sumber kamera utama atau live source" : hint;
-  select.innerHTML = `<option value="">${escHtml(placeholderLabel)}</option>${groups.join("")}`;
-  select.disabled = !groups.length;
-
-  if (selectedValue) {
-    select.value = selectedValue;
+  if (groups.length) {
+    select.innerHTML = groups.join("");
+    select.disabled = false;
+    if (selectedValue) {
+      select.value = selectedValue;
+    }
+  } else {
+    select.innerHTML = `<option value="">${escHtml(hint)}</option>`;
+    select.disabled = true;
   }
 
   STATE.camera.selectedSourceValue = select.value || selectedValue || "";
@@ -311,8 +314,22 @@ async function startLocalCamera() {
   const hasExplicitDevice = !!STATE.camera.selectedDeviceId
     && (STATE.camera.availableDevices || []).some((device) => device.deviceId === STATE.camera.selectedDeviceId);
   const constraints = hasExplicitDevice
-    ? { video: { deviceId: { exact: STATE.camera.selectedDeviceId } } }
-    : { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } };
+    ? {
+        video: {
+          deviceId: { exact: STATE.camera.selectedDeviceId },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30, max: 30 },
+        },
+      }
+    : {
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30, max: 30 },
+        },
+      };
   const stream = await getUserMediaCompat(constraints);
 
   STATE.camera.stream = stream;

@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+<script defer src="<?= iotzyAssetUrl('js/lib/mqttws31.min.js') ?>"></script>
 <script>const CSRF_TOKEN = "<?= $_SESSION['csrf_token'] ?? '' ?>";</script>
 <link rel="stylesheet" href="<?= iotzyAssetUrl('css/dashboard.css') ?>">
 </head>

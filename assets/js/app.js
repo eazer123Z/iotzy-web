@@ -821,6 +821,7 @@ function scheduleOptionalWarmups() {
     if (typeof ensureSensorTemplatesLoaded === "function") warmups.push(ensureSensorTemplatesLoaded().catch(() => {}));
     if (typeof ensureSchedulesLoaded === "function") warmups.push(ensureSchedulesLoaded().catch(() => {}));
     if (typeof loadMQTTTemplates === "function") warmups.push(Promise.resolve(loadMQTTTemplates()).catch(() => {}));
+    if (typeof ensureFeatureGroup === "function") warmups.push(ensureFeatureGroup("camera").catch(() => {}));
     if (warmups.length) Promise.allSettled(warmups).catch(() => {});
   };
 
@@ -936,6 +937,7 @@ async function apiPost(action, data = {}, opts = {}) {
     ? opts.key
     : (/^(get_|db_status$)/.test(action) || defaultDedupeActions.has(action) ? action : null);
   const noAutoRefreshActions = new Set([
+    "add_log",
     "update_sensor_value",
     "update_device_state",
     "update_cv_state",

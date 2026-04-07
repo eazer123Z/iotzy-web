@@ -87,6 +87,7 @@ const MOBILE_HUB_PAGES = new Set(["automation", "analytics", "settings"]);
 
 /* ── Variabel state halaman aktif ── */
 let _currentPage = 'dashboard';
+let _pageSwitchTicket = 0;
 
 async function ensurePageAssets(page) {
   if (typeof ensureFeatureGroup !== "function") return;
@@ -110,6 +111,48 @@ async function ensurePageAssets(page) {
   await Promise.allSettled(tasks);
 }
 
+function runPageSetup(page, ticket) {
+  if (ticket !== _pageSwitchTicket || _currentPage !== page) return;
+
+  if (page === "automation") {
+    if (typeof renderAutomationView === "function") {
+      renderAutomationView();
+    }
+    if (typeof ensureAutomationScheduleUi === "function") {
+      ensureAutomationScheduleUi().catch(() => {});
+    }
+  }
+
+  if (page === "camera") {
+    const c = document.getElementById("cvOverlayCanvas");
+    const cont = document.getElementById("cameraFocusContainer");
+    if (c && cont) {
+      c.width = cont.clientWidth;
+      c.height = cont.clientHeight;
+    }
+    if (typeof listCameraDevices === "function") {
+      listCameraDevices({ ensureLabels: false }).catch(() => {});
+    }
+    if (typeof cameraLive !== "undefined" && typeof cameraLive.initialize === "function") {
+      cameraLive.initialize();
+    }
+    if (typeof cvUI !== "undefined") {
+      if (typeof cvUI.initialize === "function") cvUI.initialize();
+      if (typeof cvUI.renderAutomationSettings === "function") cvUI.renderAutomationSettings();
+    }
+  }
+
+  if (page === "analytics") {
+    if (typeof loadLogs === "function") {
+      loadLogs(typeof getAnalyticsDate === "function" ? getAnalyticsDate() : undefined).catch(() => {
+        if (typeof updateLogDisplay === "function") updateLogDisplay();
+      });
+    } else if (typeof updateLogDisplay === "function") {
+      updateLogDisplay();
+    }
+  }
+}
+
 /* ── SPA Page Switch dengan Animasi ── */
 async function switchPage(page, el) {
   // Guard: jika sudah di halaman yang sama, skip
@@ -117,7 +160,8 @@ async function switchPage(page, el) {
     return;
   }
 
-  await ensurePageAssets(page);
+  const ticket = ++_pageSwitchTicket;
+  const pageAssetsPromise = Promise.resolve(ensurePageAssets(page)).catch(() => {});
 
   // Sembunyikan semua view
   document.querySelectorAll(".view").forEach((v) => {
@@ -175,41 +219,10 @@ async function switchPage(page, el) {
   });
   closeMobileHub();
 
-  // Jalankan inisialisasi modul spesifik halaman secara Async (Non-blocking)
-  setTimeout(() => {
-    if (page === "automation") {
-      renderAutomationView();
-      if (typeof ensureAutomationScheduleUi === "function") {
-        ensureAutomationScheduleUi().catch(() => {});
-      }
-    }
-    
-    if (page === "camera") {
-      const c    = document.getElementById("cvOverlayCanvas");
-      const cont = document.getElementById("cameraFocusContainer");
-      if (c && cont) { c.width = cont.clientWidth; c.height = cont.clientHeight; }
-      if (typeof listCameraDevices === "function") {
-        listCameraDevices({ ensureLabels: false }).catch(() => {});
-      }
-      if (typeof cameraLive !== "undefined") {
-        if (typeof cameraLive.initialize === "function") cameraLive.initialize();
-      }
-      if (typeof cvUI !== "undefined") {
-        if (typeof cvUI.initialize === "function") cvUI.initialize();
-        if (typeof cvUI.renderAutomationSettings === "function") cvUI.renderAutomationSettings();
-      }
-    }
-    
-    if (page === "analytics") {
-      if (typeof loadLogs === "function") {
-        loadLogs(typeof getAnalyticsDate === "function" ? getAnalyticsDate() : undefined).catch(() => {
-          if (typeof updateLogDisplay === "function") updateLogDisplay();
-        });
-      } else if (typeof updateLogDisplay === "function") {
-        updateLogDisplay();
-      }
-    }
-  }, 0);
+  // Jalankan inisialisasi modul spesifik halaman setelah asset siap, tanpa menahan UI
+  pageAssetsPromise.finally(() => {
+    setTimeout(() => runPageSetup(page, ticket), 0);
+  });
 
   // Tutup sidebar otomatis di mobile setelah klik menu
   document.getElementById("sidebar")?.classList.remove("open");
