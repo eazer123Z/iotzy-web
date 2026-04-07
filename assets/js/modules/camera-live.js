@@ -25,6 +25,7 @@ const cameraLive = (() => {
       recoverTimer: null,
       snapshotTimer: null,
       snapshotCanvas: null,
+      snapshotVideo: null,
       snapshotPushing: false,
       starting: false,
       startPromise: null,
@@ -158,8 +159,44 @@ const cameraLive = (() => {
     return state.publisher.snapshotCanvas;
   }
 
+  function ensurePublisherSnapshotVideo() {
+    if (!state.publisher.snapshotVideo) {
+      const video = document.createElement("video");
+      video.muted = true;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.setAttribute("muted", "");
+      video.setAttribute("playsinline", "");
+      state.publisher.snapshotVideo = video;
+    }
+
+    return state.publisher.snapshotVideo;
+  }
+
+  function syncPublisherSnapshotVideo() {
+    const stream = STATE?.camera?.stream || null;
+    const video = ensurePublisherSnapshotVideo();
+
+    if (!stream) {
+      try {
+        video.pause();
+      } catch (_) {}
+      video.srcObject = null;
+      return null;
+    }
+
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+      video.onloadedmetadata = () => schedulePublisherSnapshotLoop(120);
+      video.onplaying = () => schedulePublisherSnapshotLoop(120);
+      video.play().catch(() => {});
+    }
+
+    return video;
+  }
+
   function capturePublisherSnapshot() {
-    const video = document.getElementById("cameraFocus");
+    const video = syncPublisherSnapshotVideo();
     if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
       return null;
     }
@@ -194,6 +231,7 @@ const cameraLive = (() => {
       return;
     }
 
+    syncPublisherSnapshotVideo();
     const frame = capturePublisherSnapshot();
     if (!frame?.imageData) {
       schedulePublisherSnapshotLoop(420);
@@ -626,6 +664,10 @@ const cameraLive = (() => {
       state.publisher.lastCandidateId = 0;
       state.publisher.answerApplied = false;
       state.publisher.snapshotPushing = false;
+      if (state.publisher.snapshotVideo) {
+        try { state.publisher.snapshotVideo.pause(); } catch (_) {}
+        state.publisher.snapshotVideo.srcObject = null;
+      }
       state.publisher.starting = false;
       state.publisher.startPromise = null;
       STATE.camera.live.publishedStreamKey = "";
@@ -1020,6 +1062,7 @@ const cameraLive = (() => {
     if (!isActive && state.publisher.streamKey) {
       stopPublishing({ notifyServer: true, silent: true }).catch(() => {});
     } else if (isActive && state.publisher.streamKey) {
+      syncPublisherSnapshotVideo();
       schedulePublisherSnapshotLoop(260);
     }
   }
