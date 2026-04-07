@@ -159,7 +159,24 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
 .loading-screen{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:var(--bg);transition:opacity .4s ease,visibility .4s ease}
 .loading-screen.done{opacity:0;visibility:hidden;pointer-events:none}
 .loading-inner{text-align:center}
-.loading-logo{font-size:3rem;color:var(--accent);margin-bottom:12px;animation:pulse 1.5s infinite}
+.loading-logo{
+  width:72px;
+  height:72px;
+  margin:0 auto 12px;
+  display:grid;
+  place-items:center;
+  border-radius:22px;
+  color:var(--accent);
+  background:linear-gradient(180deg, color-mix(in srgb,var(--surface-solid) 92%, transparent) 0%, color-mix(in srgb,var(--surface) 94%, var(--accent-bg) 6%) 100%);
+  border:1px solid var(--border-hover);
+  box-shadow:var(--shadow-sm);
+  animation:pulse 1.5s infinite;
+}
+.loading-logo-mark{
+  width:32px;
+  height:32px;
+  display:block;
+}
 .loading-title{font-size:1.8rem;font-weight:800;color:var(--heading);margin-bottom:16px;letter-spacing:-0.5px}
 .loading-bar{width:200px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 12px;overflow:hidden}
 .loading-fill{height:100%;width:30%;background:linear-gradient(90deg,var(--accent),var(--accent-light));border-radius:2px;animation:loadSlide 1.2s ease infinite}

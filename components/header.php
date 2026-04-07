@@ -21,7 +21,11 @@
 <!-- Loading Screen -->
 <div id="appLoadingScreen" class="loading-screen">
   <div class="loading-inner">
-    <div class="loading-logo"><i class="fas fa-bolt"></i></div>
+    <div class="loading-logo" aria-hidden="true">
+      <svg class="loading-logo-mark" viewBox="0 0 24 24" role="presentation" focusable="false">
+        <path d="M13 2L5 13h5l-1 9 8-11h-5l1-9z" fill="currentColor"></path>
+      </svg>
+    </div>
     <h1 class="loading-title">IoTzy</h1>
     <div class="loading-bar"><div class="loading-fill"></div></div>
     <p class="loading-sub">Memuat sistem…</p>
