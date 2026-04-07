@@ -370,6 +370,16 @@ const cameraLive = (() => {
       silentError: true,
     }).then((result) => {
       if (!result) return result;
+      if (result.success === false) {
+        if (result.feature_ready === false) {
+          state.featureReady = false;
+          STATE.camera.live.featureReady = false;
+          setStatusChip("Butuh SQL", "warn");
+          renderSessionList(result.error || "Sinkron source kamera belum aktif di server ini.");
+          updateButtons();
+        }
+        return result;
+      }
 
       state.featureReady = result.feature_ready !== false;
       STATE.camera.live.featureReady = state.featureReady;
