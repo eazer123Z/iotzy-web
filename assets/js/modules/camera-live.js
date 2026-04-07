@@ -1,14 +1,27 @@
 const cameraLive = (() => {
-  const RTC_CONFIG = {
-    iceServers: [
+  function buildRTCConfig() {
+    const runtimeConfig = (typeof PHP_WEBRTC_CONFIG !== "undefined" && PHP_WEBRTC_CONFIG && typeof PHP_WEBRTC_CONFIG === "object")
+      ? PHP_WEBRTC_CONFIG
+      : {};
+    const fallbackIceServers = [
       { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-    ],
-  };
+    ];
+    const iceServers = Array.isArray(runtimeConfig.iceServers) && runtimeConfig.iceServers.length
+      ? runtimeConfig.iceServers
+      : fallbackIceServers;
+
+    return {
+      iceServers,
+      iceTransportPolicy: runtimeConfig.iceTransportPolicy === "relay" ? "relay" : "all",
+    };
+  }
+
+  const RTC_CONFIG = buildRTCConfig();
   const REFRESH_INTERVAL = 2000;
   const POLL_INTERVAL = 2500;
-  const SNAPSHOT_PUSH_INTERVAL = 1200;
-  const SNAPSHOT_PULL_INTERVAL = 1400;
-  const SNAPSHOT_TRACK_WAIT_MS = 2200;
+  const SNAPSHOT_PUSH_INTERVAL = 400;
+  const SNAPSHOT_PULL_INTERVAL = 450;
+  const SNAPSHOT_TRACK_WAIT_MS = 1200;
 
   const state = {
     featureReady: true,
@@ -207,15 +220,24 @@ const cameraLive = (() => {
       return null;
     }
 
-    const targetWidth = Math.max(220, Math.min(640, sourceWidth));
+    const targetWidth = Math.max(220, Math.min(480, sourceWidth));
     const targetHeight = Math.max(124, Math.round((targetWidth / sourceWidth) * sourceHeight));
     const canvas = ensurePublisherSnapshotCanvas(targetWidth, targetHeight);
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return null;
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    let imageData = "";
+    try {
+      imageData = canvas.toDataURL("image/webp", 0.46);
+    } catch (_) {
+      imageData = "";
+    }
+    if (!imageData || !String(imageData).startsWith("data:image/webp")) {
+      imageData = canvas.toDataURL("image/jpeg", 0.5);
+    }
     return {
-      imageData: canvas.toDataURL("image/jpeg", 0.58),
+      imageData,
       width: canvas.width,
       height: canvas.height,
     };

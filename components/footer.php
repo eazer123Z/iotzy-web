@@ -35,12 +35,34 @@
 
 <?php include 'modals.php'; ?>
 
+<?php
+$webrtcStunUrls = array_values(array_filter(array_map('trim', explode(',', (string)(getenv('WEBRTC_STUN_URLS') ?: 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302')))));
+$webrtcTurnUrls = array_values(array_filter(array_map('trim', explode(',', (string)(getenv('WEBRTC_TURN_URLS') ?: '')))));
+$webrtcTurnUsername = trim((string)(getenv('WEBRTC_TURN_USERNAME') ?: ''));
+$webrtcTurnCredential = trim((string)(getenv('WEBRTC_TURN_CREDENTIAL') ?: ''));
+$webrtcIceTransportPolicy = trim((string)(getenv('WEBRTC_ICE_TRANSPORT_POLICY') ?: 'all'));
+$webrtcRuntimeConfig = [
+  'iceServers' => array_values(array_filter([
+    $webrtcStunUrls ? ['urls' => $webrtcStunUrls] : null,
+    ($webrtcTurnUrls && $webrtcTurnUsername !== '' && $webrtcTurnCredential !== '')
+      ? [
+          'urls' => $webrtcTurnUrls,
+          'username' => $webrtcTurnUsername,
+          'credential' => $webrtcTurnCredential,
+        ]
+      : null,
+  ])),
+  'iceTransportPolicy' => in_array($webrtcIceTransportPolicy, ['all', 'relay'], true) ? $webrtcIceTransportPolicy : 'all',
+];
+?>
+
 <script>
   const APP_BASE     = '<?= rtrim(APP_URL, "/") ?>';
   const API_BASE     = APP_BASE + '/api/router.php';
   const IOTZY_RELEASE = '<?= APP_RELEASE ?>';
   const IOTZY_BUILD   = '<?= APP_BUILD ?>';
   const IOTZY_VERSION = '<?= APP_VERSION ?>';
+  const PHP_WEBRTC_CONFIG = <?= json_encode($webrtcRuntimeConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   const PHP_USER     = <?= json_encode($user ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   const PHP_SETTINGS = <?= json_encode($settings ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   const PHP_DEVICES  = <?= json_encode($devices ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
