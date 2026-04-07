@@ -167,13 +167,20 @@ function renderCameraDeviceSelect(error = null) {
   }
 
   let selectedValue = String(STATE.camera.selectedSourceValue || "").trim();
+  let preservedRemoteOption = "";
   if (isRemoteCameraSourceValue(selectedValue)) {
     const streamKey = getRemoteCameraStreamKey(selectedValue);
-    if (!findRemoteCameraSession(streamKey)) {
+    const isWatchingSelectedRemote = STATE.camera.mode === "remote"
+      && STATE.camera.active
+      && streamKey
+      && streamKey === String(STATE.camera.selectedRemoteStreamKey || "").trim();
+    if (!findRemoteCameraSession(streamKey) && !isWatchingSelectedRemote) {
       selectedValue = "";
       STATE.camera.selectedSourceValue = "";
       STATE.camera.selectedRemoteStreamKey = "";
       STATE.camera.selectedRemoteLabel = "";
+    } else if (!findRemoteCameraSession(streamKey) && isWatchingSelectedRemote) {
+      preservedRemoteOption = `<option value="${escHtml(selectedValue)}" selected>${escHtml(STATE.camera.selectedRemoteLabel || "Live: source sedang dipantau")}</option>`;
     }
   }
 
@@ -201,8 +208,8 @@ function renderCameraDeviceSelect(error = null) {
   if (localOptions) {
     groups.push(`<optgroup label="Kamera Browser Ini">${localOptions}</optgroup>`);
   }
-  if (remoteOptions) {
-    groups.push(`<optgroup label="Pantau Device Lain">${remoteOptions}</optgroup>`);
+  if (remoteOptions || preservedRemoteOption) {
+    groups.push(`<optgroup label="Pantau Device Lain">${remoteOptions}${preservedRemoteOption}</optgroup>`);
   }
 
   if (groups.length) {
@@ -272,6 +279,7 @@ async function startRemoteViewer(selection) {
     STATE.camera.stream.getTracks().forEach((track) => track.stop());
   }
   STATE.camera.stream = null;
+  STATE.camera.remoteSnapshot = null;
 
   if (typeof cameraLive.stopPublishing === "function" && cameraLive.isPublishing()) {
     await cameraLive.stopPublishing({ notifyServer: true, silent: true });
@@ -308,6 +316,7 @@ async function startLocalCamera() {
   }
 
   STATE.camera.remoteStream = null;
+  STATE.camera.remoteSnapshot = null;
   STATE.camera.mode = "local";
 
   if (STATE.camera.stream) {
@@ -397,6 +406,7 @@ async function stopCamera() {
 
   STATE.camera.stream = null;
   STATE.camera.remoteStream = null;
+  STATE.camera.remoteSnapshot = null;
   STATE.camera.active = false;
   STATE.camera.mode = "local";
   updateCameraElements(false);
@@ -532,6 +542,21 @@ async function switchCamera(value) {
 
 function updateCameraElements(isActive) {
   const activeStream = STATE.camera.remoteStream || STATE.camera.stream;
+  const fallbackSnapshot = STATE.camera.mode === "remote" ? STATE.camera.remoteSnapshot : null;
+  const shouldShowSnapshot = !activeStream && !!fallbackSnapshot?.dataUrl;
+  const fallbackImage = document.getElementById("cameraFallbackSnapshot");
+
+  if (fallbackImage) {
+    if (shouldShowSnapshot) {
+      fallbackImage.src = fallbackSnapshot.dataUrl;
+      fallbackImage.classList.remove("hidden");
+      fallbackImage.style.display = "";
+    } else {
+      fallbackImage.removeAttribute("src");
+      fallbackImage.classList.add("hidden");
+      fallbackImage.style.display = "none";
+    }
+  }
 
   [
     { videoId: "camera", placeholderId: "camPlaceholder", tagId: "camTag" },
@@ -541,19 +566,37 @@ function updateCameraElements(isActive) {
     const video = document.getElementById(videoId);
     const placeholder = document.getElementById(placeholderId);
     const tag = tagId ? document.getElementById(tagId) : null;
+    const helperCopy = placeholder?.closest(".cv-camera-empty")?.querySelector("small") || null;
     if (!video || !placeholder) return;
     if (isActive && activeStream) {
       video.srcObject = activeStream;
       video.classList.remove("hidden");
       video.style.display = "";
       placeholder.style.display = "none";
+      if (helperCopy) helperCopy.textContent = "Nyalakan kamera untuk mulai memantau frame.";
       if (tag) tag.style.display = "none";
       video.play().catch(() => {});
+    } else if (isActive && shouldShowSnapshot) {
+      video.srcObject = null;
+      video.classList.add("hidden");
+      video.style.display = "none";
+      placeholder.style.display = "none";
+      if (helperCopy) helperCopy.textContent = "Nyalakan kamera untuk mulai memantau frame.";
+      if (tag) tag.style.display = "none";
     } else {
       video.srcObject = null;
       video.classList.add("hidden");
       video.style.display = "none";
       placeholder.style.display = "";
+      if (isActive && STATE.camera.mode === "remote") {
+        placeholder.textContent = "Menghubungkan live...";
+        if (helperCopy) helperCopy.textContent = "Menunggu frame terbaru dari source device lain.";
+        if (tag) tag.className = "fas fa-tower-broadcast";
+      } else {
+        placeholder.textContent = "Kamera belum aktif";
+        if (helperCopy) helperCopy.textContent = "Nyalakan kamera untuk mulai memantau frame.";
+        if (tag) tag.className = "fas fa-video-slash";
+      }
       if (tag) tag.style.display = "";
     }
   });

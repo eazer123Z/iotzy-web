@@ -18,6 +18,12 @@ function handleCameraStreamAction(string $action, int $userId, array $body, PDO 
         ]);
     }
 
+    if ($action === 'get_camera_stream_snapshot') {
+        $streamKey = trim((string)($body['stream_key'] ?? ''));
+        $result = getUserCameraStreamSnapshot($userId, $body, $streamKey, $db);
+        jsonOut($result, !empty($result['success']) ? 200 : 400);
+    }
+
     requireCsrf();
 
     if ($action === 'start_camera_stream') {
@@ -40,6 +46,12 @@ function handleCameraStreamAction(string $action, int $userId, array $body, PDO 
     if ($action === 'push_camera_stream_candidate') {
         $streamKey = trim((string)($body['stream_key'] ?? ''));
         $result = pushUserCameraStreamCandidate($userId, $body, $streamKey, $body['candidate'] ?? null, $db);
+        jsonOut($result, !empty($result['success']) ? 200 : 400);
+    }
+
+    if ($action === 'push_camera_stream_snapshot') {
+        $streamKey = trim((string)($body['stream_key'] ?? ''));
+        $result = pushUserCameraStreamSnapshot($userId, $body, $streamKey, $body['image_data'] ?? null, $body, $db);
         jsonOut($result, !empty($result['success']) ? 200 : 400);
     }
 

@@ -53,6 +53,7 @@
       <div class="cv-camera-stage">
         <div class="camera-feed" id="cameraFocusContainer">
           <video id="cameraFocus" autoplay playsinline muted style="display:none"></video>
+          <img id="cameraFallbackSnapshot" class="cv-camera-fallback hidden" alt="Snapshot live kamera" />
           <canvas id="cvOverlayCanvas" style="display:none"></canvas>
           <div class="cv-camera-empty">
             <i id="cameraFocusTag" class="fas fa-video-slash"></i>

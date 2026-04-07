@@ -218,6 +218,7 @@ const STATE = {
   camera: {
     stream:           null,
     remoteStream:     null,
+    remoteSnapshot:   null,
     active:           false,
     selectedDeviceId: null,
     selectedDeviceLabel: "",
@@ -964,6 +965,7 @@ async function apiPost(action, data = {}, opts = {}) {
     "update_device_state",
     "update_cv_state",
     "ai_chat_fast_track",
+    "push_camera_stream_snapshot",
   ]);
   const cameraScopedActions = new Set([
     "get_dashboard_data",
@@ -977,7 +979,9 @@ async function apiPost(action, data = {}, opts = {}) {
     "join_camera_stream",
     "submit_camera_stream_answer",
     "push_camera_stream_candidate",
+    "push_camera_stream_snapshot",
     "poll_camera_stream_updates",
+    "get_camera_stream_snapshot",
     "stop_camera_stream",
   ]);
   let controller = null;

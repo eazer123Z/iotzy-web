@@ -6,6 +6,9 @@ const cameraLive = (() => {
   };
   const REFRESH_INTERVAL = 2000;
   const POLL_INTERVAL = 2500;
+  const SNAPSHOT_PUSH_INTERVAL = 1200;
+  const SNAPSHOT_PULL_INTERVAL = 1400;
+  const SNAPSHOT_TRACK_WAIT_MS = 2200;
 
   const state = {
     featureReady: true,
@@ -20,6 +23,9 @@ const cameraLive = (() => {
       answerApplied: false,
       pollTimer: null,
       recoverTimer: null,
+      snapshotTimer: null,
+      snapshotCanvas: null,
+      snapshotPushing: false,
       starting: false,
       startPromise: null,
       stopping: false,
@@ -29,11 +35,15 @@ const cameraLive = (() => {
       streamKey: "",
       lastCandidateId: 0,
       pollTimer: null,
+      snapshotTimer: null,
       remoteStream: null,
+      remoteTrackReady: false,
       joining: false,
       joinPromise: null,
       stopping: false,
       lastError: "",
+      fallbackActive: false,
+      fallbackSnapshotAt: "",
     },
   };
 
@@ -99,6 +109,164 @@ const cameraLive = (() => {
     if (typeof updateCameraElements === "function") {
       updateCameraElements(!!STATE?.camera?.active);
     }
+  }
+
+  function applyViewerSnapshot(snapshot = null) {
+    if (STATE?.camera) {
+      STATE.camera.remoteSnapshot = snapshot ? {
+        dataUrl: snapshot.data_url || "",
+        updatedAt: snapshot.updated_at || "",
+        width: Number(snapshot.width) || 0,
+        height: Number(snapshot.height) || 0,
+      } : null;
+    }
+
+    if (typeof updateCameraElements === "function") {
+      updateCameraElements(!!STATE?.camera?.active);
+    }
+  }
+
+  function clearPublisherSnapshotLoop() {
+    if (!state.publisher.snapshotTimer) return;
+    clearTimeout(state.publisher.snapshotTimer);
+    state.publisher.snapshotTimer = null;
+  }
+
+  function schedulePublisherSnapshotLoop(delay = SNAPSHOT_PUSH_INTERVAL) {
+    clearPublisherSnapshotLoop();
+    if (!state.publisher.streamKey || !STATE?.camera?.active || STATE.camera.mode === "remote") {
+      return;
+    }
+    state.publisher.snapshotTimer = setTimeout(() => {
+      pushPublisherSnapshot().catch(() => {});
+    }, Math.max(300, delay));
+  }
+
+  function ensurePublisherSnapshotCanvas(width, height) {
+    const safeWidth = Math.max(160, Math.min(640, Number(width) || 0));
+    const safeHeight = Math.max(90, Math.min(480, Number(height) || 0));
+
+    if (!state.publisher.snapshotCanvas) {
+      state.publisher.snapshotCanvas = document.createElement("canvas");
+    }
+
+    if (state.publisher.snapshotCanvas.width !== safeWidth || state.publisher.snapshotCanvas.height !== safeHeight) {
+      state.publisher.snapshotCanvas.width = safeWidth;
+      state.publisher.snapshotCanvas.height = safeHeight;
+    }
+
+    return state.publisher.snapshotCanvas;
+  }
+
+  function capturePublisherSnapshot() {
+    const video = document.getElementById("cameraFocus");
+    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+      return null;
+    }
+
+    const sourceWidth = Number(video.videoWidth) || 0;
+    const sourceHeight = Number(video.videoHeight) || 0;
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      return null;
+    }
+
+    const targetWidth = Math.max(220, Math.min(640, sourceWidth));
+    const targetHeight = Math.max(124, Math.round((targetWidth / sourceWidth) * sourceHeight));
+    const canvas = ensurePublisherSnapshotCanvas(targetWidth, targetHeight);
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) return null;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return {
+      imageData: canvas.toDataURL("image/jpeg", 0.58),
+      width: canvas.width,
+      height: canvas.height,
+    };
+  }
+
+  async function pushPublisherSnapshot() {
+    if (state.publisher.snapshotPushing) {
+      return;
+    }
+
+    if (!state.publisher.streamKey || !STATE?.camera?.active || STATE.camera.mode === "remote") {
+      clearPublisherSnapshotLoop();
+      return;
+    }
+
+    const frame = capturePublisherSnapshot();
+    if (!frame?.imageData) {
+      schedulePublisherSnapshotLoop(420);
+      return;
+    }
+
+    state.publisher.snapshotPushing = true;
+    try {
+      await apiPost("push_camera_stream_snapshot", {
+        stream_key: state.publisher.streamKey,
+        image_data: frame.imageData,
+        width: frame.width,
+        height: frame.height,
+      }, {
+        key: null,
+        refresh: false,
+        timeout: 7000,
+        silentError: true,
+      });
+    } finally {
+      state.publisher.snapshotPushing = false;
+      schedulePublisherSnapshotLoop();
+    }
+  }
+
+  function clearViewerSnapshotLoop() {
+    if (!state.viewer.snapshotTimer) return;
+    clearTimeout(state.viewer.snapshotTimer);
+    state.viewer.snapshotTimer = null;
+  }
+
+  function scheduleViewerSnapshotLoop(delay = SNAPSHOT_PULL_INTERVAL) {
+    clearViewerSnapshotLoop();
+    if (!state.viewer.streamKey) {
+      return;
+    }
+    state.viewer.snapshotTimer = setTimeout(() => {
+      pullViewerSnapshot().catch(() => {});
+    }, Math.max(450, delay));
+  }
+
+  async function pullViewerSnapshot() {
+    if (!state.viewer.streamKey) {
+      clearViewerSnapshotLoop();
+      return;
+    }
+
+    const result = await apiPost("get_camera_stream_snapshot", {
+      stream_key: state.viewer.streamKey,
+    }, {
+      key: null,
+      refresh: false,
+      timeout: 6500,
+      silentError: true,
+    });
+
+    if (result?.success && !result.session) {
+      await stopWatching({ notifyServer: false, silent: true });
+      setViewerMeta("Source live sudah berakhir, jadi viewer dihentikan otomatis.", "warn");
+      return;
+    }
+
+    if (result?.success && result.snapshot?.data_url) {
+      const snapshotAt = String(result.snapshot.updated_at || "");
+      state.viewer.fallbackSnapshotAt = snapshotAt;
+      state.viewer.fallbackActive = true;
+      applyViewerSnapshot(result.snapshot);
+      if (!state.viewer.remoteTrackReady || !state.viewer.remoteStream) {
+        setViewerMeta("Viewer memakai relay frame dari source utama. Pantauan tetap jalan saat koneksi live penuh belum stabil.", "warn");
+      }
+    }
+
+    scheduleViewerSnapshotLoop();
   }
 
   function updateButtons() {
@@ -270,6 +438,8 @@ const cameraLive = (() => {
     pc.ontrack = (event) => {
       const stream = event.streams?.[0] || null;
       if (stream) {
+        state.viewer.remoteTrackReady = true;
+        state.viewer.fallbackActive = false;
         state.viewer.remoteStream = stream;
         updateRemoteStage(stream);
       }
@@ -291,9 +461,17 @@ const cameraLive = (() => {
     pc.onconnectionstatechange = () => {
       const conn = pc.connectionState;
       if (conn === "connected") {
+        state.viewer.remoteTrackReady = true;
         setViewerMeta("Viewer live tersambung. Device ini sedang memantau stream device lain pada akun yang sama.", "ok");
       } else if (["failed", "disconnected"].includes(conn)) {
-        setViewerMeta("Koneksi viewer terputus. Pilih sesi live lagi jika perlu.", "warn");
+        state.viewer.remoteTrackReady = false;
+        state.viewer.remoteStream = null;
+        updateRemoteStage(null);
+        if (state.viewer.fallbackActive) {
+          setViewerMeta("Koneksi live penuh terputus. Viewer otomatis lanjut memakai relay frame dari source utama.", "warn");
+        } else {
+          setViewerMeta("Koneksi viewer terputus. Sedang menunggu relay frame atau pilih sesi lagi jika perlu.", "warn");
+        }
       }
     };
 
@@ -393,8 +571,11 @@ const cameraLive = (() => {
       if (ownedSession?.stream_key) {
         state.publisher.streamKey = String(ownedSession.stream_key);
         STATE.camera.live.publishedStreamKey = state.publisher.streamKey;
+        schedulePublisherSnapshotLoop(500);
       } else if (canAutoPublish && state.featureReady && !state.publisher.starting && !state.publisher.stopping) {
         schedulePublisherRecovery("Source live sedang dipulihkan otomatis.", 300);
+      } else {
+        clearPublisherSnapshotLoop();
       }
 
       if (typeof renderCameraDeviceSelect === "function") {
@@ -435,6 +616,7 @@ const cameraLive = (() => {
     try {
       clearPublisherPoll();
       clearPublisherRecovery();
+      clearPublisherSnapshotLoop();
       if (state.publisher.pc) {
         try { state.publisher.pc.close(); } catch (_) {}
       }
@@ -443,6 +625,7 @@ const cameraLive = (() => {
       state.publisher.streamKey = "";
       state.publisher.lastCandidateId = 0;
       state.publisher.answerApplied = false;
+      state.publisher.snapshotPushing = false;
       state.publisher.starting = false;
       state.publisher.startPromise = null;
       STATE.camera.live.publishedStreamKey = "";
@@ -522,6 +705,7 @@ const cameraLive = (() => {
           syncSessionSummary(result.session || null);
           setStatusChip("Menunggu Monitor", "live");
           setPublisherMeta("Siaran aktif. Device lain pada akun ini bisa memilih sesi ini lalu klik Pantau Live.");
+          schedulePublisherSnapshotLoop(320);
           schedulePublisherPoll();
           if (!silent) showToast("Siaran live kamera dimulai", "success");
           return true;
@@ -529,6 +713,7 @@ const cameraLive = (() => {
           try { pc.close(); } catch (_) {}
           state.publisher.pc = null;
           state.publisher.streamKey = "";
+          clearPublisherSnapshotLoop();
           setStatusChip("Siap", "muted");
           setPublisherMeta(error?.message || "Gagal memulai siaran live.");
           if (!silent) showToast(error?.message || "Gagal memulai siaran live", "error");
@@ -560,6 +745,7 @@ const cameraLive = (() => {
 
     if (!result?.success) {
       schedulePublisherPoll();
+      schedulePublisherSnapshotLoop();
       return;
     }
 
@@ -616,6 +802,7 @@ const cameraLive = (() => {
     }
 
     syncSessionSummary(session);
+    schedulePublisherSnapshotLoop();
     schedulePublisherPoll();
   }
 
@@ -631,6 +818,7 @@ const cameraLive = (() => {
 
     try {
       clearViewerPoll();
+      clearViewerSnapshotLoop();
       if (state.viewer.pc) {
         try { state.viewer.pc.close(); } catch (_) {}
       }
@@ -639,10 +827,14 @@ const cameraLive = (() => {
       state.viewer.streamKey = "";
       state.viewer.lastCandidateId = 0;
       state.viewer.remoteStream = null;
+      state.viewer.remoteTrackReady = false;
       state.viewer.joining = false;
       state.viewer.joinPromise = null;
       state.viewer.lastError = "";
+      state.viewer.fallbackActive = false;
+      state.viewer.fallbackSnapshotAt = "";
       STATE.camera.live.watchedStreamKey = "";
+      applyViewerSnapshot(null);
       updateRemoteStage(null);
       setViewerMeta("Mode ini menonton stream device lain pada akun yang sama.");
 
@@ -701,20 +893,31 @@ const cameraLive = (() => {
         }
 
         const offerSdp = join.offer_sdp || "";
+        state.viewer.streamKey = streamKey;
+        state.viewer.lastCandidateId = 0;
+        state.viewer.remoteTrackReady = false;
+        state.viewer.fallbackActive = false;
+        state.viewer.fallbackSnapshotAt = "";
+        STATE.camera.live.watchedStreamKey = streamKey;
+        scheduleViewerSnapshotLoop(260);
+
         if (!offerSdp) {
-          state.viewer.lastError = "Offer stream belum siap. Coba lagi sebentar.";
-          if (!silent) showToast("Offer stream belum siap. Coba lagi sebentar.", "error");
-          return false;
+          state.viewer.lastError = "Offer stream belum siap. Viewer memakai relay frame dulu.";
+          state.viewer.fallbackActive = true;
+          syncSessionSummary(join.session || null);
+          setViewerMeta("Offer live belum siap. Viewer memakai relay frame dari source utama dulu.", "warn");
+          scheduleViewerPoll();
+          if (!silent) showToast("Viewer menunggu WebRTC dan memakai relay frame dulu", "info");
+          return true;
         }
 
         const pc = buildViewerPeer();
         state.viewer.pc = pc;
-        state.viewer.streamKey = streamKey;
-        state.viewer.lastCandidateId = 0;
-        STATE.camera.live.watchedStreamKey = streamKey;
 
         try {
-          await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
+          if (offerSdp) {
+            await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
+          }
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
 
@@ -734,18 +937,26 @@ const cameraLive = (() => {
           setViewerMeta(`Sedang memantau ${join.session?.publisher_name || "kamera live"}${join.session?.source_label ? ` - ${join.session.source_label}` : ""}.`, "ok");
           state.viewer.lastError = "";
           syncSessionSummary(answerResult.session || join.session || null);
+          setTimeout(() => {
+            if (state.viewer.streamKey === streamKey && !state.viewer.remoteTrackReady) {
+              state.viewer.fallbackActive = true;
+              setViewerMeta("Koneksi live penuh masih disiapkan. Viewer memakai relay frame dari source utama dulu.", "warn");
+            }
+          }, SNAPSHOT_TRACK_WAIT_MS);
           scheduleViewerPoll();
           if (!silent) showToast("Live monitor terhubung", "success");
           return true;
         } catch (error) {
           try { pc.close(); } catch (_) {}
           state.viewer.pc = null;
-          state.viewer.streamKey = "";
-          STATE.camera.live.watchedStreamKey = "";
-          state.viewer.lastError = error?.message || "Gagal membuka monitor live.";
-          setViewerMeta(error?.message || "Gagal membuka monitor live.", "warn");
-          if (!silent) showToast(error?.message || "Gagal membuka monitor live", "error");
-          return false;
+          state.viewer.remoteTrackReady = false;
+          state.viewer.lastError = error?.message || "Koneksi live penuh belum stabil.";
+          state.viewer.fallbackActive = true;
+          syncSessionSummary(join.session || null);
+          setViewerMeta("WebRTC belum stabil. Viewer otomatis lanjut memakai relay frame dari source utama.", "warn");
+          scheduleViewerPoll();
+          if (!silent) showToast("Viewer beralih ke relay frame karena koneksi live penuh belum stabil", "info");
+          return true;
         }
       } finally {
         state.viewer.joining = false;
@@ -793,6 +1004,7 @@ const cameraLive = (() => {
     }
 
     syncSessionSummary(session);
+    scheduleViewerSnapshotLoop();
     scheduleViewerPoll();
   }
 
@@ -807,6 +1019,8 @@ const cameraLive = (() => {
     updateButtons();
     if (!isActive && state.publisher.streamKey) {
       stopPublishing({ notifyServer: true, silent: true }).catch(() => {});
+    } else if (isActive && state.publisher.streamKey) {
+      schedulePublisherSnapshotLoop(260);
     }
   }
 

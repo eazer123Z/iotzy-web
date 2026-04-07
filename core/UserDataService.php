@@ -1395,6 +1395,106 @@ function iotzyPersistCameraLiveBridge(PDO $db, int $cameraId, ?array $bridge): v
     $db->prepare("UPDATE camera_settings SET cv_config = ? WHERE camera_id = ?")->execute([$json, $cameraId]);
 }
 
+function iotzyDecodeCameraLiveSnapshot(mixed $cvConfig): ?array
+{
+    $config = iotzyJsonDecode($cvConfig, []);
+    if (!is_array($config)) {
+        return null;
+    }
+
+    $snapshot = $config['liveSnapshot'] ?? null;
+    if (!is_array($snapshot)) {
+        return null;
+    }
+
+    $dataUrl = trim((string)($snapshot['data_url'] ?? ''));
+    if ($dataUrl === '') {
+        return null;
+    }
+
+    return [
+        'stream_key' => (string)($snapshot['stream_key'] ?? ''),
+        'publisher_camera_key' => (string)($snapshot['publisher_camera_key'] ?? ''),
+        'mime_type' => (string)($snapshot['mime_type'] ?? 'image/jpeg'),
+        'data_url' => $dataUrl,
+        'width' => max(0, (int)($snapshot['width'] ?? 0)),
+        'height' => max(0, (int)($snapshot['height'] ?? 0)),
+        'updated_at' => $snapshot['updated_at'] ?? null,
+    ];
+}
+
+function iotzyPersistCameraLiveSnapshot(PDO $db, int $cameraId, ?array $snapshot): void
+{
+    $db->prepare("INSERT IGNORE INTO camera_settings (camera_id) VALUES (?)")->execute([$cameraId]);
+    $stmt = $db->prepare("SELECT cv_config FROM camera_settings WHERE camera_id = ? LIMIT 1");
+    $stmt->execute([$cameraId]);
+    $existingConfig = iotzyJsonDecode($stmt->fetchColumn(), []);
+    if (!is_array($existingConfig)) {
+        $existingConfig = [];
+    }
+
+    if ($snapshot === null) {
+        unset($existingConfig['liveSnapshot']);
+    } else {
+        $existingConfig['liveSnapshot'] = $snapshot;
+    }
+
+    $json = json_encode($existingConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $db->prepare("UPDATE camera_settings SET cv_config = ? WHERE camera_id = ?")->execute([$json, $cameraId]);
+}
+
+function iotzyFetchCameraLiveSnapshot(PDO $db, int $cameraId): ?array
+{
+    if ($cameraId <= 0) {
+        return null;
+    }
+
+    $stmt = $db->prepare("SELECT cv_config FROM camera_settings WHERE camera_id = ? LIMIT 1");
+    $stmt->execute([$cameraId]);
+    return iotzyDecodeCameraLiveSnapshot($stmt->fetchColumn());
+}
+
+function iotzyNormalizeCameraLiveSnapshotPayload(mixed $value): ?array
+{
+    $normalized = trim((string)$value);
+    if ($normalized === '' || strlen($normalized) > 1200000) {
+        return null;
+    }
+
+    if (!preg_match('#^data:(image/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\r\n]+)$#i', $normalized, $matches)) {
+        return null;
+    }
+
+    $mimeType = strtolower((string)$matches[1]);
+    if ($mimeType === 'image/jpg') {
+        $mimeType = 'image/jpeg';
+    }
+
+    $base64 = preg_replace('/\s+/', '', (string)$matches[2]);
+    if ($base64 === '' || strlen($base64) > 1200000 || base64_decode($base64, true) === false) {
+        return null;
+    }
+
+    return [
+        'mime_type' => $mimeType,
+        'data_url' => 'data:' . $mimeType . ';base64,' . $base64,
+    ];
+}
+
+function iotzyCameraLiveSnapshotIsFresh(?array $snapshot, int $maxAgeSeconds = 20): bool
+{
+    if (!is_array($snapshot) || empty($snapshot['updated_at'])) {
+        return false;
+    }
+
+    $updatedAt = strtotime((string)$snapshot['updated_at']) ?: 0;
+    if ($updatedAt <= 0) {
+        return false;
+    }
+
+    return (time() - $updatedAt) <= max(3, $maxAgeSeconds);
+}
+
 function iotzyBuildLegacyCameraStreamRow(array $camera, array $bridge): array
 {
     return [
@@ -1618,6 +1718,7 @@ function startUserCameraStreamSession(int $userId, array $cameraContext, array $
             'candidates' => [],
         ];
         iotzyPersistCameraLiveBridge($db, $cameraId, $bridge);
+        iotzyPersistCameraLiveSnapshot($db, $cameraId, null);
         $session = iotzyBuildLegacyCameraStreamRow($bundle['camera'] ?? ['id' => $cameraId, 'name' => $publisherName], $bridge);
         return [
             'success' => true,
@@ -1679,6 +1780,7 @@ function startUserCameraStreamSession(int $userId, array $cameraContext, array $
     }
 
     $db->prepare("DELETE FROM camera_stream_candidates WHERE stream_session_id = ?")->execute([(int)$session['id']]);
+    iotzyPersistCameraLiveSnapshot($db, $cameraId, null);
 
     return [
         'success' => true,
@@ -2132,6 +2234,7 @@ function stopUserCameraStreamSession(int $userId, array $cameraContext, string $
         $requesterKey = (string)$resolvedContext['camera_key'];
         if ($requesterKey !== '' && hash_equals((string)($session['publisher_camera_key'] ?? ''), $requesterKey)) {
             iotzyPersistCameraLiveBridge($db, (int)$session['camera_id'], null);
+            iotzyPersistCameraLiveSnapshot($db, (int)$session['camera_id'], null);
             return ['success' => true, 'feature_ready' => true, 'session' => null];
         }
 
@@ -2184,6 +2287,7 @@ function stopUserCameraStreamSession(int $userId, array $cameraContext, string $
                  ended_at = NOW()
              WHERE id = ?"
         )->execute([$sessionId]);
+        iotzyPersistCameraLiveSnapshot($db, (int)$session['camera_id'], null);
     } elseif ($requesterKey !== '' && hash_equals((string)($session['viewer_camera_key'] ?? ''), $requesterKey)) {
         $db->prepare(
             "UPDATE camera_stream_sessions
@@ -2205,6 +2309,124 @@ function stopUserCameraStreamSession(int $userId, array $cameraContext, string $
         'success' => true,
         'feature_ready' => true,
         'session' => $fresh ? iotzyBuildCameraStreamSummary($fresh, $requesterKey) : null,
+    ];
+}
+
+function pushUserCameraStreamSnapshot(int $userId, array $cameraContext, string $streamKey, mixed $imageData, array $payload = [], ?PDO $db = null): array
+{
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return ['success' => false, 'feature_ready' => false, 'error' => 'Database unavailable'];
+    }
+
+    if (!iotzyCameraStreamFeatureReady($db)) {
+        return ['success' => false] + iotzyCameraStreamFeatureStatus($db);
+    }
+
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $session = iotzyCameraStreamUsesDedicatedTables($db)
+        ? iotzyFetchCameraStreamSession($db, $userId, $streamKey)
+        : iotzyFindLegacyCameraStreamSession($db, $userId, $streamKey);
+
+    if (!$session || (string)($session['status'] ?? '') === 'ended') {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Siaran live tidak tersedia'];
+    }
+
+    if (!hash_equals((string)($session['publisher_camera_key'] ?? ''), (string)($resolvedContext['camera_key'] ?? ''))) {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Hanya source utama yang boleh mengirim snapshot'];
+    }
+
+    $normalizedSnapshot = iotzyNormalizeCameraLiveSnapshotPayload($imageData);
+    if (!$normalizedSnapshot) {
+        return ['success' => false, 'feature_ready' => true, 'error' => 'Frame snapshot tidak valid'];
+    }
+
+    $width = max(0, min(1280, (int)($payload['width'] ?? 0)));
+    $height = max(0, min(1280, (int)($payload['height'] ?? 0)));
+    $snapshot = [
+        'stream_key' => (string)($session['stream_key'] ?? $streamKey),
+        'publisher_camera_key' => (string)($session['publisher_camera_key'] ?? ''),
+        'mime_type' => $normalizedSnapshot['mime_type'],
+        'data_url' => $normalizedSnapshot['data_url'],
+        'width' => $width,
+        'height' => $height,
+        'updated_at' => iotzyCameraStreamNow(),
+    ];
+
+    iotzyPersistCameraLiveSnapshot($db, (int)($session['camera_id'] ?? 0), $snapshot);
+
+    if (iotzyCameraStreamUsesDedicatedTables($db)) {
+        $db->prepare("UPDATE camera_stream_sessions SET last_publisher_heartbeat = NOW(), updated_at = NOW() WHERE id = ?")
+            ->execute([(int)$session['id']]);
+    }
+
+    return [
+        'success' => true,
+        'feature_ready' => true,
+        'snapshot' => [
+            'updated_at' => $snapshot['updated_at'],
+            'width' => $snapshot['width'],
+            'height' => $snapshot['height'],
+        ],
+    ];
+}
+
+function getUserCameraStreamSnapshot(int $userId, array $cameraContext, string $streamKey, ?PDO $db = null): array
+{
+    $db = $db ?: getLocalDB();
+    if (!$db) {
+        return ['success' => false, 'feature_ready' => false, 'error' => 'Database unavailable'];
+    }
+
+    if (!iotzyCameraStreamFeatureReady($db)) {
+        return ['success' => false] + iotzyCameraStreamFeatureStatus($db);
+    }
+
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $session = iotzyCameraStreamUsesDedicatedTables($db)
+        ? iotzyFetchCameraStreamSession($db, $userId, $streamKey)
+        : iotzyFindLegacyCameraStreamSession($db, $userId, $streamKey);
+
+    if (!$session || (string)($session['status'] ?? '') === 'ended') {
+        return ['success' => true, 'feature_ready' => true, 'session' => null, 'snapshot' => null];
+    }
+
+    $requesterKey = (string)($resolvedContext['camera_key'] ?? '');
+    $publisherKey = (string)($session['publisher_camera_key'] ?? '');
+    $viewerKey = (string)($session['viewer_camera_key'] ?? '');
+    if ($requesterKey !== '') {
+        if (hash_equals($publisherKey, $requesterKey) && iotzyCameraStreamUsesDedicatedTables($db)) {
+            $db->prepare("UPDATE camera_stream_sessions SET last_publisher_heartbeat = NOW(), updated_at = NOW() WHERE id = ?")
+                ->execute([(int)$session['id']]);
+        } elseif ($viewerKey !== '' && hash_equals($viewerKey, $requesterKey) && iotzyCameraStreamUsesDedicatedTables($db)) {
+            $db->prepare("UPDATE camera_stream_sessions SET last_viewer_heartbeat = NOW(), updated_at = NOW() WHERE id = ?")
+                ->execute([(int)$session['id']]);
+        }
+    }
+
+    $snapshot = iotzyFetchCameraLiveSnapshot($db, (int)($session['camera_id'] ?? 0));
+    $summary = iotzyBuildCameraStreamSummary($session, $requesterKey);
+
+    if (!$snapshot || !hash_equals((string)($snapshot['stream_key'] ?? ''), (string)($session['stream_key'] ?? '')) || !iotzyCameraLiveSnapshotIsFresh($snapshot)) {
+        return [
+            'success' => true,
+            'feature_ready' => true,
+            'session' => $summary,
+            'snapshot' => null,
+        ];
+    }
+
+    return [
+        'success' => true,
+        'feature_ready' => true,
+        'session' => $summary,
+        'snapshot' => [
+            'data_url' => $snapshot['data_url'],
+            'mime_type' => $snapshot['mime_type'],
+            'width' => max(0, (int)($snapshot['width'] ?? 0)),
+            'height' => max(0, (int)($snapshot['height'] ?? 0)),
+            'updated_at' => $snapshot['updated_at'] ?? null,
+        ],
     ];
 }
 

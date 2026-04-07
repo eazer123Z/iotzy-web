@@ -1100,13 +1100,17 @@ h1,h2,h3,h4{color:var(--heading);font-weight:700;line-height:1.3}
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 20px 40px rgba(2,12,27,0.24);
 }
 
-.camera-feed video, .camera-feed canvas{
+.camera-feed video, .camera-feed canvas, .camera-feed .cv-camera-fallback{
   position:absolute;
   top:0;
   left:0;
   width:100%;
   height:100%;
   object-fit:cover;
+}
+
+.cv-camera-fallback{
+  display:block;
 }
 
 .cv-camera-empty{

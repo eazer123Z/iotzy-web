@@ -161,6 +161,7 @@ $readOnlyActions = [
     'get_cv_rules',
     'get_cv_config',
     'get_camera_stream_sessions',
+    'get_camera_stream_snapshot',
     'get_settings',
     'get_mqtt_templates',
     'get_logs',
@@ -232,10 +233,12 @@ $routes = [
     'save_cv_config' => 'CVController.php',
 
     'get_camera_stream_sessions' => 'CameraStreamController.php',
+    'get_camera_stream_snapshot' => 'CameraStreamController.php',
     'start_camera_stream' => 'CameraStreamController.php',
     'join_camera_stream' => 'CameraStreamController.php',
     'submit_camera_stream_answer' => 'CameraStreamController.php',
     'push_camera_stream_candidate' => 'CameraStreamController.php',
+    'push_camera_stream_snapshot' => 'CameraStreamController.php',
     'poll_camera_stream_updates' => 'CameraStreamController.php',
     'stop_camera_stream' => 'CameraStreamController.php',
 
