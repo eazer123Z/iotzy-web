@@ -948,6 +948,13 @@ async function apiPost(action, data = {}, opts = {}) {
     "get_cv_rules",
     "save_cv_rules",
     "update_cv_state",
+    "get_camera_stream_sessions",
+    "start_camera_stream",
+    "join_camera_stream",
+    "submit_camera_stream_answer",
+    "push_camera_stream_candidate",
+    "poll_camera_stream_updates",
+    "stop_camera_stream",
   ]);
   let controller = null;
   try {
