@@ -33,6 +33,7 @@ const cameraLive = (() => {
       joining: false,
       joinPromise: null,
       stopping: false,
+      lastError: "",
     },
   };
 
@@ -630,6 +631,7 @@ const cameraLive = (() => {
       state.viewer.remoteStream = null;
       state.viewer.joining = false;
       state.viewer.joinPromise = null;
+      state.viewer.lastError = "";
       STATE.camera.live.watchedStreamKey = "";
       updateRemoteStage(null);
       setViewerMeta("Mode ini menonton stream device lain pada akun yang sama.");
@@ -659,6 +661,7 @@ const cameraLive = (() => {
     if (state.viewer.joinPromise) return state.viewer.joinPromise;
     const silent = options.silent === true;
 
+    state.viewer.lastError = "";
     state.viewer.joining = true;
     updateButtons();
     setViewerMeta("Menyambungkan viewer live ke sesi yang dipilih...", "muted");
@@ -667,6 +670,7 @@ const cameraLive = (() => {
       try {
         await refreshSessions({ force: true });
         if (!state.featureReady) {
+          state.viewer.lastError = "Sinkron source kamera belum aktif di server ini.";
           if (!silent) showToast("Sinkron source kamera belum aktif di server ini.", "error");
           return false;
         }
@@ -681,12 +685,14 @@ const cameraLive = (() => {
           timeout: 9000,
         });
         if (!join?.success) {
+          state.viewer.lastError = join?.error || "Gagal masuk ke sesi live";
           if (!silent) showToast(join?.error || "Gagal masuk ke sesi live", "error");
           return false;
         }
 
         const offerSdp = join.offer_sdp || "";
         if (!offerSdp) {
+          state.viewer.lastError = "Offer stream belum siap. Coba lagi sebentar.";
           if (!silent) showToast("Offer stream belum siap. Coba lagi sebentar.", "error");
           return false;
         }
@@ -716,6 +722,7 @@ const cameraLive = (() => {
           }
 
           setViewerMeta(`Sedang memantau ${join.session?.publisher_name || "kamera live"}${join.session?.source_label ? ` - ${join.session.source_label}` : ""}.`, "ok");
+          state.viewer.lastError = "";
           syncSessionSummary(answerResult.session || join.session || null);
           scheduleViewerPoll();
           if (!silent) showToast("Live monitor terhubung", "success");
@@ -725,6 +732,7 @@ const cameraLive = (() => {
           state.viewer.pc = null;
           state.viewer.streamKey = "";
           STATE.camera.live.watchedStreamKey = "";
+          state.viewer.lastError = error?.message || "Gagal membuka monitor live.";
           setViewerMeta(error?.message || "Gagal membuka monitor live.", "warn");
           if (!silent) showToast(error?.message || "Gagal membuka monitor live", "error");
           return false;
@@ -824,6 +832,9 @@ const cameraLive = (() => {
     },
     isWatching() {
       return !!state.viewer.streamKey;
+    },
+    getLastViewerError() {
+      return state.viewer.lastError || "";
     },
   };
 })();

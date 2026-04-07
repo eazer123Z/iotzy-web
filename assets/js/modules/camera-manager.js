@@ -279,7 +279,10 @@ async function startRemoteViewer(selection) {
 
   const ok = await cameraLive.watchSession(selection.streamKey, { silent: true });
   if (!ok) {
-    throw new Error("Gagal terhubung ke source live");
+    const viewerError = typeof cameraLive.getLastViewerError === "function"
+      ? String(cameraLive.getLastViewerError() || "").trim()
+      : "";
+    throw new Error(viewerError || "Gagal terhubung ke source live");
   }
 
   STATE.camera.mode = "remote";
@@ -362,16 +365,18 @@ async function startLocalCamera() {
 }
 
 async function startCamera() {
+  const selection = getSelectedCameraSource();
   try {
-    const selection = getSelectedCameraSource();
     if (selection.type === "remote") {
       return await startRemoteViewer(selection);
     }
     return await startLocalCamera();
   } catch (error) {
-    showToast(`Gagal akses kamera: ${error.message}`, "error");
+    const isRemote = selection.type === "remote";
+    const prefix = isRemote ? "Gagal memantau source" : "Gagal akses kamera";
+    showToast(`${prefix}: ${error.message}`, "error");
     STATE.camera.listError = error?.message || "unknown";
-    setCVPanelSystemStatus(isRemoteCameraSourceValue(STATE.camera.selectedSourceValue) ? "Monitor Gagal" : "Akses Kamera Gagal", "");
+    setCVPanelSystemStatus(isRemote ? "Monitor Gagal" : "Akses Kamera Gagal", "");
     renderCameraDeviceSelect(error);
     return false;
   }
