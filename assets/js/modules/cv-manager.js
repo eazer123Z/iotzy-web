@@ -15,6 +15,28 @@ function getCVBackendSuffix() {
   return ` (${cvDetector.backendLabel})`;
 }
 
+let cvInitializationPromise = null;
+
+function setCVLoadingVisibility(visible, message = "Memuat model...") {
+  const el = document.getElementById("cvLoadingStatus");
+  if (!el) return;
+  el.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${message}`;
+  el.classList.toggle("hidden", !visible);
+}
+
+function resetCVLoadFailureState(message = "Gagal Memuat Model") {
+  CV.modelLoading = false;
+  CV.modelLoaded = false;
+  CV.model = null;
+  updateCVBadge("error", "Gagal");
+  setCVModelStatus("Gagal");
+  setCVHeadlineStatus(message, "");
+  setCVLoadingVisibility(false);
+  if (document.getElementById("btnStartCV")) {
+    document.getElementById("btnStartCV").disabled = !STATE.camera.active;
+  }
+}
+
 function startCVFpsMonitor() {
   stopCVFpsMonitor();
   CV.frameCount = 0;
@@ -46,48 +68,57 @@ function stopCVFpsMonitor() {
 }
 
 async function initializeCV() {
-  if (typeof cvDetector !== 'undefined') {
-      if (cvDetector.isLoading) return;
-      if (cvDetector.isReady)   return true;
-  } else return false;
+  if (typeof cvDetector === "undefined") return false;
+  if (cvDetector.isReady) return true;
+  if (cvInitializationPromise) return cvInitializationPromise;
 
-  CV.modelLoading = true;
-  setCVModelStatus("Memuat");
-  if (document.getElementById("cvLoadingStatus")) {
-    document.getElementById("cvLoadingStatus").classList.remove("hidden");
-  }
+  cvInitializationPromise = (async () => {
+    CV.modelLoading = true;
+    updateCVBadge("loading", "Memuat");
+    setCVModelStatus("Memuat");
+    setCVHeadlineStatus("Memuat Model AI", "muted");
+    setCVLoadingVisibility(true, "Memuat model...");
 
-  try {
-    await loadCVLibraries();
-  } catch (e) {
-    showToast("Gagal mengunduh AI library", "error");
-    return false;
-  }
+    try {
+      await loadCVLibraries();
+    } catch (error) {
+      console.warn("loadCVLibraries error:", error);
+      resetCVLoadFailureState("Library AI Gagal");
+      showToast("Gagal mengunduh AI library", "error");
+      return false;
+    }
 
-  const ok = await cvDetector.initialize();
-  if (ok) {
-    CV.modelLoading = false;
-    CV.modelLoaded = true;
-    CV.model = cvDetector.model || CV.model;
-    updateCVBadge("ready", "Siap");
-    setCVModelStatus(`Siap${getCVBackendSuffix()}`);
-    if (document.getElementById("cvLoadingStatus")) document.getElementById("cvLoadingStatus").classList.add("hidden");
-    setCVHeadlineStatus(`Model Siap${getCVBackendSuffix()}`, "ok");
-    if (document.getElementById("btnStartCV"))   document.getElementById("btnStartCV").disabled   = false;
-    if (document.getElementById("btnLoadModel")) document.getElementById("btnLoadModel").disabled = true;
+    const ok = await cvDetector.initialize();
+    if (ok) {
+      CV.modelLoading = false;
+      CV.modelLoaded = true;
+      CV.model = cvDetector.model || CV.model;
+      updateCVBadge("ready", "Siap");
+      setCVModelStatus(`Siap${getCVBackendSuffix()}`);
+      setCVLoadingVisibility(false);
+      setCVHeadlineStatus(`Model Siap${getCVBackendSuffix()}`, "ok");
+      if (document.getElementById("btnStartCV")) {
+        document.getElementById("btnStartCV").disabled = false;
+      }
+      if (document.getElementById("btnLoadModel")) {
+        document.getElementById("btnLoadModel").disabled = true;
+      }
 
-    if (typeof cvUI !== "undefined") cvUI.renderAutomationSettings();
-    showToast("Model CV berhasil dimuat!", "success");
-    apiPost('update_cv_state', { model_loaded: 1 }).catch(() => {});
-    return true;
-  } else {
-    CV.modelLoading = false;
-    CV.modelLoaded = false;
-    updateCVBadge("error", "Gagal");
-    setCVModelStatus("Gagal");
-    if (document.getElementById("cvLoadingStatus")) document.getElementById("cvLoadingStatus").classList.add("hidden");
+      if (typeof cvUI !== "undefined") cvUI.renderAutomationSettings();
+      showToast("Model CV berhasil dimuat!", "success");
+      apiPost("update_cv_state", { model_loaded: 1 }).catch(() => {});
+      return true;
+    }
+
+    resetCVLoadFailureState("Gagal Memuat Model");
     showToast("Gagal memuat model CV", "error");
     return false;
+  })();
+
+  try {
+    return await cvInitializationPromise;
+  } finally {
+    cvInitializationPromise = null;
   }
 }
 
@@ -261,18 +292,44 @@ async function loadCVLibraries() {
   if (window.tf && window.cocoSsd) return true;
   const loadScript = (src) => new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-src="${src}"]`);
-    if (existing) {
-      existing.addEventListener('load', () => resolve(true), { once: true });
-      existing.addEventListener('error', reject, { once: true });
-      if (existing.dataset.loaded === '1') resolve(true);
+    if (existing?.dataset.loaded === "1") {
+      resolve(true);
       return;
     }
+    if (existing) existing.remove();
+
     const s = document.createElement('script');
+    let settled = false;
+    let timer = null;
+    const finalize = (handler, payload) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      s.onload = null;
+      s.onerror = null;
+      handler(payload);
+    };
     s.src = src;
     s.async = true;
     s.dataset.src = src;
-    s.onload = () => { s.dataset.loaded = '1'; resolve(true); };
-    s.onerror = reject;
+    s.dataset.state = "loading";
+    s.onload = () => {
+      s.dataset.loaded = "1";
+      s.dataset.state = "loaded";
+      finalize(resolve, true);
+    };
+    s.onerror = () => {
+      s.dataset.error = "1";
+      s.dataset.state = "error";
+      try { s.remove(); } catch (_) {}
+      finalize(reject, new Error(`Failed to load ${src}`));
+    };
+    timer = setTimeout(() => {
+      s.dataset.error = "1";
+      s.dataset.state = "timeout";
+      try { s.remove(); } catch (_) {}
+      finalize(reject, new Error(`Timeout loading ${src}`));
+    }, 15000);
     document.head.appendChild(s);
   });
   await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0');
