@@ -1498,13 +1498,6 @@ async function applySyncData(res, timestamp = Date.now()) {
   STATE.sync.lastFullSyncAt = timestamp;
   updateDashboardStats();
 
-  if (STATE.cvAutoStartRequested && !CV.detecting && !STATE.camera.restoreAttempted && typeof startDetection === "function") {
-    STATE.camera.restoreAttempted = true;
-    setTimeout(() => {
-      Promise.resolve(startDetection())
-        .catch(() => {});
-    }, 120);
-  }
 }
 
 /* ============================================================
@@ -1640,34 +1633,14 @@ function revealMainApp() {
 async function bootstrapDeferredServices() {
   try {
     const automationGroup = ensureFeatureGroup("automation").catch(() => {});
-    const shouldPrepareCamera = !!STATE.cvAutoStartRequested;
 
     await Promise.allSettled([
       automationGroup.then(() => (
         typeof initAutomationRules === "function" ? initAutomationRules() : Promise.resolve()
       )),
-      shouldPrepareCamera
-        ? ensureFeatureGroup("camera")
-            .then(() => (typeof loadCVConfig === "function" ? loadCVConfig() : Promise.resolve()))
-            .catch(() => {})
-        : Promise.resolve(),
     ]);
 
     if (typeof automationEngine !== "undefined") automationEngine.initialize();
-
-    if (STATE.cvAutoStartRequested && !CV.detecting && !CV.modelLoading) {
-      STATE.camera.restoreAttempted = true;
-      const runAutoCV = () => {
-        ensureFeatureGroup("camera")
-          .then(() => Promise.resolve(typeof startDetection === "function" ? startDetection() : initializeCV()))
-          .catch(() => {});
-      };
-      if (typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(runAutoCV, { timeout: 2000 });
-      } else {
-        setTimeout(runAutoCV, 900);
-      }
-    }
 
     const startRealtimeServices = () => {
       if (typeof loadLogs === "function" && getSyncContext().isDashboardView) {

@@ -32,9 +32,8 @@ function resetCVLoadFailureState(message = "Gagal Memuat Model") {
   setCVModelStatus("Gagal");
   setCVHeadlineStatus(message, "");
   setCVLoadingVisibility(false);
-  if (document.getElementById("btnStartCV")) {
-    document.getElementById("btnStartCV").disabled = !STATE.camera.active;
-  }
+  if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
+  apiPost("update_cv_state", { model_loaded: 0 }).catch(() => {});
 }
 
 function startCVFpsMonitor() {
@@ -78,6 +77,7 @@ async function initializeCV() {
     setCVModelStatus("Memuat");
     setCVHeadlineStatus("Memuat Model AI", "muted");
     setCVLoadingVisibility(true, "Memuat model...");
+    if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
 
     try {
       await loadCVLibraries();
@@ -97,12 +97,7 @@ async function initializeCV() {
       setCVModelStatus(`Siap${getCVBackendSuffix()}`);
       setCVLoadingVisibility(false);
       setCVHeadlineStatus(`Model Siap${getCVBackendSuffix()}`, "ok");
-      if (document.getElementById("btnStartCV")) {
-        document.getElementById("btnStartCV").disabled = false;
-      }
-      if (document.getElementById("btnLoadModel")) {
-        document.getElementById("btnLoadModel").disabled = true;
-      }
+      if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
 
       if (typeof cvUI !== "undefined") cvUI.renderAutomationSettings();
       showToast("Model CV berhasil dimuat!", "success");
@@ -174,14 +169,38 @@ function stopCVDetection() {
   showToast("Deteksi CV dihentikan", "info");
 }
 
+async function loadCVModel() {
+  if (typeof STATE !== "undefined" && !STATE.camera.active && typeof startCamera === "function") {
+    const cameraOk = await startCamera();
+    if (!cameraOk) return false;
+  }
+
+  if (typeof STATE !== "undefined" && STATE.camera.mode === "remote") {
+    showToast("Mode pantau hanya bisa melihat source live, bukan memuat AI lokal", "warning");
+    return false;
+  }
+
+  const ready = await initializeCV();
+  if (ready && typeof toggleCVActionButtons === "function") toggleCVActionButtons();
+  return ready;
+}
+
 async function startDetection() {
   if (typeof STATE !== "undefined" && !STATE.camera.active && typeof startCamera === "function") {
     const cameraOk = await startCamera();
     if (!cameraOk) return false;
   }
 
-  const ready = await initializeCV();
-  if (!ready) return false;
+  if (typeof STATE !== "undefined" && STATE.camera.mode === "remote") {
+    showToast("Mode pantau hanya untuk melihat source live", "warning");
+    return false;
+  }
+
+  if (!CV.modelLoaded) {
+    showToast("Muat model AI dulu sebelum mulai deteksi", "warning");
+    if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
+    return false;
+  }
 
   startCVDetection();
   return true;

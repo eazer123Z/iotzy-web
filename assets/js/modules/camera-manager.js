@@ -409,17 +409,29 @@ function toggleCameraButtons(isActive) {
 }
 
 function toggleCVActionButtons() {
+  const loadBtn = document.getElementById("btnLoadModel");
   const startBtn = document.getElementById("btnStartCV");
   const stopBtn = document.getElementById("btnStopCV");
   if (!startBtn || !stopBtn) return;
 
   const cameraReady = !!STATE.camera.active;
+  const canUseLocalCV = cameraReady && STATE.camera.mode !== "remote";
   const detecting = typeof CV !== "undefined" && !!CV.detecting;
+  const modelLoaded = typeof CV !== "undefined" && !!CV.modelLoaded;
+  const modelLoading = typeof CV !== "undefined" && !!CV.modelLoading;
 
-  startBtn.style.display = cameraReady && !detecting ? "" : "none";
-  stopBtn.style.display = cameraReady && detecting ? "" : "none";
-  startBtn.disabled = !cameraReady;
-  stopBtn.disabled = !cameraReady;
+  if (loadBtn) {
+    loadBtn.style.display = canUseLocalCV && !modelLoaded ? "" : "none";
+    loadBtn.disabled = !canUseLocalCV || modelLoading;
+    loadBtn.innerHTML = modelLoading
+      ? `<i class="fas fa-spinner fa-spin"></i> Memuat Model...`
+      : `<i class="fas fa-brain"></i> Muat Model AI`;
+  }
+
+  startBtn.style.display = canUseLocalCV && modelLoaded && !detecting ? "" : "none";
+  stopBtn.style.display = canUseLocalCV && detecting ? "" : "none";
+  startBtn.disabled = !canUseLocalCV || !modelLoaded || modelLoading;
+  stopBtn.disabled = !canUseLocalCV;
 }
 
 function openCameraSelector() {

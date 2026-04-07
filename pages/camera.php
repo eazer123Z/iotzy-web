@@ -12,7 +12,7 @@
         <div>
           <div class="cv-panel-kicker">Realtime Browser Camera</div>
           <h4 class="cv-panel-title">Monitor Frame, Deteksi Orang, dan Cahaya</h4>
-          <p class="cv-panel-subtitle">Pilih kamera, nyalakan stream, lalu aktifkan deteksi AI saat Anda siap.</p>
+          <p class="cv-panel-subtitle">Pilih kamera, nyalakan stream, muat model AI saat dibutuhkan, lalu aktifkan deteksi saat Anda siap.</p>
         </div>
         <div class="cv-status-rail">
           <span id="cvModelBadge" class="cv-status-badge idle">Idle</span>
@@ -36,6 +36,9 @@
           </button>
           <button id="btnStopCam" class="btn-secondary btn-sm" onclick="stopCamera()" style="display:none">
             <i class="fas fa-stop"></i> Stop Kamera
+          </button>
+          <button id="btnLoadModel" class="btn-primary btn-sm" onclick="loadCVModel()" style="display:none">
+            <i class="fas fa-brain"></i> Muat Model AI
           </button>
           <button id="btnStartCV" class="btn-secondary btn-sm" onclick="startDetection()" style="display:none">
             <i class="fas fa-brain"></i> Mulai Deteksi AI
