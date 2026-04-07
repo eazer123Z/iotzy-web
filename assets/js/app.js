@@ -1621,6 +1621,11 @@ function loadFromPHP() {
       STATE.cvAutoStartRequested = false;
     }
 
+    if (typeof PHP_CAMERA_STREAM_SESSIONS !== "undefined" && Array.isArray(PHP_CAMERA_STREAM_SESSIONS)) {
+      STATE.camera.live.sessions = PHP_CAMERA_STREAM_SESSIONS;
+      STATE.camera.live.featureReady = true;
+    }
+
     refreshCameraSessionContext({ persist: false });
   } catch (e) {
     console.warn("loadFromPHP error:", e);

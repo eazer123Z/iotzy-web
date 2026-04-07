@@ -4,7 +4,7 @@ const cameraLive = (() => {
       { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
     ],
   };
-  const REFRESH_INTERVAL = 5000;
+  const REFRESH_INTERVAL = 2000;
   const POLL_INTERVAL = 2500;
 
   const state = {

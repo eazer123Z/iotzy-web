@@ -98,6 +98,11 @@ if (!$action) {
         'camera_key' => $_COOKIE['iotzy_camera_key'] ?? null,
         'camera_name' => $_COOKIE['iotzy_camera_name'] ?? null,
     ]);
+    $cameraStreamSessions = getUserCameraStreamSessions((int)$user['id'], [
+        'camera_key' => $_COOKIE['iotzy_camera_key'] ?? null,
+        'camera_name' => $_COOKIE['iotzy_camera_name'] ?? null,
+        'camera_active' => false,
+    ], $db);
     $cvState = $cameraBundle['cv_state'] ?? iotzyDefaultCvState();
     $camera = $cameraBundle['camera'] ?? null;
     $cameraSettings = $cameraBundle['camera_settings'] ?? [];

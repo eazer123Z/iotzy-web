@@ -350,7 +350,13 @@ async function startLocalCamera() {
     cameraLive.onCameraStateChange(true);
   }
   if (typeof cameraLive !== "undefined" && typeof cameraLive.startPublishing === "function") {
-    cameraLive.startPublishing({ silent: true }).catch(() => {});
+    let liveStarted = false;
+    for (let attempt = 0; attempt < 2 && !liveStarted; attempt += 1) {
+      liveStarted = await cameraLive.startPublishing({ silent: true });
+      if (!liveStarted && attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
   }
   return true;
 }

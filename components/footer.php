@@ -48,6 +48,7 @@
   const PHP_CV_STATE = <?= json_encode($cvState ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   const PHP_CAMERA   = <?= json_encode($camera ?? null, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   const PHP_CAMERA_SETTINGS = <?= json_encode($cameraSettings ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const PHP_CAMERA_STREAM_SESSIONS = <?= json_encode($cameraStreamSessions ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   window.IOTZY_LAZY_ASSETS = {
     libs: {
       chart: 'https://cdn.jsdelivr.net/npm/chart.js',
