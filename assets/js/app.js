@@ -418,6 +418,7 @@ function getCameraRequestContext(extra = {}) {
     camera_name: context.camera_name,
     camera_session_label: context.camera_session_label,
     camera_device_label: context.camera_device_label,
+    camera_active: !!STATE.camera.active,
   };
 }
 

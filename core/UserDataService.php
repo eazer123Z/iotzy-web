@@ -1212,6 +1212,65 @@ function iotzyCameraStreamFeatureStatus(?PDO $db = null): array
     ];
 }
 
+function iotzyCameraStreamPublisherTimeoutSeconds(): int
+{
+    return 120;
+}
+
+function iotzyCameraStreamViewerTimeoutSeconds(): int
+{
+    return 75;
+}
+
+function iotzyTouchCameraStreamPublisherHeartbeat(PDO $db, int $userId, string $cameraKey): void
+{
+    $cameraKey = trim($cameraKey);
+    if ($userId <= 0 || $cameraKey === '' || !iotzyCameraStreamFeatureReady($db)) {
+        return;
+    }
+
+    if (!iotzyCameraStreamUsesDedicatedTables($db)) {
+        foreach (iotzyLoadLegacyCameraStreamRows($db, $userId) as $row) {
+            if ((string)($row['status'] ?? '') === 'ended') {
+                continue;
+            }
+            if (!hash_equals((string)($row['publisher_camera_key'] ?? ''), $cameraKey)) {
+                continue;
+            }
+
+            $bridge = [
+                'stream_key' => $row['stream_key'] ?? '',
+                'publisher_camera_key' => $row['publisher_camera_key'] ?? '',
+                'publisher_name' => $row['publisher_name'] ?? '',
+                'source_label' => $row['source_label'] ?? '',
+                'viewer_camera_key' => $row['viewer_camera_key'] ?? '',
+                'viewer_name' => $row['viewer_name'] ?? '',
+                'status' => $row['status'] ?? 'idle',
+                'started_at' => $row['started_at'] ?? null,
+                'updated_at' => iotzyCameraStreamNow(),
+                'last_publisher_heartbeat' => iotzyCameraStreamNow(),
+                'last_viewer_heartbeat' => $row['last_viewer_heartbeat'] ?? null,
+                'offer_sdp' => $row['offer_sdp'] ?? '',
+                'answer_sdp' => $row['answer_sdp'] ?? '',
+                'candidate_seq' => $row['candidate_seq'] ?? 0,
+                'candidates' => $row['legacy_candidates'] ?? [],
+            ];
+            iotzyPersistCameraLiveBridge($db, (int)($row['camera_id'] ?? 0), $bridge);
+            break;
+        }
+        return;
+    }
+
+    $db->prepare(
+        "UPDATE camera_stream_sessions
+         SET last_publisher_heartbeat = NOW(),
+             updated_at = NOW()
+         WHERE user_id = ?
+           AND publisher_camera_key = ?
+           AND status IN ('awaiting_viewer', 'connecting', 'live')"
+    )->execute([$userId, $cameraKey]);
+}
+
 function iotzyCleanupCameraStreamSessions(PDO $db, int $userId = 0): void
 {
     if (!iotzyCameraStreamFeatureReady($db)) {
@@ -1220,13 +1279,15 @@ function iotzyCleanupCameraStreamSessions(PDO $db, int $userId = 0): void
 
     $userClause = $userId > 0 ? ' AND user_id = ?' : '';
     $params = $userId > 0 ? [$userId] : [];
+    $publisherTimeout = max(45, iotzyCameraStreamPublisherTimeoutSeconds());
+    $viewerTimeout = max(45, iotzyCameraStreamViewerTimeoutSeconds());
 
     $db->prepare(
         "UPDATE camera_stream_sessions
          SET status = 'ended',
              ended_at = COALESCE(ended_at, NOW())
          WHERE status IN ('awaiting_viewer', 'connecting', 'live')
-           AND last_publisher_heartbeat < DATE_SUB(NOW(), INTERVAL 45 SECOND)" . $userClause
+           AND last_publisher_heartbeat < DATE_SUB(NOW(), INTERVAL {$publisherTimeout} SECOND)" . $userClause
     )->execute($params);
 
     $db->prepare(
@@ -1239,7 +1300,7 @@ function iotzyCleanupCameraStreamSessions(PDO $db, int $userId = 0): void
          WHERE status IN ('connecting', 'live')
            AND viewer_camera_key IS NOT NULL
            AND last_viewer_heartbeat IS NOT NULL
-           AND last_viewer_heartbeat < DATE_SUB(NOW(), INTERVAL 45 SECOND)" . $userClause
+           AND last_viewer_heartbeat < DATE_SUB(NOW(), INTERVAL {$viewerTimeout} SECOND)" . $userClause
     )->execute($params);
 
     $db->exec(
@@ -1403,6 +1464,8 @@ function iotzyCleanupLegacyCameraStreamSessions(PDO $db, int $userId = 0): void
     }
 
     $now = time();
+    $publisherTimeout = max(45, iotzyCameraStreamPublisherTimeoutSeconds());
+    $viewerTimeout = max(45, iotzyCameraStreamViewerTimeoutSeconds());
     foreach (iotzyLoadLegacyCameraStreamRows($db, $userId) as $row) {
         $cameraId = (int)($row['camera_id'] ?? 0);
         $bridge = [
@@ -1427,12 +1490,12 @@ function iotzyCleanupLegacyCameraStreamSessions(PDO $db, int $userId = 0): void
         $viewerHeartbeat = strtotime((string)($bridge['last_viewer_heartbeat'] ?? '')) ?: 0;
         $updated = false;
 
-        if ($publisherHeartbeat > 0 && ($now - $publisherHeartbeat) > 45) {
+        if ($publisherHeartbeat > 0 && ($now - $publisherHeartbeat) > $publisherTimeout) {
             iotzyPersistCameraLiveBridge($db, $cameraId, null);
             continue;
         }
 
-        if (!empty($bridge['viewer_camera_key']) && $viewerHeartbeat > 0 && ($now - $viewerHeartbeat) > 45) {
+        if (!empty($bridge['viewer_camera_key']) && $viewerHeartbeat > 0 && ($now - $viewerHeartbeat) > $viewerTimeout) {
             $bridge['viewer_camera_key'] = null;
             $bridge['viewer_name'] = null;
             $bridge['answer_sdp'] = null;
@@ -1456,9 +1519,17 @@ function getUserCameraStreamSessions(int $userId, array $cameraContext = [], ?PD
         return [];
     }
 
+    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $cameraActive = filter_var(
+        $cameraContext['camera_active'] ?? $cameraContext['cameraActive'] ?? false,
+        FILTER_VALIDATE_BOOLEAN
+    );
+    if ($cameraActive && !empty($resolvedContext['camera_key'])) {
+        iotzyTouchCameraStreamPublisherHeartbeat($db, $userId, (string)$resolvedContext['camera_key']);
+    }
+
     if (!iotzyCameraStreamUsesDedicatedTables($db)) {
         iotzyCleanupLegacyCameraStreamSessions($db, $userId);
-        $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
         $rows = array_filter(
             iotzyLoadLegacyCameraStreamRows($db, $userId),
             static fn(array $row): bool => (string)($row['status'] ?? '') !== 'ended'
@@ -1473,14 +1544,14 @@ function getUserCameraStreamSessions(int $userId, array $cameraContext = [], ?PD
     }
 
     iotzyCleanupCameraStreamSessions($db, $userId);
-    $resolvedContext = iotzyResolveCameraContext($cameraContext, $userId);
+    $publisherTimeout = max(45, iotzyCameraStreamPublisherTimeoutSeconds());
 
     $stmt = $db->prepare(
         "SELECT *
          FROM camera_stream_sessions
          WHERE user_id = ?
            AND status <> 'ended'
-           AND last_publisher_heartbeat >= DATE_SUB(NOW(), INTERVAL 45 SECOND)
+           AND last_publisher_heartbeat >= DATE_SUB(NOW(), INTERVAL {$publisherTimeout} SECOND)
          ORDER BY updated_at DESC
          LIMIT 12"
     );

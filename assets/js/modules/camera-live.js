@@ -374,6 +374,18 @@ const cameraLive = (() => {
       STATE.camera.live.featureReady = state.featureReady;
       state.sessions = Array.isArray(result.sessions) ? result.sessions : [];
       STATE.camera.live.sessions = state.sessions;
+      const ownedSession = state.sessions.find((session) => session?.is_owner) || null;
+      const canAutoPublish = !!STATE?.camera?.active
+        && STATE.camera.mode !== "remote"
+        && !!STATE.camera.stream;
+
+      if (ownedSession?.stream_key) {
+        state.publisher.streamKey = String(ownedSession.stream_key);
+        STATE.camera.live.publishedStreamKey = state.publisher.streamKey;
+      } else if (canAutoPublish && state.featureReady && !state.publisher.starting && !state.publisher.stopping) {
+        schedulePublisherRecovery("Source live sedang dipulihkan otomatis.", 300);
+      }
+
       if (typeof renderCameraDeviceSelect === "function") {
         renderCameraDeviceSelect();
       }
