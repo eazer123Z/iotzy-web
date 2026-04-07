@@ -500,13 +500,7 @@ function initAiChatModule() {
             if (typeof syncAutomationFromServer === 'function') {
                 await syncAutomationFromServer();
             }
-            return;
         }
-
-        if (typeof syncDevicesFromServer === 'function') await syncDevicesFromServer();
-        if (typeof syncSensorsFromServer === 'function') await syncSensorsFromServer();
-        if (typeof syncAutomationFromServer === 'function') await syncAutomationFromServer();
-        if (typeof syncCVConfigFromServer === 'function') await syncCVConfigFromServer();
     }
 
 }

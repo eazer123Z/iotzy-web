@@ -132,31 +132,6 @@
   </div>
 </div>
 
-<div id="mqttConfigModal" class="modal-overlay">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>Konfigurasi MQTT</h3>
-      <button onclick="closeMQTTConfigModal()" class="modal-close"><i class="fas fa-times"></i></button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group"><label>Broker URL</label><input type="text" id="mqttBrokerModal"></div>
-      <div class="form-row">
-        <div class="form-group"><label>Port</label><input type="number" id="mqttPortModal"></div>
-        <div class="form-group">
-          <label class="form-check">
-            <input type="checkbox" id="mqttUseSSLModal">
-            SSL/TLS (WSS)
-          </label>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button onclick="closeMQTTConfigModal()" class="btn-secondary">Batal</button>
-      <button onclick="saveMQTTConfig()" id="btnSaveMQTT" class="btn-primary">Hubungkan</button>
-    </div>
-  </div>
-</div>
-
 <div id="addRuleModal" class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">

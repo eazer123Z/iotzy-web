@@ -1,17 +1,7 @@
 const Overview = {
   init() {
-    this.refreshClock();
     this.initChartSelect();
     this.updateDashboardRoomSummary();
-  },
-  refreshClock() {
-    const el = document.getElementById('ovClock');
-    if (!el) return;
-    const upd = () => {
-      const now = new Date();
-      el.textContent = now.toLocaleTimeString('id-ID', { hour12: false });
-    };
-    upd();
   },
   initChartSelect() {
     const sel = document.getElementById('ovChartSensorSelect');

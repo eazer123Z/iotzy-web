@@ -1055,48 +1055,6 @@ async function apiPost(action, data = {}, opts = {}) {
   }
 }
 
-/* ============================================================
-   CV CONFIG HELPERS (diakses oleh cv-manager.js & cv-ui.js)
-   ============================================================ */
-async function loadCVConfig() {
-  const result = await apiPost("get_cv_config", {});
-  if (result) {
-    applyCVConfigState(result);
-  }
-}
-
-async function loadCVRules() {
-  const result = await apiPost("get_cv_rules", {});
-  if (result) {
-    applyCVRulesState(result);
-  }
-}
-
-async function saveCVRules() {
-  await apiPost("save_cv_rules", { rules: CV.cvRules });
-}
-
-async function syncCVConfigFromServer() {
-  await loadCVConfig();
-  await loadCVRules();
-  if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules(CV.cvRules);
-}
-
-function toggleBoundingBox(val) {
-  applyCVConfigState({ showBoundingBox: val });
-  persistCVConfig({ showBoundingBox: val }).catch(() => {});
-}
-
-function toggleDebugInfo(val) {
-  applyCVConfigState({ showDebugInfo: val });
-  persistCVConfig({ showDebugInfo: val }).catch(() => {});
-}
-
-function updateCVConfig(val) {
-  applyCVConfigState({ minConfidence: parseFloat(val) / 100 });
-  persistCVConfig({ minConfidence: parseFloat(val) / 100 }).catch(() => {});
-}
-
 function normalizeCVBrightnessValue(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return 0;
@@ -1158,78 +1116,6 @@ function onLightAnalysisUpdate(condition, brightness) {
   if (typeof Overview !== "undefined" && typeof Overview.updateDashboardRoomSummary === "function") {
     Overview.updateDashboardRoomSummary();
   }
-}
-
-/* ============================================================
-   SYNC: Server → STATE (Real-Time Polling)
-   ============================================================ */
-async function syncDevicesFromServer() {
-  const data = await apiPost('get_devices');
-  if (!data || !Array.isArray(data)) return;
-  const nextIdSet = new Set(data.map((device) => String(device.id)));
-  Object.keys(STATE.devices).forEach(id => {
-    if (!nextIdSet.has(String(id))) {
-      delete STATE.devices[id];
-      delete STATE.deviceStates[id];
-      delete STATE.deviceTopics[id];
-      delete STATE.deviceOnAt[id];
-      delete STATE.deviceExtras[id];
-    }
-  });
-  data.forEach(d => {
-    const id = String(d.id);
-    const isNew = !STATE.devices[id];
-    STATE.devices[id] = { ...(STATE.devices[id] || {}), ...d, id };
-    if (STATE.deviceStates[id] === undefined)
-      STATE.deviceStates[id] = Boolean(Number(d.last_state ?? 0));
-    else
-      STATE.deviceStates[id] = Boolean(Number(d.last_state ?? d.latest_state ?? (STATE.deviceStates[id] ? 1 : 0)));
-    if (STATE.deviceStates[id] && !STATE.deviceOnAt[id]) {
-      STATE.deviceOnAt[id] = Date.now();
-    } else if (!STATE.deviceStates[id]) {
-      delete STATE.deviceOnAt[id];
-    }
-    STATE.deviceTopics[id] = { sub: d.topic_sub || "", pub: d.topic_pub || "" };
-    if (isNew && STATE.mqtt.connected && d.topic_sub) {
-      try { STATE.mqtt.client.subscribe(d.topic_sub); } catch(e) { console.warn("MQTT Re-sub:", e); }
-    }
-  });
-  if (typeof renderDevices === 'function') renderDevices();
-  if (typeof renderQuickControls === 'function') renderQuickControls();
-  if (typeof renderScheduleDeviceOptions === 'function') renderScheduleDeviceOptions();
-  updateDashboardStats();
-}
-
-async function syncSensorsFromServer() {
-  const data = await apiPost('get_sensors');
-  if (!data || !Array.isArray(data)) return;
-  const nextIdSet = new Set(data.map((sensor) => String(sensor.id)));
-  Object.keys(STATE.sensors).forEach(id => {
-    if (!nextIdSet.has(String(id))) {
-      delete STATE.sensors[id];
-      delete STATE.sensorData[id];
-      delete STATE.sensorHistory[id];
-    }
-  });
-  data.forEach(s => {
-    const id = String(s.id);
-    const isNew = !STATE.sensors[id];
-    STATE.sensors[id] = { ...(STATE.sensors[id] || {}), ...s, id };
-    if (isNew) {
-      STATE.sensorData[id] = s.latest_value ?? null;
-      STATE.sensorHistory[id] = [];
-      if (STATE.mqtt.connected && s.topic) {
-        try { STATE.mqtt.client.subscribe(s.topic); } catch(e) {}
-      }
-    } else {
-      STATE.sensorData[id] = s.latest_value ?? STATE.sensorData[id] ?? null;
-    }
-  });
-  if (typeof renderSensors === 'function') renderSensors();
-  if (typeof Overview !== "undefined" && typeof Overview.initChartSelect === "function") {
-    Overview.initChartSelect();
-  }
-  updateDashboardStats();
 }
 
 async function syncAutomationFromServer() {

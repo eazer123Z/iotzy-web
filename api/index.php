@@ -94,15 +94,27 @@ if (!$action) {
     $settings = getUserSettings((int)$user['id']);
     $devices = getUserDevicesClientPayload((int)$user['id'], $db);
     $sensors = getUserSensorsClientPayload((int)$user['id'], $db);
-    $cameraBundle = getUserCameraBundle((int)$user['id'], $db, [
-        'camera_key' => $_COOKIE['iotzy_camera_key'] ?? null,
-        'camera_name' => $_COOKIE['iotzy_camera_name'] ?? null,
-    ]);
-    $cameraStreamSessions = getUserCameraStreamSessions((int)$user['id'], [
-        'camera_key' => $_COOKIE['iotzy_camera_key'] ?? null,
-        'camera_name' => $_COOKIE['iotzy_camera_name'] ?? null,
-        'camera_active' => false,
-    ], $db);
+
+    $shouldBootstrapCamera = in_array($route, ['camera', 'settings'], true);
+    $cameraBundle = [
+        'cv_state' => iotzyDefaultCvState(),
+        'camera' => null,
+        'camera_settings' => [],
+    ];
+    $cameraStreamSessions = [];
+
+    if ($shouldBootstrapCamera) {
+        $cameraBundle = getUserCameraBundle((int)$user['id'], $db, [
+            'camera_key' => $_COOKIE['iotzy_camera_key'] ?? null,
+            'camera_name' => $_COOKIE['iotzy_camera_name'] ?? null,
+        ]);
+        $cameraStreamSessions = getUserCameraStreamSessions((int)$user['id'], [
+            'camera_key' => $_COOKIE['iotzy_camera_key'] ?? null,
+            'camera_name' => $_COOKIE['iotzy_camera_name'] ?? null,
+            'camera_active' => false,
+        ], $db);
+    }
+
     $cvState = $cameraBundle['cv_state'] ?? iotzyDefaultCvState();
     $camera = $cameraBundle['camera'] ?? null;
     $cameraSettings = $cameraBundle['camera_settings'] ?? [];

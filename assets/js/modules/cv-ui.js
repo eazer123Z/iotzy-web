@@ -418,47 +418,6 @@ const cvUI = (() => {
     }
 
     /**
-     * Mengaktifkan/Mematikan (Enable/Disable) otomasi CV tanpa menghapus aturan.
-     */
-    function toggleCVRuleEnabled(type, enabled) {
-        if (typeof automationEngine !== 'undefined') {
-            automationEngine.updateCVRules({ [type]: { enabled } });
-        }
-        if (window.CV?.cvRules?.[type]) {
-            window.CV.cvRules[type].enabled = enabled;
-            
-            // 🔥 Persist to DB (Granular Columns in user_settings)
-            if (typeof apiPost === 'function') {
-                const config = {
-                    minConfidence: CV_CONFIG.detection.minConfidence,
-                    darkThreshold: CV_CONFIG.light.darkThreshold,
-                    brightThreshold: CV_CONFIG.light.brightThreshold,
-                    humanEnabled: window.CV.cvRules.human.enabled,
-                    lightEnabled: window.CV.cvRules.light.enabled
-                };
-                apiPost('save_cv_config', { config }).catch(() => {});
-            }
-        }
-    }
-
-    /**
-     * Memperbarui durasi delay sebelum aksi otomasi dieksekusi.
-     */
-    function updateCVDelay(type, seconds) {
-        const delay = parseInt(seconds) * 1000;
-        if (typeof automationEngine !== 'undefined') {
-            automationEngine.updateCVRules({ [type]: { delay } });
-        }
-        if (window.CV?.cvRules?.[type]) {
-            window.CV.cvRules[type].delay = delay;
-            // 🔥 Persist to DB
-            if (typeof apiPost === 'function') {
-                apiPost('save_cv_rules', { rules: window.CV.cvRules }).catch(() => {});
-            }
-        }
-    }
-
-    /**
      * Memperbarui batas nilai kecerahan (Threshold) untuk deteksi kondisi cahaya.
      */
     function updateLightThreshold(which, value) {
@@ -486,29 +445,6 @@ const cvUI = (() => {
                 which === 'bright' ? normalized : null
             );
         }
-    }
-
-    /**
-     * Mengambil semua nilai dari UI dan menyimpannya ke state otomasi global.
-     */
-    function saveCVRules() {
-        const rules = _loadRules();
-
-        rules.human.enabled  = document.getElementById('cvHumanToggle')?.checked ?? true;
-
-        rules.light.onDark   = _getChecked('cvOnDarkList');
-        rules.light.onBright = _getChecked('cvOnBrightList');
-        rules.light.enabled  = document.getElementById('cvLightToggle')?.checked ?? true;
-        const ld = document.getElementById('cvLightDelay');
-        if (ld) rules.light.delay = parseInt(ld.value) * 1000;
-
-        const persistPromise = typeof automationEngine !== 'undefined'
-            ? automationEngine.updateCVRules(rules)
-            : (typeof apiPost === 'function' ? apiPost('save_cv_rules', { rules }) : Promise.resolve({ success: true }));
-        if (window.CV) window.CV.cvRules = rules;
-        Promise.resolve(persistPromise)
-            .then(() => { if (typeof showToast === 'function') showToast('Pengaturan CV disimpan!', 'success'); })
-            .catch(() => { if (typeof showToast === 'function') showToast('Gagal simpan ke database', 'error'); });
     }
 
     /**
@@ -587,49 +523,6 @@ const cvUI = (() => {
         </div>`;
         
         document.body.insertAdjacentHTML('beforeend', html);
-    }
-
-    /**
-     * Memproses pengiriman data dari modal tambah aturan manusia.
-     */
-    function addHumanRuleSubmit() {
-        const cond = document.getElementById('ahr_cond').value;
-        const count = parseInt(document.getElementById('ahr_count').value);
-        const devs = Array.from(document.querySelectorAll('#ahr_dev input[type=checkbox]:checked')).map((input) => input.value);
-        const onTrue = document.getElementById('ahr_true').value;
-        const onFalse = document.getElementById('ahr_false').value;
-
-        if (devs.length === 0) {
-            if (typeof showToast === 'function') showToast('Pilih minimal 1 perangkat!', 'error');
-            return;
-        }
-        if (!Number.isFinite(count) || count < 0) {
-            if (typeof showToast === 'function') showToast('Jumlah orang harus angka 0 atau lebih.', 'error');
-            return;
-        }
-
-        const newRule = {
-            id: Math.random().toString(36).substr(2, 9),
-            condition: cond,
-            count: count || 0,
-            devices: devs,
-            onTrue: onTrue,
-            onFalse: onFalse,
-            delay: 3000 // default internal delay
-        };
-
-        const rulesObj = _loadRules();
-        if (!rulesObj.human) rulesObj.human = { enabled: true, rules: [], delay: 5000 };
-        if (!Array.isArray(rulesObj.human.rules)) rulesObj.human.rules = [];
-        
-        rulesObj.human.rules.push(newRule);
-
-        if (typeof automationEngine !== 'undefined') automationEngine.updateCVRules({ human: rulesObj.human });
-        if (window.CV) window.CV.cvRules.human = rulesObj.human;
-        
-        document.getElementById('cvAddHumanRuleModal')?.remove();
-        renderAutomationSettings();
-        if (typeof showToast === 'function') showToast('Aturan berhasil ditambahkan', 'success');
     }
 
     function toggleCVRuleEnabled(type, enabled) {
