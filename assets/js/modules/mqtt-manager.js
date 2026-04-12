@@ -48,34 +48,8 @@ function queueDeviceStateSync(deviceId, state) {
   deviceStateSyncQueue[id].timer = setTimeout(() => flushDeviceStateSync(id), DEVICE_DB_SYNC_MS);
 }
 
-/**
- * Memuat daftar template MQTT dari database dan menyimpannya ke state lokal.
- */
-async function loadMQTTTemplates() {
-  try {
-    const res = await apiPost("get_mqtt_templates");
-    if (res?.success) {
-      STATE.mqtt.templates = res.templates;
-      renderMQTTTemplateSelector();
-    }
-  } catch (e) { console.error("Gagal memuat template MQTT:", e); }
-}
-
-/**
- * Merender ulang pilihan template di modal pengaturan MQTT.
- */
-function renderMQTTTemplateSelector() {
-  const sel = document.getElementById("mqttTemplate");
-  if (!sel || !STATE.mqtt.templates) return;
-  
-  sel.innerHTML = '<option value="">— Pilih Template Broker —</option>';
-  STATE.mqtt.templates.forEach(t => {
-    const opt = document.createElement("option");
-    opt.value = t.slug;
-    opt.textContent = t.name;
-    sel.appendChild(opt);
-  });
-}
+// loadMQTTTemplates() and renderMQTTTemplateSelector() are defined in
+// settings-manager.js (single source of truth, with caching & dedup)
 
 // applyMQTTTemplate() is defined in settings-manager.js (single source of truth)
 

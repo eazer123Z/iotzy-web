@@ -274,7 +274,10 @@ function renderMQTTTemplateOptions(templates = []) {
   if (!sel) return;
   sel.innerHTML = '<option value="">Pilih Template Broker</option>';
   templates.forEach((template) => {
-    sel.innerHTML += `<option value="${template.slug}">${template.name}</option>`;
+    const opt = document.createElement("option");
+    opt.value = template.slug;
+    opt.textContent = template.name;
+    sel.appendChild(opt);
   });
 }
 

@@ -75,15 +75,15 @@ function handleAutomationAction(string $action, int $userId, array $body, PDO $d
         $tpl   = trim($body['from_template'] ?? '');
         $allowedConds   = ['gt','lt','range','between','detected','absent','time_only'];
         $allowedActions = ['on','off','speed_high','speed_mid','speed_low','toggle'];
-        if (!$devId || !in_array($cond,$allowedConds,true)) jsonOut(['success'=>false,'message'=>'Konfigurasi aturan tidak valid']);
-        if ($cond!=='time_only' && !$senId) jsonOut(['success'=>false,'message'=>'Tentukan sensor sebagai pemicu']);
+        if (!$devId || !in_array($cond,$allowedConds,true)) jsonOut(['success'=>false,'error'=>'Konfigurasi aturan tidak valid']);
+        if ($cond!=='time_only' && !$senId) jsonOut(['success'=>false,'error'=>'Tentukan sensor sebagai pemicu']);
         if (!in_array($act,$allowedActions,true)) $act='on';
         if ($senId) {
             $s=$db->prepare("SELECT id FROM sensors WHERE id=? AND user_id=?"); $s->execute([$senId,$userId]);
-            if (!$s->fetch()) jsonOut(['success'=>false,'message'=>'Sensor tidak terdaftar']);
+            if (!$s->fetch()) jsonOut(['success'=>false,'error'=>'Sensor tidak terdaftar']);
         }
         $d=$db->prepare("SELECT id FROM devices WHERE id=? AND user_id=?"); $d->execute([$devId,$userId]);
-        if (!$d->fetch()) jsonOut(['success'=>false,'message'=>'Perangkat tidak terdaftar']);
+        if (!$d->fetch()) jsonOut(['success'=>false,'error'=>'Perangkat tidak terdaftar']);
         $threshold    = isset($body['threshold'])     ? (float)$body['threshold']     : null;
         $thresholdMin = isset($body['threshold_min']) ? (float)$body['threshold_min'] : null;
         $thresholdMax = isset($body['threshold_max']) ? (float)$body['threshold_max'] : null;
@@ -92,9 +92,9 @@ function handleAutomationAction(string $action, int $userId, array $body, PDO $d
         $startTime    = !empty($body['start_time']) ? trim((string)$body['start_time']) : null;
         $endTime      = !empty($body['end_time'])   ? trim((string)$body['end_time'])   : null;
         if (in_array($cond, ['range', 'between'], true) && $thresholdMin!==null && $thresholdMax!==null && $thresholdMin>=$thresholdMax)
-            jsonOut(['success'=>false,'message'=>'Batas minimal harus lebih kecil dari maksimal']);
+            jsonOut(['success'=>false,'error'=>'Batas minimal harus lebih kecil dari maksimal']);
         if (($startTime && !preg_match('/^\d{2}:\d{2}$/', $startTime)) || ($endTime && !preg_match('/^\d{2}:\d{2}$/', $endTime))) {
-            jsonOut(['success'=>false,'message'=>'Format waktu aturan harus HH:MM']);
+            jsonOut(['success'=>false,'error'=>'Format waktu aturan harus HH:MM']);
         }
         $newId = dbInsert("INSERT INTO automation_rules (user_id,sensor_id,device_id,condition_type,threshold,threshold_min,threshold_max,action,delay_ms,start_time,end_time,days,from_template) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", [$userId,$senId?:null,$devId,$cond,$threshold,$thresholdMin,$thresholdMax,$act,$delay,$startTime,$endTime,$days,$tpl?:null]);
         addActivityLog($userId,'Otomasi','Aturan baru berhasil dibuat','User','success');
