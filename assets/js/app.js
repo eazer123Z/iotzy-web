@@ -1655,22 +1655,25 @@ function scheduleMQTTBootstrap() {
   setTimeout(() => {
     cleanup();
     kickoff();
-  }, 5000);
+  }, 3000);
 }
 
 async function bootstrapDeferredServices() {
   try {
+    // Start API sync immediately — don't wait for lazy scripts
+    const syncPromise = syncAllFromServer(true).catch(() => {});
+
+    // Load realtimeCore scripts immediately (preloaded via <link rel="preload">)
     const realtimeCoreGroup = ensureFeatureGroup("realtimeCore").catch(() => {});
 
     const startRealtimeServices = async () => {
-      syncAllFromServer(true).catch(() => {});
       await realtimeCoreGroup;
 
       scheduleIdleTask(() => {
         if (typeof loadLogs === "function" && getSyncContext().isDashboardView) {
           loadLogs(typeof getAnalyticsDate === "function" ? getAnalyticsDate() : undefined).catch(() => {});
         }
-      }, 3200);
+      }, 2000);
 
       scheduleMQTTBootstrap();
     };
@@ -1683,9 +1686,8 @@ async function bootstrapDeferredServices() {
       if (typeof automationEngine !== "undefined") automationEngine.initialize();
     };
 
-    scheduleAfterFirstPaint(() => {
-      startRealtimeServices().catch(() => {});
-    }, 0);
+    // Start realtime services immediately — no scheduleAfterFirstPaint delay
+    startRealtimeServices().catch(() => {});
 
     scheduleIdleTask(() => {
       startAutomationServices().catch(() => {});

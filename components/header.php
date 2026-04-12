@@ -17,6 +17,11 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script>const CSRF_TOKEN = "<?= $_SESSION['csrf_token'] ?? '' ?>";</script>
 <link rel="stylesheet" href="<?= iotzyAssetUrl('css/dashboard.css') ?>">
+<!-- Preload critical realtimeCore scripts for instant dashboard -->
+<link rel="preload" href="<?= iotzyAssetUrl('js/modules/performance-optimizer.js') ?>" as="script">
+<link rel="preload" href="<?= iotzyAssetUrl('js/modules/device-manager.js') ?>" as="script">
+<link rel="preload" href="<?= iotzyAssetUrl('js/modules/sensor-manager.js') ?>" as="script">
+<link rel="preload" href="<?= iotzyAssetUrl('js/modules/overview-manager.js') ?>" as="script">
 </head>
 <body>
 
