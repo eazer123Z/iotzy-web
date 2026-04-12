@@ -57,14 +57,14 @@
           <span class="user-name"><?= htmlspecialchars($user['full_name'] ?: $user['username']) ?></span>
           <span class="user-role"><?= htmlspecialchars($user['role']) ?></span>
         </div>
-        <a href="?route=logout" class="logout-btn" title="Logout"><i class="fas fa-right-from-bracket"></i></a>
+        <a href="?route=logout" class="logout-btn" title="Logout" aria-label="Logout"><i class="fas fa-right-from-bracket"></i></a>
       </div>
       <div class="sidebar-bottom-row">
         <div class="mqtt-pill">
           <span class="mqtt-dot" id="sidebarMqttDot"></span>
           <span id="sidebarMqttText">Offline</span>
         </div>
-        <button onclick="connectMQTT()" class="icon-btn" title="Hubungkan MQTT">
+        <button onclick="connectMQTT()" class="icon-btn" title="Hubungkan MQTT" aria-label="Connect MQTT">
           <i class="fas fa-wifi"></i>
         </button>
       </div>

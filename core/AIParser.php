@@ -367,31 +367,19 @@ function iotzy_collect_full_context(int $userId, PDO $db): array
     $stmt->execute([$userId]);
     $ctx['activity_logs'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // Combined daily analytics query (was 3 separate queries)
     $stmt = $db->prepare(
         "SELECT
-            COUNT(*) AS total_logs,
-            COUNT(DISTINCT CASE WHEN device_id IS NOT NULL THEN device_id END) AS devices_active_today
-         FROM activity_logs
-         WHERE user_id = ? AND DATE(created_at) = CURRENT_DATE"
+            (SELECT COUNT(*) FROM activity_logs WHERE user_id = ? AND DATE(created_at) = CURRENT_DATE) AS total_logs,
+            (SELECT COUNT(DISTINCT CASE WHEN device_id IS NOT NULL THEN device_id END) FROM activity_logs WHERE user_id = ? AND DATE(created_at) = CURRENT_DATE) AS devices_active_today,
+            (SELECT COALESCE(SUM(duration_seconds), 0) FROM device_sessions WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE) AS total_duration_seconds,
+            (SELECT COALESCE(SUM(energy_wh), 0) FROM device_sessions WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE) AS total_energy_wh,
+            (SELECT COUNT(DISTINCT device_id) FROM device_sessions WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE) AS power_devices"
     );
-    $stmt->execute([$userId]);
-    $analyticsRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['total_logs' => 0, 'devices_active_today' => 0];
-
-    $stmt = $db->prepare(
-        "SELECT COALESCE(SUM(duration_seconds), 0)
-         FROM device_sessions
-         WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE"
-    );
-    $stmt->execute([$userId]);
-    $totalDurationSeconds = (int)$stmt->fetchColumn();
-
-    $stmt = $db->prepare(
-        "SELECT COALESCE(SUM(energy_wh), 0), COUNT(DISTINCT device_id)
-         FROM device_sessions
-         WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE"
-    );
-    $stmt->execute([$userId]);
-    $energyRow = $stmt->fetch(PDO::FETCH_NUM) ?: [0, 0];
+    $stmt->execute([$userId, $userId, $userId, $userId, $userId]);
+    $analyticsRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['total_logs' => 0, 'devices_active_today' => 0, 'total_duration_seconds' => 0, 'total_energy_wh' => 0, 'power_devices' => 0];
+    $totalDurationSeconds = (int)($analyticsRow['total_duration_seconds'] ?? 0);
+    $energyRow = [(float)($analyticsRow['total_energy_wh'] ?? 0), (int)($analyticsRow['power_devices'] ?? 0)];
 
     $devicesTotal = count($ctx['devices'] ?? []);
     $devicesActiveToday = (int)($analyticsRow['devices_active_today'] ?? 0);
@@ -406,50 +394,25 @@ function iotzy_collect_full_context(int $userId, PDO $db): array
         ],
     ];
 
-    // Stats (single query lebih efisien daripada N query individual)
+    // Stats — combined into 1 query (was 4 separate queries)
     $stmt = $db->prepare(
         "SELECT
-            COUNT(*) AS total_devices,
-            SUM(CASE WHEN last_state = 1 AND is_active = 1 THEN 1 ELSE 0 END) AS devices_on,
-            SUM(CASE WHEN last_state = 0 AND is_active = 1 THEN 1 ELSE 0 END) AS devices_off,
-            SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) AS devices_inactive
-         FROM devices WHERE user_id = ?"
+            (SELECT COUNT(*) FROM devices WHERE user_id = ?) AS total_devices,
+            (SELECT SUM(CASE WHEN last_state = 1 AND is_active = 1 THEN 1 ELSE 0 END) FROM devices WHERE user_id = ?) AS devices_on,
+            (SELECT SUM(CASE WHEN last_state = 0 AND is_active = 1 THEN 1 ELSE 0 END) FROM devices WHERE user_id = ?) AS devices_off,
+            (SELECT SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) FROM devices WHERE user_id = ?) AS devices_inactive,
+            (SELECT COUNT(*) FROM sensors WHERE user_id = ?) AS total_sensors,
+            (SELECT SUM(CASE WHEN last_seen >= DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 1 ELSE 0 END) FROM sensors WHERE user_id = ?) AS sensors_online,
+            (SELECT COUNT(*) FROM automation_rules WHERE user_id = ?) AS total_rules,
+            (SELECT SUM(CASE WHEN is_enabled = 1 THEN 1 ELSE 0 END) FROM automation_rules WHERE user_id = ?) AS rules_enabled,
+            (SELECT COUNT(*) FROM schedules WHERE user_id = ?) AS total_schedules,
+            (SELECT SUM(CASE WHEN is_enabled = 1 THEN 1 ELSE 0 END) FROM schedules WHERE user_id = ?) AS schedules_enabled"
     );
-    $stmt->execute([$userId]);
-    $devStats = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    $stmt = $db->prepare(
-        "SELECT
-            COUNT(*) AS total_sensors,
-            SUM(CASE WHEN last_seen >= DATE_SUB(NOW(), INTERVAL 5 MINUTE) THEN 1 ELSE 0 END) AS sensors_online
-         FROM sensors WHERE user_id = ?"
-    );
-    $stmt->execute([$userId]);
-    $senStats = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    $stmt = $db->prepare(
-        "SELECT
-            COUNT(*) AS total_rules,
-            SUM(CASE WHEN is_enabled = 1 THEN 1 ELSE 0 END) AS rules_enabled
-         FROM automation_rules WHERE user_id = ?"
-    );
-    $stmt->execute([$userId]);
-    $ruleStats = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    $stmt = $db->prepare(
-        "SELECT
-            COUNT(*) AS total_schedules,
-            SUM(CASE WHEN is_enabled = 1 THEN 1 ELSE 0 END) AS schedules_enabled
-         FROM schedules WHERE user_id = ?"
-    );
-    $stmt->execute([$userId]);
-    $schedStats = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->execute([$userId, $userId, $userId, $userId, $userId, $userId, $userId, $userId, $userId, $userId]);
+    $combinedStats = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
     $ctx['stats'] = array_merge(
-        $devStats  ?: [],
-        $senStats  ?: [],
-        $ruleStats ?: [],
-        $schedStats ?: [],
+        $combinedStats,
         [
             'logs_today'             => (int)($analyticsRow['total_logs'] ?? 0),
             'total_on_minutes_today' => round($totalDurationSeconds / 60, 1),
@@ -736,45 +699,48 @@ function iotzy_save_message(int $userId, PDO $db, string $sender, string $msg, s
         return;
     }
 
-    try {
-        // Arsip pesan yang akan dihapus (overflow)
-        $db->prepare(
-            "INSERT INTO ai_chat_history_archive (user_id, sender, message, platform, created_at)
-             SELECT user_id, sender, message, platform, created_at
-             FROM ai_chat_history
-             WHERE user_id = ?
-               AND id NOT IN (
-                   SELECT id FROM (
-                       SELECT id FROM ai_chat_history
-                       WHERE user_id = ?
-                       ORDER BY created_at DESC
-                       LIMIT " . (int)AI_HISTORY_KEEP . "
-                   ) AS tmp
-               )"
-        )->execute([$userId, $userId]);
+    // Archive cleanup: probabilistic 1-in-50 (avoid running on every message save)
+    if (random_int(1, 50) === 1) {
+        try {
+            // Arsip pesan yang akan dihapus (overflow)
+            $db->prepare(
+                "INSERT INTO ai_chat_history_archive (user_id, sender, message, platform, created_at)
+                 SELECT user_id, sender, message, platform, created_at
+                 FROM ai_chat_history
+                 WHERE user_id = ?
+                   AND id NOT IN (
+                       SELECT id FROM (
+                           SELECT id FROM ai_chat_history
+                           WHERE user_id = ?
+                           ORDER BY created_at DESC
+                           LIMIT " . (int)AI_HISTORY_KEEP . "
+                       ) AS tmp
+                   )"
+            )->execute([$userId, $userId]);
 
-        // Hapus overflow dari tabel aktif
-        $db->prepare(
-            "DELETE FROM ai_chat_history
-             WHERE user_id = ?
-               AND id NOT IN (
-                   SELECT id FROM (
-                       SELECT id FROM ai_chat_history
-                       WHERE user_id = ?
-                       ORDER BY created_at DESC
-                       LIMIT " . (int)AI_HISTORY_KEEP . "
-                   ) AS tmp
-               )"
-        )->execute([$userId, $userId]);
+            // Hapus overflow dari tabel aktif
+            $db->prepare(
+                "DELETE FROM ai_chat_history
+                 WHERE user_id = ?
+                   AND id NOT IN (
+                       SELECT id FROM (
+                           SELECT id FROM ai_chat_history
+                           WHERE user_id = ?
+                           ORDER BY created_at DESC
+                           LIMIT " . (int)AI_HISTORY_KEEP . "
+                       ) AS tmp
+                   )"
+            )->execute([$userId, $userId]);
 
-        // Bersihkan arsip lama (> N hari)
-        $db->prepare(
-            "DELETE FROM ai_chat_history_archive
-             WHERE user_id = ?
-               AND created_at < DATE_SUB(NOW(), INTERVAL " . (int)AI_HISTORY_ARCHIVE_KEEP_DAYS . " DAY)"
-        )->execute([$userId]);
-    } catch (\Throwable $e) {
-        iotzy_log_ai_nonfatal('history_cleanup', $e);
+            // Bersihkan arsip lama (> N hari)
+            $db->prepare(
+                "DELETE FROM ai_chat_history_archive
+                 WHERE user_id = ?
+                   AND created_at < DATE_SUB(NOW(), INTERVAL " . (int)AI_HISTORY_ARCHIVE_KEEP_DAYS . " DAY)"
+            )->execute([$userId]);
+        } catch (\Throwable $e) {
+            iotzy_log_ai_nonfatal('history_cleanup', $e);
+        }
     }
 }
 
@@ -1033,12 +999,14 @@ function parse_nl_to_action(
     $time    = date('Y-m-d H:i:s');
     $day     = date('l');
 
-    // Normalisasi typo umum
+    // Normalisasi typo umum — pass as separate context, not appended to command
     $commandClean = strtolower($command);
-    if (preg_match('/\b(hapu|hapuz|hps|del|remov)\b/', $commandClean)) $commandClean .= ' (maksud user: hapus)';
-    if (preg_match('/\batu[rb]?\b/',                   $commandClean)) $commandClean .= ' (maksud user: atur)';
+    $typoHints = [];
+    if (preg_match('/\b(hapu|hapuz|hps|del|remov)\b/', $commandClean)) $typoHints[] = 'User mungkin bermaksud "hapus" (delete)';
+    if (preg_match('/\batu[rb]?\b/',                   $commandClean)) $typoHints[] = 'User mungkin bermaksud "atur" (configure/set)';
+    $typoContext = $typoHints ? "\n\n[Typo hints: " . implode('; ', $typoHints) . "]" : '';
 
-    $sysPrompt    = iotzy_build_system_prompt(AI_MODEL, $ctxText, $history, $time, $day);
+    $sysPrompt    = iotzy_build_system_prompt(AI_MODEL, $ctxText . $typoContext, $history, $time, $day);
     $isSmallModel = preg_match('/(1b|2b|3b|7b|8b|mini|small|lite)/i', AI_MODEL) === 1;
 
     $promptTokens  = iotzy_estimate_tokens($sysPrompt . "\n" . $commandClean);

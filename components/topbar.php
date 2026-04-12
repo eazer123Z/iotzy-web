@@ -11,7 +11,7 @@
           </div>
         </div>
         <div class="topbar-right">
-          <button id="themeToggleBtn" onclick="toggleTheme()" class="icon-btn theme-toggle-btn" title="Ganti Tema">
+          <button id="themeToggleBtn" onclick="toggleTheme()" class="icon-btn theme-toggle-btn" title="Ganti Tema" aria-label="Toggle theme">
             <i class="fas fa-moon"></i>
           </button>
           <div class="mqtt-badge" title="Status koneksi MQTT">

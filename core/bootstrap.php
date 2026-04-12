@@ -49,6 +49,11 @@ require_once $baseDir . '/core/helpers.php';
 
 if (!headers_sent()) {
     header('X-IoTzy-Build: ' . APP_VERSION);
+    // TODO: Replace 'unsafe-inline' 'unsafe-eval' with CSP nonces for inline scripts.
+    // This requires generating a nonce per request and adding nonce="{$nonce}" to all <script> tags.
+    // Example: $cspNonce = base64_encode(random_bytes(16));
+    // Then: script-src 'self' 'nonce-{$cspNonce}' https://cdn.jsdelivr.net ...
+    // Current inline scripts in footer.php would need the nonce attribute.
     header("Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' ws: wss: https:; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: DENY');

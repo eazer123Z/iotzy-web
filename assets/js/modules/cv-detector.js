@@ -171,7 +171,7 @@ class CVDetector {
 
         // 🔥 Persist ke Database (is_active: 1)
         if (typeof apiPost === 'function') {
-            apiPost('update_cv_state', { is_active: 1 }).catch(() => {});
+            apiPost('update_cv_state', { is_active: 1 }).catch(e => console.warn('CV state update error:', e));
         }
 
         return true;
@@ -192,7 +192,7 @@ class CVDetector {
 
         // 🔥 Persist ke Database (is_active: 0)
         if (typeof apiPost === 'function') {
-            apiPost('update_cv_state', { is_active: 0 }).catch(() => {});
+            apiPost('update_cv_state', { is_active: 0 }).catch(e => console.warn('CV state update error:', e));
         }
     }
 

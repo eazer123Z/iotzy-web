@@ -54,7 +54,10 @@ function getDeviceTypeName(input) {
   return map[icon] || "Perangkat IoT";
 }
 
+const _iconCache = new Map();
 function normalizeFaIcon(input, fallback = "fa-plug") {
+  const cacheKey = `${input}|${fallback}`;
+  if (_iconCache.has(cacheKey)) return _iconCache.get(cacheKey);
   const styleTokens = new Set(["fa", "fas", "far", "fal", "fat", "fab", "fa-solid", "fa-regular", "fa-light", "fa-thin", "fa-brands"]);
   const aliases = {
     "volume-up": "fa-volume-high",
@@ -99,15 +102,20 @@ function normalizeFaIcon(input, fallback = "fa-plug") {
   if (compact.startsWith("fa-")) return aliases[compact] || compact;
 
   const withPrefix = `fa-${compact}`;
-  return aliases[withPrefix] || withPrefix || fallback;
+  const result = aliases[withPrefix] || withPrefix || fallback;
+  _iconCache.set(cacheKey, result);
+  return result;
 }
 
+let _deviceTemplatesLoadedAt = 0;
 async function ensureDeviceTemplatesLoaded() {
-  if (Array.isArray(STATE.deviceTemplates) && STATE.deviceTemplates.length) return STATE.deviceTemplates;
+  // TTL: refresh templates if older than 5 minutes
+  if (Array.isArray(STATE.deviceTemplates) && STATE.deviceTemplates.length && (Date.now() - _deviceTemplatesLoadedAt < 300000)) return STATE.deviceTemplates;
   if (STATE.deviceTemplatesPromise) return STATE.deviceTemplatesPromise;
   STATE.deviceTemplatesPromise = apiPost("get_device_templates", {})
     .then((result) => {
       STATE.deviceTemplates = result?.templates || [];
+      _deviceTemplatesLoadedAt = Date.now();
       return STATE.deviceTemplates;
     })
     .finally(() => {

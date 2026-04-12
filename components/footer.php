@@ -4,7 +4,7 @@
 <div id="toastContainer"></div>
 
 <!-- AI Chat Floating Action Button & Modal -->
-<div class="ai-chat-btn" id="aiChatBtn" title="Tanya AI untuk Automasi">
+<div class="ai-chat-btn" id="aiChatBtn" title="Tanya AI untuk Automasi" role="button" aria-label="Open AI chat assistant" tabindex="0">
     <i class="fas fa-robot"></i>
 </div>
 
@@ -27,7 +27,7 @@
     </div>
     <div class="ai-chat-footer">
         <input type="text" id="aiChatInput" class="ai-chat-input" placeholder="Tulis instruksi automasi..." autocomplete="off">
-        <button class="ai-chat-send" id="aiChatSend" title="Kirim">
+        <button class="ai-chat-send" id="aiChatSend" title="Kirim" aria-label="Send message">
             <i class="fas fa-paper-plane"></i>
         </button>
     </div>

@@ -267,7 +267,13 @@ function updateSensorBoolUI(sensorId, options = {}) {
   updateSensorValueUI(sensorId, options);
 }
 
+const _sparklineLastDraw = {};
 function drawSparkline(sensorId) {
+  // Throttle sparkline updates to max 1/second per sensor
+  const now = Date.now();
+  if (_sparklineLastDraw[sensorId] && (now - _sparklineLastDraw[sensorId]) < 1000) return;
+  _sparklineLastDraw[sensorId] = now;
+
   const canvas = document.getElementById(`spark-${sensorId}`);
   const history = (STATE.sensorHistory[String(sensorId)] || []).map((item) => typeof item === "object" ? Number(item.val) : Number(item));
   if (!canvas || history.length < 2) return;

@@ -207,6 +207,10 @@ CREATE TABLE `sensors` (
   KEY `idx_sensors_template` (`sensor_template_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- NOTE: sensor_readings will grow unbounded. For production at scale, consider:
+-- 1. Partitioning by month: ALTER TABLE sensor_readings PARTITION BY RANGE (TO_DAYS(recorded_at)) ...
+-- 2. Ensure cron cleanup (iotzy_cleanup_sensor_readings) runs daily
+-- 3. For high-volume deployments, consider TimescaleDB or InfluxDB
 CREATE TABLE `sensor_readings` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
   `sensor_id` int UNSIGNED NOT NULL,
@@ -302,7 +306,8 @@ CREATE TABLE `ai_rate_limits` (
   `action_name` varchar(50) NOT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_ai_rate_limits_user_time` (`user_id`,`action_name`,`created_at`)
+  KEY `idx_ai_rate_limits_user_time` (`user_id`,`action_name`,`created_at`),
+  KEY `idx_ai_rate_limits_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `ai_token_metrics` (
@@ -377,8 +382,8 @@ CREATE TABLE `camera_stream_sessions` (
   `source_label` varchar(100) DEFAULT NULL,
   `viewer_camera_key` varchar(100) DEFAULT NULL,
   `viewer_name` varchar(100) DEFAULT NULL,
-  `offer_sdp` longtext DEFAULT NULL,
-  `answer_sdp` longtext DEFAULT NULL,
+  `offer_sdp` text DEFAULT NULL,
+  `answer_sdp` text DEFAULT NULL,
   `status` enum('idle','awaiting_viewer','connecting','live','ended') NOT NULL DEFAULT 'idle',
   `started_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `last_publisher_heartbeat` datetime DEFAULT CURRENT_TIMESTAMP,
@@ -396,7 +401,7 @@ CREATE TABLE `camera_stream_candidates` (
   `stream_session_id` int UNSIGNED NOT NULL,
   `sender_camera_key` varchar(100) NOT NULL,
   `recipient_camera_key` varchar(100) NOT NULL,
-  `candidate_json` longtext NOT NULL,
+  `candidate_json` text NOT NULL,
   `delivered_at` datetime DEFAULT NULL,
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

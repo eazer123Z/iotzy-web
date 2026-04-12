@@ -58,7 +58,8 @@ function getLocalDB(): ?PDO {
         }
 
         $pdo = new PDO($dsn, $u, $p, $options);
-        $pdo->exec("SET NAMES " . DB_CHARSET);
+        // Note: SET NAMES is redundant since charset is already in DSN
+        // Kept as comment for reference: $pdo->exec("SET NAMES " . DB_CHARSET);
 
     } catch (Throwable $e) {
         $errorMsg = $e->getMessage();

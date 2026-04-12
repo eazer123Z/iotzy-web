@@ -19,7 +19,7 @@ const cameraLive = (() => {
   const RTC_CONFIG = buildRTCConfig();
   const REFRESH_INTERVAL = 2000;
   const POLL_INTERVAL = 2500;
-  const SNAPSHOT_PUSH_INTERVAL = 400;
+  const SNAPSHOT_PUSH_INTERVAL = 1000;
   const SNAPSHOT_PULL_INTERVAL = 450;
   const SNAPSHOT_TRACK_WAIT_MS = 1200;
 
@@ -1139,3 +1139,15 @@ function initCameraLive() {
 }
 
 window.initCameraLive = initCameraLive;
+
+// Cleanup WebRTC connections on page unload
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    try {
+      if (typeof cameraLive !== 'undefined') {
+        if (typeof cameraLive.stopPublishing === 'function') cameraLive.stopPublishing();
+        if (typeof cameraLive.stopViewing === 'function') cameraLive.stopViewing();
+      }
+    } catch (e) { /* ignore cleanup errors */ }
+  });
+}

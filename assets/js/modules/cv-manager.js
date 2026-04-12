@@ -33,7 +33,7 @@ function resetCVLoadFailureState(message = "Gagal Memuat Model") {
   setCVHeadlineStatus(message, "");
   setCVLoadingVisibility(false);
   if (typeof toggleCVActionButtons === "function") toggleCVActionButtons();
-  apiPost("update_cv_state", { model_loaded: 0 }).catch(() => {});
+  apiPost("update_cv_state", { model_loaded: 0 }).catch(e => console.warn('CV model state reset error:', e));
 }
 
 function startCVFpsMonitor() {
@@ -101,7 +101,7 @@ async function initializeCV() {
 
       if (typeof cvUI !== "undefined") cvUI.renderAutomationSettings();
       showToast("Model CV berhasil dimuat!", "success");
-      apiPost("update_cv_state", { model_loaded: 1 }).catch(() => {});
+      apiPost("update_cv_state", { model_loaded: 1 }).catch(e => console.warn('CV model state update error:', e));
       return true;
     }
 
@@ -244,23 +244,23 @@ async function saveCVRules() {
 function toggleBoundingBox(val) {
   if (typeof applyCVConfigState === "function") applyCVConfigState({ showBoundingBox: val });
   else CV.showBoxes = val;
-  if (typeof persistCVConfig === "function") persistCVConfig({ showBoundingBox: val }).catch(() => {});
-  else apiPost("save_cv_config", { config: { showBoundingBox: val, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
+  if (typeof persistCVConfig === "function") persistCVConfig({ showBoundingBox: val }).catch(e => console.warn('CV config save error:', e));
+  else apiPost("save_cv_config", { config: { showBoundingBox: val, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(e => console.warn('CV config save error:', e));
 }
 
 function toggleDebugInfo(val) {
   if (typeof applyCVConfigState === "function") applyCVConfigState({ showDebugInfo: val });
   else CV.showDebug = val;
-  if (typeof persistCVConfig === "function") persistCVConfig({ showDebugInfo: val }).catch(() => {});
-  else apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: val, minConfidence: CV.confidence } }).catch(() => {});
+  if (typeof persistCVConfig === "function") persistCVConfig({ showDebugInfo: val }).catch(e => console.warn('CV config save error:', e));
+  else apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: val, minConfidence: CV.confidence } }).catch(e => console.warn('CV config save error:', e));
 }
 
 function updateCVConfig(val) {
   const confidence = parseFloat(val) / 100;
   if (typeof applyCVConfigState === "function") applyCVConfigState({ minConfidence: confidence });
   else CV.confidence = confidence;
-  if (typeof persistCVConfig === "function") persistCVConfig({ minConfidence: confidence }).catch(() => {});
-  else apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(() => {});
+  if (typeof persistCVConfig === "function") persistCVConfig({ minConfidence: confidence }).catch(e => console.warn('CV config save error:', e));
+  else apiPost("save_cv_config", { config: { showBoundingBox: CV.showBoxes, showDebugInfo: CV.showDebug, minConfidence: CV.confidence } }).catch(e => console.warn('CV config save error:', e));
 }
 
 function onCVPersonCountUpdate(count) {

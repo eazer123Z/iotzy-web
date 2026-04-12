@@ -643,6 +643,11 @@ function getUserSensorTemplates(?PDO $db = null): array
 
 function iotzyFetchTemplateById(PDO $db, string $table, int $id): ?array
 {
+    // Whitelist allowed table names to prevent SQL injection via table name
+    $allowed = ['device_templates', 'sensor_templates'];
+    if (!in_array($table, $allowed, true)) {
+        throw new \InvalidArgumentException("Invalid template table: {$table}");
+    }
     $stmt = $db->prepare("SELECT * FROM {$table} WHERE id = ? LIMIT 1");
     $stmt->execute([$id]);
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -650,6 +655,11 @@ function iotzyFetchTemplateById(PDO $db, string $table, int $id): ?array
 
 function iotzyFetchTemplateBySlug(PDO $db, string $table, string $slug): ?array
 {
+    // Whitelist allowed table names to prevent SQL injection via table name
+    $allowed = ['device_templates', 'sensor_templates'];
+    if (!in_array($table, $allowed, true)) {
+        throw new \InvalidArgumentException("Invalid template table: {$table}");
+    }
     $stmt = $db->prepare("SELECT * FROM {$table} WHERE slug = ? LIMIT 1");
     $stmt->execute([$slug]);
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;

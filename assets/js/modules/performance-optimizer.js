@@ -9,6 +9,7 @@ const CACHE_CONFIG = {
   enabled: true,
   ttl: 1000 * 60 * 5, // 5 minutes default
   version: "v1.0.2",
+  maxEntries: 50, // LRU eviction limit
 };
 
 const CACHE_KEYS = {
@@ -69,7 +70,22 @@ const PerformanceOptimizer = {
 
     set(key, data) {
       if (!CACHE_CONFIG.enabled) return;
-      
+
+      // LRU eviction: remove oldest entries when exceeding maxEntries
+      const cacheKeys = Object.keys(PerformanceOptimizer._memoryCache);
+      if (cacheKeys.length >= CACHE_CONFIG.maxEntries) {
+        let oldestKey = null;
+        let oldestTime = Infinity;
+        for (const k of cacheKeys) {
+          const ts = PerformanceOptimizer._memoryCache[k]?.timestamp || 0;
+          if (ts < oldestTime) { oldestTime = ts; oldestKey = k; }
+        }
+        if (oldestKey) {
+          delete PerformanceOptimizer._memoryCache[oldestKey];
+          try { localStorage.removeItem(oldestKey); } catch (_) {}
+        }
+      }
+
       const entry = {
         data,
         timestamp: Date.now(),

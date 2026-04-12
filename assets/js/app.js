@@ -884,6 +884,13 @@ function escHtml(str) {
 function showToast(message, type = "info") {
   const container = document.getElementById("toastContainer");
   if (!container) return;
+
+  // Limit to max 5 visible toasts, remove oldest
+  const existing = container.querySelectorAll('.toast');
+  if (existing.length >= 5) {
+    existing[0].remove();
+  }
+
   const icons = {
     success: "fa-check-circle", error: "fa-times-circle",
     warning: "fa-exclamation-triangle", info: "fa-circle-info",
@@ -895,12 +902,13 @@ function showToast(message, type = "info") {
     <span class="toast-msg">${escHtml(message)}</span>
     <button class="toast-close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>`;
   container.appendChild(toast);
+  const duration = type === 'error' ? 5000 : 3500;
   setTimeout(() => {
     toast.style.opacity    = "0";
     toast.style.transform  = "translateX(12px)";
     toast.style.transition = "all .3s";
     setTimeout(() => toast.remove(), 300);
-  }, 3500);
+  }, duration);
 }
 
 function openModal(id) {
@@ -1010,7 +1018,8 @@ async function apiPost(action, data = {}, opts = {}) {
       : ((typeof APP_BASE !== "undefined" ? APP_BASE.replace(/\/$/, "") : "") + "/api/router.php");
     const hdrs = { "Content-Type": "application/json" };
     if (typeof CSRF_TOKEN !== "undefined") hdrs["X-CSRF-TOKEN"] = CSRF_TOKEN;
-    const timeoutMs = opts.timeout || 8000;
+    const actionTimeouts = { get_dashboard_data: 15000, update_device_state: 4000, update_sensor_value: 4000, ai_chat_fast_track: 30000 };
+    const timeoutMs = opts.timeout || actionTimeouts[action] || 8000;
     const requestData = cameraScopedActions.has(action)
       ? getCameraRequestContext(data && typeof data === "object" ? { ...data } : {})
       : data;
@@ -1322,8 +1331,10 @@ async function applySyncData(res, timestamp = Date.now()) {
     !currentSensorIds.every(id => serverSensorIdSet.has(id));
 
   if (hasStructureChanged) {
-    replaceDevicesFromSnapshot(res.devices || []);
-    replaceSensorsFromSnapshot(res.sensors || []);
+    requestAnimationFrame(() => {
+      replaceDevicesFromSnapshot(res.devices || []);
+      replaceSensorsFromSnapshot(res.sensors || []);
+    });
     await syncAutomationFromServer();
   } else if (res.devices) {
     let shouldRenderDevices = false;
@@ -1461,12 +1472,16 @@ function renderAll() {
   updateDashboardStats();
 }
 
+// Cached DOM element references for updateDashboardStats
+const _STAT_ELS = {};
+function _getStatEl(id) { return _STAT_ELS[id] || (_STAT_ELS[id] = document.getElementById(id)); }
+
 function updateDashboardStats() {
   const totalDev  = Object.keys(STATE.devices).length;
   const activeDev = Object.values(STATE.deviceStates).filter(Boolean).length;
   const totalSen  = Object.keys(STATE.sensors).length;
   const activeSen = Object.values(STATE.sensorData).filter(v => v !== null && v !== undefined).length;
-  const g = (id) => document.getElementById(id);
+  const g = _getStatEl;
   if (g("statActiveDevicesVal")) g("statActiveDevicesVal").textContent = activeDev;
   if (g("statActiveDevicesSub")) g("statActiveDevicesSub").textContent = `dari ${totalDev}`;
   if (g("statSensorsOnlineVal")) g("statSensorsOnlineVal").textContent = activeSen;
@@ -1600,13 +1615,14 @@ function scheduleIdleTask(task, timeout = 2500) {
 }
 
 function scheduleMQTTBootstrap() {
-  if (scheduleMQTTBootstrap._scheduled || typeof window === "undefined") return;
+  if (scheduleMQTTBootstrap._scheduled || scheduleMQTTBootstrap._started || typeof window === "undefined") return;
   if (typeof PHP_SETTINGS === "undefined" || !PHP_SETTINGS?.mqtt_broker || typeof connectMQTT !== "function") return;
 
   scheduleMQTTBootstrap._scheduled = true;
 
   const kickoff = () => {
-    if (STATE.mqtt.connected || document.hidden) return;
+    if (scheduleMQTTBootstrap._started || STATE.mqtt.connected || document.hidden) return;
+    scheduleMQTTBootstrap._started = true;
     scheduleIdleTask(() => {
       if (!STATE.mqtt.connected && !document.hidden) {
         connectMQTT();

@@ -456,7 +456,7 @@ const automationEngine = (() => {
         if (partial.human) nextRules.human = { ...nextRules.human, ...partial.human };
         if (partial.light) nextRules.light = { ...nextRules.light, ...partial.light };
         hydrateCVRules(nextRules, { skipEvaluate: true });
-        const persistPromise = _post('save_cv_rules', { rules: _cvRules }).catch(() => {});
+        const persistPromise = _post('save_cv_rules', { rules: _cvRules }).catch(e => console.warn('CV rules persist error:', e));
         if (_cvActive) {
             const currentCount = Math.max(0, Number(window.STATE?.cv?.personCount) || 0);
             const currentLight = window.STATE?.cv?.lightCondition || 'unknown';
@@ -490,14 +490,14 @@ const automationEngine = (() => {
                         if (!window.STATE) window.STATE = {};
                         window.STATE.schedules = data;
                     }
-                }).catch(() => {});
+                }).catch(e => console.warn('Schedule load error:', e));
             } else if (typeof apiPost === 'function') {
                 apiPost('get_schedules').then(data => {
                     if (Array.isArray(data)) {
                         if (!window.STATE) window.STATE = {};
                         window.STATE.schedules = data;
                     }
-                }).catch(() => {});
+                }).catch(e => console.warn('Schedule fetch error:', e));
             }
 
             _schedTimer = setInterval(_checkTimeRules, 30000);

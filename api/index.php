@@ -203,14 +203,7 @@ if (isset($rateLimits[$action])) {
     }
 }
 
-if ($action === 'update_cv_state') {
-    require_once __DIR__ . '/../core/UserDataService.php';
-    $state = updateUserCVState($userId, $body, $db);
-    jsonOut([
-        'success' => true,
-        'cv_state' => $state,
-    ]);
-}
+// NOTE: update_cv_state moved into CVController route for cleaner architecture
 
 $routes = [
     'get_devices' => 'DeviceController.php',
@@ -243,6 +236,7 @@ $routes = [
     'save_cv_rules' => 'CVController.php',
     'get_cv_config' => 'CVController.php',
     'save_cv_config' => 'CVController.php',
+    'update_cv_state' => 'CVController.php',
 
     'get_camera_stream_sessions' => 'CameraStreamController.php',
     'get_camera_stream_snapshot' => 'CameraStreamController.php',

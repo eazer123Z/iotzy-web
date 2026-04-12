@@ -56,4 +56,14 @@ function handleCVAction(string $action, int $userId, array $body, PDO $db): void
 
         jsonOut(['success' => true, 'config' => $savedConfig]);
     }
+
+    if ($action === 'update_cv_state') {
+        requireCsrf();
+        require_once __DIR__ . '/../core/UserDataService.php';
+        $state = updateUserCVState($userId, $body, $db);
+        jsonOut([
+            'success' => true,
+            'cv_state' => $state,
+        ]);
+    }
 }

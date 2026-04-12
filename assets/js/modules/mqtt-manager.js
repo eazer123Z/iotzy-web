@@ -19,7 +19,7 @@ function flushSensorSync(sensorId) {
   apiPost("update_sensor_value", { id: sensorId, value: slot.value }, {
     key: `sensor_sync_${sensorId}`,
     refresh: false,
-  }).catch(() => {});
+  }).catch(e => console.warn('Sensor sync error:', e));
 }
 
 function queueSensorSync(sensorId, val) {
@@ -37,7 +37,7 @@ function flushDeviceStateSync(deviceId) {
   apiPost("update_device_state", { id: deviceId, state: slot.state ? 1 : 0, trigger: "MQTT" }, {
     key: `device_state_sync_${deviceId}`,
     refresh: false,
-  }).catch(() => {});
+  }).catch(e => console.warn('Device state sync error:', e));
 }
 
 function queueDeviceStateSync(deviceId, state) {
@@ -204,6 +204,11 @@ function updateMQTTStatus(connected) {
     sv.className = "setting-val " + (connected ? "ok" : "muted"); 
   }
   
+  // Flush offline queue on reconnect
+  if (connected && _mqttOfflineQueue.length > 0) {
+    setTimeout(_flushMqttOfflineQueue, 500);
+  }
+  
   updateDashboardStats();
 }
 
@@ -227,8 +232,30 @@ function subscribeToAllTopics() {
 /**
  * Mengirim pesan ke broker MQTT (Publish).
  */
+// Offline message queue — flush on reconnect
+const _mqttOfflineQueue = [];
+
+function _flushMqttOfflineQueue() {
+  while (_mqttOfflineQueue.length > 0 && STATE.mqtt.connected && STATE.mqtt.client) {
+    const { topic, payload } = _mqttOfflineQueue.shift();
+    try {
+      const msg = new Paho.MQTT.Message(JSON.stringify(payload));
+      msg.destinationName = topic;
+      STATE.mqtt.client.send(msg);
+    } catch (e) {
+      console.warn('MQTT offline queue flush error:', e);
+      break;
+    }
+  }
+}
+
 function publishMQTT(topic, payload) {
-  if (!STATE.mqtt.connected || !STATE.mqtt.client || !topic) return false;
+  if (!topic) return false;
+  if (!STATE.mqtt.connected || !STATE.mqtt.client) {
+    // Queue for later delivery
+    _mqttOfflineQueue.push({ topic, payload });
+    return false;
+  }
   try {
     const msg = new Paho.MQTT.Message(JSON.stringify(payload));
     msg.destinationName = topic;
@@ -237,7 +264,8 @@ function publishMQTT(topic, payload) {
       detail: { topic, ok: true, payload, timestamp: Date.now() }
     }));
     return true;
-  } catch {
+  } catch (e) {
+    console.warn('MQTT publish error:', e);
     window.dispatchEvent(new CustomEvent('iotzy:mqtt-publish', {
       detail: { topic, ok: false, payload, timestamp: Date.now() }
     }));
