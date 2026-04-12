@@ -14,7 +14,9 @@
 <!-- Non-blocking font loading with preload -->
 <link rel="preload" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="<?= iotzyAssetUrl('fonts/fa/fontawesome.min.css') ?>">
+<link rel="stylesheet" href="<?= iotzyAssetUrl('fonts/fa/solid.min.css') ?>">
+<link rel="stylesheet" href="<?= iotzyAssetUrl('fonts/fa/brands.min.css') ?>">
 <script>const CSRF_TOKEN = "<?= $_SESSION['csrf_token'] ?? '' ?>";</script>
 <link rel="stylesheet" href="<?= iotzyAssetUrl('css/dashboard.css') ?>">
 <!-- Preload critical realtimeCore scripts for instant dashboard -->

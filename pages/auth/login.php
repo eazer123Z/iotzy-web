@@ -11,7 +11,9 @@ $csrf  = $csrf ?? (function_exists('generateCsrfToken') ? generateCsrfToken() : 
 <meta name="theme-color" content="#06111f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="<?= iotzyAssetUrl('fonts/fa/fontawesome.min.css') ?>">
+<link rel="stylesheet" href="<?= iotzyAssetUrl('fonts/fa/solid.min.css') ?>">
+<link rel="stylesheet" href="<?= iotzyAssetUrl('fonts/fa/brands.min.css') ?>">
 <link rel="stylesheet" href="<?= iotzyAssetUrl('css/auth.css') ?>">
 </head>
 <body class="auth-page" data-auth-mode="login">
