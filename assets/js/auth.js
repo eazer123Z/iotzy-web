@@ -1,3 +1,33 @@
+/* ═══════════════════════════════════════════════════════════════
+   IoTzy Auth — Preloader + Form Handler
+   ═══════════════════════════════════════════════════════════════ */
+
+// ── Preloader: wait for fonts + minimum display time, then reveal ──
+(function () {
+  const preloader = document.getElementById("authPreloader");
+  const wrap = document.querySelector(".wrap");
+
+  if (preloader) {
+    Promise.all([
+      document.fonts.ready,
+      new Promise((r) => setTimeout(r, 1600)),
+    ]).then(() => {
+      preloader.classList.add("fade-out");
+      // Reveal the form with slide-up
+      if (wrap) {
+        wrap.classList.add("revealed");
+      }
+      setTimeout(() => {
+        preloader.remove();
+      }, 500);
+    });
+  } else if (wrap) {
+    // No preloader? Reveal immediately
+    wrap.classList.add("revealed");
+  }
+})();
+
+// ── Form submission handler ──
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.querySelector("form.auth-form[data-auth-mode]");
   if (!form) return;
@@ -47,7 +77,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       if (response.ok && payload?.success) {
-        window.location.href = payload.redirect || successUrl || window.location.href;
+        // Smooth page exit transition before redirect
+        const redirectUrl = payload.redirect || successUrl || window.location.href;
+        document.body.classList.add("auth-page-exit");
+        setTimeout(() => {
+          window.location.href = redirectUrl;
+        }, 350);
         return;
       }
 
