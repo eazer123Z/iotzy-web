@@ -10,17 +10,17 @@
     <div class="stat-card">
       <div class="stat-icon green"><i class="fas fa-plug"></i></div>
       <div class="stat-body">
-        <div class="stat-value" id="statActiveDevicesVal">0</div>
+        <div class="stat-value" id="statActiveDevicesVal"><?= count(array_filter($devices ?? [], fn($d) => !empty($d['last_state']) || !empty($d['latest_state']))) ?></div>
         <div class="stat-label">Perangkat Aktif</div>
-        <div class="stat-sub" id="statActiveDevicesSub">dari 0 perangkat</div>
+        <div class="stat-sub" id="statActiveDevicesSub">dari <?= count($devices ?? []) ?> perangkat</div>
       </div>
     </div>
     <div class="stat-card">
       <div class="stat-icon sky"><i class="fas fa-gauge-high"></i></div>
       <div class="stat-body">
-        <div class="stat-value" id="statSensorsOnlineVal">0</div>
+        <div class="stat-value" id="statSensorsOnlineVal"><?= count(array_filter($sensors ?? [], fn($s) => $s['latest_value'] !== null)) ?></div>
         <div class="stat-label">Sensor Aktif</div>
-        <div class="stat-sub" id="statSensorsOnlineSub">dari 0 sensor</div>
+        <div class="stat-sub" id="statSensorsOnlineSub">dari <?= count($sensors ?? []) ?> sensor</div>
       </div>
     </div>
     <div class="stat-card">
@@ -34,9 +34,9 @@
     <div class="stat-card">
       <div class="stat-icon purple"><i class="fas fa-cloud"></i></div>
       <div class="stat-body">
-        <div class="stat-value" id="statMqttVal">...</div>
+        <div class="stat-value" id="statMqttVal">Offline</div>
         <div class="stat-label">Koneksi Cloud</div>
-        <div class="stat-sub" id="statMqttSub">Menghubungkan...</div>
+        <div class="stat-sub" id="statMqttSub"><?= htmlspecialchars($settings['mqtt_broker'] ?? 'Belum dikonfigurasi') ?></div>
       </div>
     </div>
   </div>

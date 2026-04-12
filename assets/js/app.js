@@ -1591,7 +1591,8 @@ function revealMainApp() {
   if (app) app.classList.remove("opacity-0");
   if (ls) {
     ls.classList.add("done");
-    setTimeout(() => { ls.style.display = "none"; }, 140);
+    // CSS transition is 0.2s — remove from DOM after transition completes
+    setTimeout(() => { ls.style.display = "none"; }, 220);
   }
   const aiBtn = document.getElementById("aiChatBtn");
   if (aiBtn) aiBtn.classList.add("show");
@@ -1627,7 +1628,7 @@ function scheduleMQTTBootstrap() {
       if (!STATE.mqtt.connected && !document.hidden) {
         connectMQTT();
       }
-    }, 1400);
+    }, 800);
   };
 
   const cleanup = () => {
@@ -1638,13 +1639,13 @@ function scheduleMQTTBootstrap() {
 
   const startOnInteraction = () => {
     cleanup();
-    setTimeout(kickoff, 900);
+    setTimeout(kickoff, 400);
   };
 
   const startOnVisible = () => {
     if (document.hidden) return;
     cleanup();
-    setTimeout(kickoff, 1200);
+    setTimeout(kickoff, 600);
   };
 
   window.addEventListener("pointerdown", startOnInteraction, { once: true, passive: true, capture: true });
@@ -1654,7 +1655,7 @@ function scheduleMQTTBootstrap() {
   setTimeout(() => {
     cleanup();
     kickoff();
-  }, 9000);
+  }, 5000);
 }
 
 async function bootstrapDeferredServices() {
@@ -1684,11 +1685,11 @@ async function bootstrapDeferredServices() {
 
     scheduleAfterFirstPaint(() => {
       startRealtimeServices().catch(() => {});
-    }, 80);
+    }, 0);
 
     scheduleIdleTask(() => {
       startAutomationServices().catch(() => {});
-    }, 2200);
+    }, 1800);
 
     realtimeCoreGroup.finally(() => {
       scheduleOptionalWarmups();
