@@ -216,6 +216,14 @@ function handleSensorAction(string $action, int $userId, array $body, PDO $db): 
         if ($senId <= 0 || $val === null || $val === '') {
             jsonOut(['success' => false, 'error' => 'Parameter data tidak valid']);
         }
+        // Guard against overflow/non-numeric values
+        if (!is_numeric($val)) {
+            jsonOut(['success' => false, 'error' => 'Nilai sensor harus berupa angka']);
+        }
+        $numVal = (float)$val;
+        if (!is_finite($numVal)) {
+            jsonOut(['success' => false, 'error' => 'Nilai sensor di luar batas yang diizinkan']);
+        }
 
         $stmt = $db->prepare("SELECT id, name, device_id FROM sensors WHERE id = ? AND user_id = ? LIMIT 1");
         $stmt->execute([$senId, $userId]);

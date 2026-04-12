@@ -1260,6 +1260,12 @@ function execute_ai_actions(int $userId, array $parsed): array
                     break;
 
                 case 'reset_system':
+                    // Guard: require explicit user confirmation token to prevent prompt injection
+                    if (empty($a['confirmed']) || $a['confirmed'] !== true) {
+                        $result['errors'][] = 'reset_system memerlukan konfirmasi eksplisit dari pengguna.';
+                        $result['needs_confirmation'] = 'reset_system';
+                        break;
+                    }
                     $db->prepare("DELETE FROM automation_rules WHERE user_id = ?")->execute([$userId]);
                     $db->prepare("DELETE FROM schedules        WHERE user_id = ?")->execute([$userId]);
                     $db->prepare("DELETE FROM devices          WHERE user_id = ?")->execute([$userId]);

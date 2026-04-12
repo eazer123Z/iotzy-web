@@ -31,7 +31,7 @@ async function loadSchedules(forceRefresh = false) {
           <div style="display:flex; justify-content:space-between; align-items:center">
             <div>
               <div style="font-weight:700; font-size:14px">${escHtml(s.label)}</div>
-              <div style="font-size:12px; color:var(--a); font-weight:600">${s.time_hhmm} - ${s.action.toUpperCase()}</div>
+              <div style="font-size:12px; color:var(--a); font-weight:600">${escHtml(s.time_hhmm || '')} - ${escHtml((s.action || 'on').toUpperCase())}</div>
             </div>
             <button onclick="deleteSchedule(${s.id})" class="icon-btn red"><i class="fas fa-trash"></i></button>
           </div>

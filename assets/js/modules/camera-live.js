@@ -418,7 +418,7 @@ const cameraLive = (() => {
       const actionBusy = state.publisher.starting || state.publisher.stopping || state.viewer.joining || state.viewer.stopping;
       let actionLabel = "Pantau Live";
       let actionDisabled = actionBusy;
-      let action = `cameraLive.watchSession('${String(session.stream_key).replace(/'/g, "\\'")}')`;
+      let action = `cameraLive.watchSession('${String(session.stream_key).replace(/\\/g, "\\\\" ).replace(/'/g, "\\'")}')`;
 
       if (session.is_owner) {
         actionLabel = state.publisher.streamKey === session.stream_key ? "Sedang Disiarkan" : "Sesi Browser Ini";
