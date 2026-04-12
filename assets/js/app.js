@@ -1153,7 +1153,7 @@ function replaceDevicesFromSnapshot(data) {
     const id = String(device.id);
     const isNew = !STATE.devices[id];
     STATE.devices[id] = { ...(STATE.devices[id] || {}), ...device, id };
-    STATE.deviceStates[id] = Boolean(Number(device.last_state ?? device.latest_state ?? 0));
+    STATE.deviceStates[id] = Boolean(Number(device.last_state ?? 0));
     STATE.deviceTopics[id] = { sub: device.topic_sub || "", pub: device.topic_pub || "" };
 
     if (STATE.deviceStates[id] && !STATE.deviceOnAt[id]) {
@@ -1354,7 +1354,7 @@ async function applySyncData(res, timestamp = Date.now()) {
         shouldRenderDevices = true;
       }
       const oldState = STATE.deviceStates[id];
-      const newState = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
+      const newState = Boolean(Number(d.last_state ?? 0));
       if (oldState !== newState) {
         if (STATE.deviceUpdating && STATE.deviceUpdating[id]) return;
         STATE.deviceStates[id] = newState;
@@ -1533,7 +1533,7 @@ function loadFromPHP() {
       PHP_DEVICES.forEach((d) => {
         const id = String(d.id);
         STATE.devices[id]      = { ...d, id };
-        STATE.deviceStates[id] = Boolean(Number(d.last_state ?? d.latest_state ?? 0));
+        STATE.deviceStates[id] = Boolean(Number(d.last_state ?? 0));
         STATE.deviceTopics[id] = { sub: d.topic_sub || "", pub: d.topic_pub || "" };
         STATE.deviceExtras[id] = { fanSpeed: 50, acMode: "cool", acTemp: 24, brightness: 100, volume: 60 };
       });

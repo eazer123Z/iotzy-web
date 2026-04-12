@@ -230,9 +230,9 @@ function handleDeviceAction(string $action, int $userId, array $body, PDO $db): 
             $prevState = (int)$dev['last_state'];
             dbWrite(
                 "UPDATE devices
-                 SET last_state = ?, latest_state = ?, last_seen = NOW(), last_state_changed = NOW()
+                 SET last_state = ?, last_seen = NOW(), last_state_changed = NOW()
                  WHERE id = ?",
-                [$newState, $newState, $devId]
+                [$newState, $devId]
             );
 
             if ($newState === 1 && $prevState === 0) {

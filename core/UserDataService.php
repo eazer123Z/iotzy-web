@@ -722,7 +722,7 @@ function getUserDevices(int $userId, ?PDO $db = null): array
                 d.state_on_label, d.state_off_label,
                 COALESCE(NULLIF(d.state_on_label, ''), dt.state_on_label, 'ON') AS resolved_state_on_label,
                 COALESCE(NULLIF(d.state_off_label, ''), dt.state_off_label, 'OFF') AS resolved_state_off_label,
-                d.is_active, d.last_state, d.latest_state, d.last_seen, d.last_state_changed, d.created_at,
+                d.is_active, d.last_state, d.last_seen, d.last_state_changed, d.created_at,
                 dt.slug AS template_slug, dt.name AS template_name, dt.device_type AS template_device_type,
                 dt.control_mode, dt.default_icon AS template_default_icon
             FROM devices d
@@ -741,7 +741,6 @@ function getUserDevices(int $userId, ?PDO $db = null): array
             $row['device_template_id'] = $row['device_template_id'] !== null ? (int)$row['device_template_id'] : null;
             $row['is_active'] = (int)$row['is_active'];
             $row['last_state'] = (int)$row['last_state'];
-            $row['latest_state'] = (int)$row['latest_state'];
             $row['model_label'] = $row['template_name'] ?: ucwords(str_replace('_', ' ', (string)$row['type']));
         }
         unset($row);
@@ -816,7 +815,7 @@ function iotzyBuildDeviceClientPayload(array $device): array
         'resolved_state_off_label' => $device['resolved_state_off_label'] ?? 'OFF',
         'is_active' => isset($device['is_active']) ? (int)$device['is_active'] : 0,
         'last_state' => isset($device['last_state']) ? (int)$device['last_state'] : 0,
-        'latest_state' => isset($device['latest_state']) ? (int)$device['latest_state'] : 0,
+
         'last_seen' => $device['last_seen'] ?? null,
         'last_state_changed' => $device['last_state_changed'] ?? null,
         'created_at' => $device['created_at'] ?? null,
@@ -2592,7 +2591,7 @@ function getDailyAnalyticsHeadlineSummary(int $userId, ?string $date = null, ?PD
     }
 
     $sessionsStmt = $db->prepare(
-        "SELECT device_id, turned_on_at, turned_off_at, energy_wh, latest_power_watts
+        "SELECT device_id, turned_on_at, turned_off_at
          FROM device_sessions
          WHERE user_id = ?
            AND turned_on_at < ?
@@ -2613,17 +2612,6 @@ function getDailyAnalyticsHeadlineSummary(int $userId, ?string $date = null, ?PD
         $duration = max(0, $overlapEnd - $overlapStart);
 
         $deviceMap[$deviceId]['active_duration_seconds'] += $duration;
-        if ($session['energy_wh'] !== null) {
-            $deviceMap[$deviceId]['energy_wh'] += (float)$session['energy_wh'];
-            $deviceMap[$deviceId]['has_power_data'] = true;
-        }
-        if ($session['latest_power_watts'] !== null) {
-            $deviceMap[$deviceId]['latest_power_watts'] = max(
-                (float)$deviceMap[$deviceId]['latest_power_watts'],
-                (float)$session['latest_power_watts']
-            );
-            $deviceMap[$deviceId]['has_power_data'] = true;
-        }
     }
 
     $powerSensors = array_values(array_filter($sensors, static function (array $sensor): bool {
@@ -2761,7 +2749,6 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
             'icon' => $device['icon'],
             'is_active' => (int)$device['is_active'],
             'last_state' => (int)$device['last_state'],
-            'latest_state' => (int)$device['latest_state'],
             'last_seen' => $device['last_seen'],
             'template_name' => $device['template_name'] ?? null,
             'template_slug' => $device['template_slug'] ?? null,
@@ -2879,28 +2866,6 @@ function getDailyAnalyticsSummary(int $userId, ?string $date = null, ?PDO $db = 
 
         $deviceMap[$deviceId]['active_duration_seconds'] += $duration;
         $deviceMap[$deviceId]['session_count']++;
-
-        if ($session['energy_wh'] !== null) {
-            $deviceMap[$deviceId]['energy_wh'] += (float)$session['energy_wh'];
-        }
-        if ($session['latest_power_watts'] !== null) {
-            $deviceMap[$deviceId]['latest_power_watts'] = max(
-                (float)($deviceMap[$deviceId]['latest_power_watts'] ?? 0),
-                (float)$session['latest_power_watts']
-            );
-        }
-        if ($session['peak_power_watts'] !== null) {
-            $deviceMap[$deviceId]['peak_power_watts'] = max(
-                (float)($deviceMap[$deviceId]['peak_power_watts'] ?? 0),
-                (float)$session['peak_power_watts']
-            );
-        }
-        if ($session['avg_power_watts'] !== null) {
-            $deviceMap[$deviceId]['avg_power_watts'] = max(
-                (float)($deviceMap[$deviceId]['avg_power_watts'] ?? 0),
-                (float)$session['avg_power_watts']
-            );
-        }
     }
 
     $powerSensors = array_values(array_filter($sensors, static function (array $sensor): bool {

@@ -373,10 +373,10 @@ function iotzy_collect_full_context(int $userId, PDO $db): array
             (SELECT COUNT(*) FROM activity_logs WHERE user_id = ? AND DATE(created_at) = CURRENT_DATE) AS total_logs,
             (SELECT COUNT(DISTINCT CASE WHEN device_id IS NOT NULL THEN device_id END) FROM activity_logs WHERE user_id = ? AND DATE(created_at) = CURRENT_DATE) AS devices_active_today,
             (SELECT COALESCE(SUM(duration_seconds), 0) FROM device_sessions WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE) AS total_duration_seconds,
-            (SELECT COALESCE(SUM(energy_wh), 0) FROM device_sessions WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE) AS total_energy_wh,
+            0 AS total_energy_wh,
             (SELECT COUNT(DISTINCT device_id) FROM device_sessions WHERE user_id = ? AND DATE(turned_on_at) = CURRENT_DATE) AS power_devices"
     );
-    $stmt->execute([$userId, $userId, $userId, $userId, $userId]);
+    $stmt->execute([$userId, $userId, $userId, $userId]);
     $analyticsRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['total_logs' => 0, 'devices_active_today' => 0, 'total_duration_seconds' => 0, 'total_energy_wh' => 0, 'power_devices' => 0];
     $totalDurationSeconds = (int)($analyticsRow['total_duration_seconds'] ?? 0);
     $energyRow = [(float)($analyticsRow['total_energy_wh'] ?? 0), (int)($analyticsRow['power_devices'] ?? 0)];
@@ -1097,7 +1097,7 @@ function execute_ai_actions(int $userId, array $parsed): array
                         if ($a['action'] === 'toggle') {
                             $db->prepare(
                                 "UPDATE devices SET last_state = 1 - last_state,
-                                 latest_state = 1 - last_state, last_seen = NOW()
+                                 last_seen = NOW()
                                  WHERE id = ? AND user_id = ?"
                             )->execute([$id, $userId]);
                             $st = $db->prepare("SELECT last_state FROM devices WHERE id = ? AND user_id = ?");
@@ -1106,9 +1106,9 @@ function execute_ai_actions(int $userId, array $parsed): array
                         } else {
                             $v = $a['action'] === 'on' ? 1 : 0;
                             $db->prepare(
-                                "UPDATE devices SET last_state = ?, latest_state = ?, last_seen = NOW()
+                                "UPDATE devices SET last_state = ?, last_seen = NOW()
                                  WHERE id = ? AND user_id = ?"
-                            )->execute([$v, $v, $id, $userId]);
+                            )->execute([$v, $id, $userId]);
                         }
                         $result['device_states'][$id] = $v;
                     }

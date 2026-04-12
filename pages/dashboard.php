@@ -10,7 +10,7 @@
     <div class="stat-card">
       <div class="stat-icon green"><i class="fas fa-plug"></i></div>
       <div class="stat-body">
-        <div class="stat-value" id="statActiveDevicesVal"><?= count(array_filter($devices ?? [], fn($d) => !empty($d['last_state']) || !empty($d['latest_state']))) ?></div>
+        <div class="stat-value" id="statActiveDevicesVal"><?= count(array_filter($devices ?? [], fn($d) => !empty($d['last_state']))) ?></div>
         <div class="stat-label">Perangkat Aktif</div>
         <div class="stat-sub" id="statActiveDevicesSub">dari <?= count($devices ?? []) ?> perangkat</div>
       </div>
