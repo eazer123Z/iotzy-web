@@ -1146,7 +1146,7 @@ if (typeof window !== 'undefined') {
     try {
       if (typeof cameraLive !== 'undefined') {
         if (typeof cameraLive.stopPublishing === 'function') cameraLive.stopPublishing();
-        if (typeof cameraLive.stopViewing === 'function') cameraLive.stopViewing();
+        if (typeof cameraLive.stopWatching === 'function') cameraLive.stopWatching();
       }
     } catch (e) { /* ignore cleanup errors */ }
   });

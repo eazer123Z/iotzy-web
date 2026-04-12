@@ -22,6 +22,8 @@ const SENSOR_AUTO_META = {
   gas:         { icon: "fa-triangle-exclamation",  color: "var(--amber)",  bg: "var(--amber-bg)",  label: "Gas",             unit: "ppm",  conditions: [{ key: "gt", label: "Terdeteksi (>)", defaultVal: 200 }], templates: [{ name: "⚠️ Gas > 200ppm → Alarm ON", condition: "gt", threshold: 200, action: "on", targetIcon: "fa-volume-up" }] },
 };
 
+let isAutoActionBusy = false;
+
 async function initAutomationRules() {
   if (!STATE.automationRules) STATE.automationRules = {};
   const result = await apiPost("get_automation_rules", {});

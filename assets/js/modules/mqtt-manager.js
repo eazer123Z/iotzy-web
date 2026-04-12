@@ -77,25 +77,10 @@ function renderMQTTTemplateSelector() {
   });
 }
 
-/**
- * Menerapkan pengaturan dari template yang dipilih ke form input.
- */
-function applyMQTTTemplate(slug) {
-  const t = (STATE.mqtt.templates || []).find(x => x.slug === slug);
-  if (!t) return;
-
-  const g = (id) => document.getElementById(id);
-  if (g("mqttBroker")) g("mqttBroker").value = t.broker;
-  if (g("mqttPort"))   g("mqttPort").value   = t.port;
-  if (g("mqttPath"))   g("mqttPath").value   = t.path;
-  if (g("mqttUseSSL")) g("mqttUseSSL").checked = !!t.use_ssl;
-  if (g("mqttUsername")) g("mqttUsername").value = t.username || "";
-  
-  showToast(`Template ${t.name} diterapkan`, "info");
-}
+// applyMQTTTemplate() is defined in settings-manager.js (single source of truth)
 
 
-async function connectMQTT() {
+async function connectMQTT(event) {
   if (isMqttActionBusy) return;
   const btn = document.getElementById("btnTestMQTT") || event?.currentTarget;
   

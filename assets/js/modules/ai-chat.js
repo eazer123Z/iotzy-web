@@ -442,17 +442,22 @@ function initAiChatModule() {
     function appendMessage(text, sender) {
         if (!text || String(text).trim() === '') return null;
 
-        const raw  = String(text).replace(/\n/g, '<br>');
-        const html = (window.DOMPurify && typeof window.DOMPurify.sanitize === 'function')
-            ? window.DOMPurify.sanitize(raw, {
+        const raw  = String(text);
+        let html;
+        if (window.DOMPurify && typeof window.DOMPurify.sanitize === 'function') {
+            // DOMPurify path: convert \n to <br> first, then sanitize
+            html = window.DOMPurify.sanitize(raw.replace(/\n/g, '<br>'), {
                 ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 'code', 'br'],
                 ALLOWED_ATTR: [],
                 FORBID_TAGS: ['style', 'script', 'svg', 'math'],
                 FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'style'],
-            })
-            : raw.replace(/[<>&'"]/g, ch => ({
+            });
+        } else {
+            // Fallback: escape HTML entities FIRST, then convert \n to <br>
+            html = raw.replace(/[<>&'"]/g, ch => ({
                 '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&#39;', '"': '&quot;',
-            }[ch]));
+            }[ch])).replace(/\n/g, '<br>');
+        }
 
         const bubble     = document.createElement('div');
         bubble.className = `chat-bubble ${sender}`;
