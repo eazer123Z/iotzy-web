@@ -78,87 +78,9 @@ body.auth-page::after {
   background: linear-gradient(180deg, transparent 0%, rgba(6, 17, 31, 0.5) 100%);
 }
 
-/* Floating orbs */
-.auth-orb {
-  position: fixed;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 0;
-  filter: blur(80px);
-  will-change: transform;
-}
+/* Orbs removed — unnecessary animation weight */
 
-.auth-orb-1 {
-  width: 400px;
-  height: 400px;
-  top: -100px;
-  right: -80px;
-  background: rgba(56, 189, 248, 0.08);
-  animation: orb-float-1 12s ease-in-out infinite;
-}
-
-.auth-orb-2 {
-  width: 350px;
-  height: 350px;
-  bottom: -80px;
-  left: -100px;
-  background: rgba(14, 165, 233, 0.06);
-  animation: orb-float-2 15s ease-in-out infinite;
-}
-
-.auth-orb-3 {
-  width: 250px;
-  height: 250px;
-  top: 40%;
-  left: 60%;
-  background: rgba(56, 189, 248, 0.04);
-  animation: orb-float-3 18s ease-in-out infinite;
-}
-
-@keyframes orb-float-1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(-30px, 40px) scale(1.05); }
-  66% { transform: translate(20px, -20px) scale(0.95); }
-}
-
-@keyframes orb-float-2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(40px, -30px) scale(1.08); }
-  66% { transform: translate(-20px, 20px) scale(0.92); }
-}
-
-@keyframes orb-float-3 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-40px, 30px) scale(1.1); }
-}
-
-/* ── Register mode — green accent override ── */
-body.auth-page[data-auth-mode="register"] {
-  --auth-accent: #22c55e;
-  --auth-accent-light: #4ade80;
-  --auth-accent-strong: #16a34a;
-  --auth-accent-bg: rgba(34, 197, 94, 0.12);
-  --auth-accent-glow: rgba(34, 197, 94, 0.22);
-}
-
-body.auth-page[data-auth-mode="register"]::before {
-  background:
-    radial-gradient(ellipse 600px 600px at 20% 20%, rgba(34, 197, 94, 0.10) 0%, transparent 70%),
-    radial-gradient(ellipse 500px 500px at 80% 80%, rgba(22, 163, 74, 0.07) 0%, transparent 70%),
-    radial-gradient(ellipse 400px 400px at 50% 50%, rgba(34, 197, 94, 0.03) 0%, transparent 70%);
-}
-
-body.auth-page[data-auth-mode="register"] .auth-orb-1 {
-  background: rgba(34, 197, 94, 0.07);
-}
-
-body.auth-page[data-auth-mode="register"] .auth-orb-2 {
-  background: rgba(22, 163, 74, 0.05);
-}
-
-body.auth-page[data-auth-mode="register"] .auth-orb-3 {
-  background: rgba(34, 197, 94, 0.03);
-}
+/* Register mode — same theme as login (consistent branding) */
 
 /* ═══════════════════════════════════════════════════════════════
    PRELOADER
@@ -203,12 +125,7 @@ body.auth-page[data-auth-mode="register"] .auth-orb-3 {
   box-shadow: 0 0 40px rgba(56, 189, 248, 0.15), 0 0 80px rgba(56, 189, 248, 0.05);
 }
 
-body.auth-page[data-auth-mode="register"] .preloader-logo {
-  color: var(--auth-accent);
-  background: rgba(34, 197, 94, 0.08);
-  border-color: rgba(34, 197, 94, 0.15);
-  box-shadow: 0 0 40px rgba(34, 197, 94, 0.15), 0 0 80px rgba(34, 197, 94, 0.05);
-}
+/* Register preloader — same as login (consistent) */
 
 @keyframes preloader-pulse {
   0%, 100% { transform: scale(1); box-shadow: 0 0 40px rgba(56, 189, 248, 0.15), 0 0 80px rgba(56, 189, 248, 0.05); }
@@ -280,17 +197,7 @@ body.auth-page[data-auth-mode="register"] .preloader-logo {
   animation: wave-drift 6s linear infinite;
 }
 
-body.auth-page[data-auth-mode="register"] .wave-1 {
-  fill: rgba(34, 197, 94, 0.06);
-}
-
-body.auth-page[data-auth-mode="register"] .wave-2 {
-  fill: rgba(34, 197, 94, 0.04);
-}
-
-body.auth-page[data-auth-mode="register"] .wave-3 {
-  fill: rgba(34, 197, 94, 0.08);
-}
+/* Register waves — same as login (consistent) */
 
 @keyframes wave-drift {
   0%   { transform: translateX(0); }
@@ -342,10 +249,7 @@ body.auth-page[data-auth-mode="register"] .wave-3 {
   box-shadow: 0 0 40px rgba(56, 189, 248, 0.18), var(--auth-shadow);
 }
 
-body.auth-page[data-auth-mode="register"] .logo {
-  background: rgba(34, 197, 94, 0.08);
-  box-shadow: 0 0 30px rgba(34, 197, 94, 0.1), var(--auth-shadow-soft);
-}
+/* Register logo — same as login (consistent) */
 
 .title {
   margin: 0 0 8px;

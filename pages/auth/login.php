@@ -32,10 +32,6 @@ $csrf  = $csrf ?? (function_exists('generateCsrfToken') ? generateCsrfToken() : 
   </div>
 </div>
 
-<!-- Floating orbs -->
-<div class="auth-orb auth-orb-1"></div>
-<div class="auth-orb auth-orb-2"></div>
-<div class="auth-orb auth-orb-3"></div>
 
 <div class="wrap">
 
